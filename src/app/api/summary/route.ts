@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { INITIAL_HACOLED_DB } from "../../../lib/store/database";
+import { computeAllDecisionMetrics } from "../../../lib/engine/analytics-engine";
+import { ROLE_POLICIES } from "../../../lib/security/rbac";
 import {
   MODULES_12,
   TASKS_58,
@@ -7,7 +10,6 @@ import {
   EVENTS_20,
   LEAD_RULES_18,
   DASHBOARDS_8,
-  ROLES_8,
   QA_TESTS_24,
   DECISIONS_12,
   SOURCES_22,
@@ -15,12 +17,25 @@ import {
 import { FIELD_DICTIONARY } from "../../../lib/spec-fields";
 
 export async function GET() {
+  const computedMetrics = computeAllDecisionMetrics(INITIAL_HACOLED_DB);
+  const roleCount = Object.keys(ROLE_POLICIES).length;
+
   return NextResponse.json({
-    system: "HACOLED | MARKETING BASE",
+    system: "HACOLED | MARKETING OS & DECISION INTELLIGENCE",
     version: "1.0",
     specDate: "2026-10-24",
-    notice:
-      "Bộ thiết kế & vận hành HacoLED Marketing Base v1.0. Tách biệt dữ liệu giả định/kiểm thử với dữ liệu vận hành thực tế.",
+    security: {
+      cipher: "AES-256-GCM (PBKDF2-SHA256 100,000 iterations)",
+      piiFirewall: "QA17 Active (Zero PII in URL/Analytics)",
+      rbacRoles: roleCount,
+    },
+    operationalMetrics: computedMetrics.map((m) => ({
+      code: m.code,
+      label: m.label,
+      formatted: m.formattedValue,
+      status: m.statusBadge ?? "healthy",
+      drillDownRowCount: m.drillDownRows.length,
+    })),
     counts: {
       modules: MODULES_12.length,
       tasks: TASKS_58.length,
@@ -30,7 +45,7 @@ export async function GET() {
       events: EVENTS_20.length,
       leadRules: LEAD_RULES_18.length,
       dashboards: DASHBOARDS_8.length,
-      roles: ROLES_8.length,
+      roles: roleCount,
       qaTests: QA_TESTS_24.length,
       decisions: DECISIONS_12.length,
       sources: SOURCES_22.length,
