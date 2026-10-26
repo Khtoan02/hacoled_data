@@ -91,9 +91,31 @@ export const revalidate = 0;
 // GET /api/survey — lấy toàn bộ kết quả
 export async function GET(req: NextRequest) {
   try {
-    const responses = await readAll();
+    let debug = { isBlob: isVercelBlob(), isVercel: isVercelEnv(), blobCount: 0, targetFound: false, error: "" };
+    let responses: unknown[] = [];
+
+    if (isVercelBlob()) {
+      try {
+        const { blobs } = await list();
+        debug.blobCount = blobs.length;
+        const target = blobs.find((b) => b.pathname === BLOB_PATH || b.pathname.includes("survey-responses"));
+        if (target?.url) {
+          debug.targetFound = true;
+          const res = await fetch(`${target.url}?t=${Date.now()}`, { cache: "no-store" });
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json)) responses = json;
+          }
+        }
+      } catch (e: any) {
+        debug.error = String(e?.message || e);
+      }
+    } else {
+      responses = readLocal();
+    }
+
     return NextResponse.json(
-      { ok: true, count: responses.length, responses },
+      { ok: true, count: responses.length, responses, debug },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
