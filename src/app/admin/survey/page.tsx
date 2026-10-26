@@ -22,18 +22,29 @@ export default function AdminSurveyPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const [loading, setLoading] = useState(false);
+
+  const fetchResponses = () => {
+    setLoading(true);
+    fetch(`/api/survey?t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        setResponses(data.responses || []);
+        setIsLoaded(true);
+        setLoading(false);
+      })
+      .catch(() => {
+        setIsLoaded(true);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (sessionStorage.getItem("hacoled_auth") !== "ok") {
       router.replace("/");
       return;
     }
-    fetch("/api/survey")
-      .then((r) => r.json())
-      .then((data) => {
-        setResponses(data.responses || []);
-        setIsLoaded(true);
-      })
-      .catch(() => setIsLoaded(true));
+    fetchResponses();
   }, [router]);
 
   const notify = (type: "success" | "error", text: string) => {
@@ -145,6 +156,15 @@ export default function AdminSurveyPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={fetchResponses}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 active:scale-95 transition-all"
+              title="Làm mới dữ liệu"
+            >
+              <span className={loading ? "animate-spin" : ""}>🔄</span>
+              {loading ? "Đang tải..." : "Làm mới"}
+            </button>
             <button
               onClick={() => router.push("/admin")}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"

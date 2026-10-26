@@ -38,21 +38,33 @@ function writeLocal(data: unknown[]) {
 // ─── Unified Read / Write ────────────────────────────────────────────────────
 async function readAll(): Promise<unknown[]> {
   if (isVercelBlob()) {
+    // Thử dùng SDK get() trước
     try {
       const result = await get(BLOB_PATH, { access: "public", useCache: false });
       if (result && result.statusCode === 200 && result.stream) {
         const json = await new Response(result.stream).json();
-        return Array.isArray(json) ? json : [];
+        if (Array.isArray(json)) return json;
       }
-      return [];
-    } catch (e: unknown) {
-      // Nếu file chưa tồn tại trên Blob, trả về mảng rỗng
-      if (typeof e === "object" && e !== null && "name" in e && (e as { name: string }).name === "BlobNotFoundError") {
-        return [];
-      }
-      console.error("Vercel Blob read error:", e);
-      return [];
+    } catch {
+      // Bỏ qua lỗi để thử fallback trực tiếp
     }
+
+    // Fallback: đọc trực tiếp từ Public URL của Store
+    try {
+      const storeId = process.env.BLOB_STORE_ID?.replace("store_", "").toLowerCase();
+      if (storeId) {
+        const url = `https://${storeId}.public.blob.vercel-storage.com/${BLOB_PATH}?t=${Date.now()}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json)) return json;
+        }
+      }
+    } catch (e) {
+      console.error("Direct fetch fallback error:", e);
+    }
+
+    return [];
   }
 
   if (isVercelEnv()) {
@@ -85,11 +97,23 @@ async function writeAll(data: unknown[]): Promise<void> {
 
 // ─── Route Handlers ──────────────────────────────────────────────────────────
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // GET /api/survey — lấy toàn bộ kết quả
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const responses = await readAll();
-    return NextResponse.json({ ok: true, responses });
+    return NextResponse.json(
+      { ok: true, count: responses.length, responses },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
