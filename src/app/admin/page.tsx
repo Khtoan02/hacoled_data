@@ -648,206 +648,327 @@ export default function HacoledMarketingOS() {
 
   const currentRolePolicy = ROLE_POLICIES[activeRole];
 
+  // Sidebar menu groups with RBAC
+  const menuGroups = [
+    {
+      label: "Phân tích",
+      items: [
+        {
+          id: "executive" as WorkspaceTab,
+          icon: "📊",
+          label: "Báo cáo Quyết định",
+          badge: "D01–D08",
+          canAccess: true,
+        },
+      ],
+    },
+    {
+      label: "CRM & Kinh doanh",
+      items: [
+        {
+          id: "crm_pipeline" as WorkspaceTab,
+          icon: "📥",
+          label: "Tiếp nhận Lead & CRM",
+          badge: "B07/B08",
+          canAccess:
+            currentRolePolicy.canConfirmCustomerStatus ||
+            currentRolePolicy.canViewRawPii,
+        },
+      ],
+    },
+    {
+      label: "Chiến lược",
+      items: [
+        {
+          id: "strategy_lab" as WorkspaceTab,
+          icon: "🎯",
+          label: "Chiến lược & Insight",
+          badge: "B01–B03",
+          canAccess:
+            currentRolePolicy.canApproveClaimsAndInsights ||
+            activeRole === "lead_marketing" ||
+            activeRole === "executive",
+        },
+      ],
+    },
+    {
+      label: "Nội dung & Kênh",
+      items: [
+        {
+          id: "content_channels" as WorkspaceTab,
+          icon: "✍️",
+          label: "Nội dung & UTM",
+          badge: "B05/B06",
+          canAccess:
+            currentRolePolicy.canPublishContent ||
+            currentRolePolicy.canEditRawMetrics,
+        },
+      ],
+    },
+    {
+      label: "Team & Vận hành",
+      items: [
+        {
+          id: "team_cost" as WorkspaceTab,
+          icon: "👤",
+          label: "Nhân sự & Chi phí",
+          badge: "B04/B11",
+          canAccess:
+            currentRolePolicy.canViewSalaryAndHrPrivate ||
+            activeRole === "lead_marketing",
+        },
+        {
+          id: "team_survey" as WorkspaceTab,
+          icon: "📋",
+          label: "Khảo sát Team",
+          badge: "Survey",
+          canAccess: true,
+          isExternalNav: true,
+          href: "/admin/survey",
+        },
+      ],
+    },
+    {
+      label: "Bảo mật & Hệ thống",
+      items: [
+        {
+          id: "security_qa" as WorkspaceTab,
+          icon: "🔒",
+          label: "Bảo mật & Kiểm thử QA",
+          badge: "B12/QA24",
+          canAccess:
+            currentRolePolicy.canManagePermissions ||
+            activeRole === "lead_marketing" ||
+            activeRole === "executive",
+        },
+      ],
+    },
+  ];
+
+  const PAGE_META: Record<WorkspaceTab, { title: string; desc: string }> = {
+    executive: {
+      title: "Báo cáo Quyết định & Phễu Chuyển đổi",
+      desc: "Chỉ số D01–D08 · Drill-down truy nguyên dữ liệu (QA24)",
+    },
+    crm_pipeline: {
+      title: "Tiếp nhận Lead, CRM & Tài chính",
+      desc: "Intake Engine · B07/B08 · Phân tách tài chính 3 tầng QA16",
+    },
+    strategy_lab: {
+      title: "Chiến lược, Thị trường & Insight",
+      desc: "Phân khúc · Persona · TAM/SAM/SOM · B01–B03/B10",
+    },
+    content_channels: {
+      title: "Sản xuất Nội dung, UTM & Kênh",
+      desc: "Brief → Asset → Publication · UTM Firewall B08-02 · B05/B06",
+    },
+    team_cost: {
+      title: "Nguồn lực, Chi phí & Nhân sự",
+      desc: "RBAC Nhân sự · Chi phí vận hành · B04/B11",
+    },
+    security_qa: {
+      title: "Bảo mật AES-256 & Kiểm thử QA",
+      desc: "AES-256-GCM · RBAC · 24 ca kiểm thử tự động · B12/QA24",
+    },
+    team_survey: { title: "Khảo sát Team", desc: "" },
+  };
+
+  const currentPageMeta = PAGE_META[activeTab];
+
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50/80 text-zinc-900 selection:bg-zinc-900 selection:text-white">
-      {/* Top Shadcn-Style Command Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          {/* Brand & System Status */}
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs tracking-tighter shadow-xs">
-              HL
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm tracking-tight text-zinc-950">
-                HacoLED Data
-              </span>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                v1.0
-              </Badge>
-              <Badge
-                variant={db.meta.isPeriodComplete ? "success" : "warning"}
-                className="hidden sm:inline-flex"
-              >
-                <StatusDot
-                  variant={db.meta.isPeriodComplete ? "success" : "warning"}
-                  pulse={!db.meta.isPeriodComplete}
-                />
-                <span>
-                  Kỳ {db.meta.currentPeriod}{" "}
-                  {db.meta.isPeriodComplete ? "(Đủ kỳ)" : "(MTD - Chưa hết tháng)"}
-                </span>
-                <InfoTooltip
-                  title="Cảnh báo So sánh Kỳ chưa kết thúc (QA14)"
-                  formula="isPeriodComplete = false"
-                  source="Baseline Control (B09-02)"
-                  guardrail="Khi tháng hiện tại chưa kết thúc, không được so sánh trực tiếp tổng tháng đang chạy với tổng tháng trước đầy đủ."
-                />
-              </Badge>
-            </div>
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+
+      {/* ── TOPBAR ── */}
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-zinc-200 flex items-center px-4 gap-4">
+        {/* Logo + Brand (same width as sidebar) */}
+        <div className="flex items-center gap-2.5 w-60 shrink-0">
+          <div className="h-8 w-8 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs tracking-tighter shadow-xs">
+            HL
           </div>
-
-          {/* Right Controls: Live QA Status + AES-256 Badge + RBAC Role Switcher */}
-          <div className="flex items-center gap-2.5">
-            {qaReport && (
-              <button
-                onClick={() => setActiveTab("security_qa")}
-                className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50/80 text-emerald-900 text-xs font-medium hover:bg-emerald-100 transition-colors"
-              >
-                <StatusDot variant="success" />
-                <span className="font-mono font-semibold">
-                  QA: {qaReport.passedCount}/{qaReport.totalTests} PASS
-                </span>
-              </button>
-            )}
-
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-zinc-200 bg-zinc-100/70 text-xs">
-              <StatusDot
-                variant={currentRolePolicy.canViewRawPii ? "info" : "warning"}
-              />
-              <span className="text-zinc-500">PII:</span>
-              <span className="font-mono font-semibold text-zinc-800">
-                {currentRolePolicy.canViewRawPii ? "UNMASKED" : "MASKED (QA18)"}
-              </span>
-              <InfoTooltip
-                title="Chế độ Bảo vệ Dữ liệu Cá nhân (RBAC & QA18)"
-                formula="maskPhone() / maskContactName() theo Role"
-                source="09_PHAN_QUYEN & Luật BVDLCN 91/2025/QH15"
-                guardrail={currentRolePolicy.guardrail}
-                align="right"
-              />
-            </div>
-
-            {/* Role Switcher */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-zinc-500 hidden sm:inline">
-                Vai trò:
-              </span>
-              <select
-                aria-label="Chọn vai trò phân quyền"
-                value={activeRole}
-                onChange={(e) =>
-                  handleRoleSwitch(e.target.value as SystemRoleId)
-                }
-                className="h-8 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-zinc-900"
-              >
-                {Object.values(ROLE_POLICIES).map((rp) => (
-                  <option key={rp.roleId} value={rp.roleId}>
-                    [{rp.badgeCode}] {rp.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Logout Button */}
-            <button
-              onClick={() => {
-                sessionStorage.removeItem("hacoled_auth");
-                router.push("/");
-              }}
-              className="h-8 px-3 rounded-md border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
-            >
-              Đăng xuất
-            </button>
-          </div>
+          <span className="font-semibold text-sm tracking-tight text-zinc-950">
+            HacoLED Data
+          </span>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            v1.0
+          </Badge>
         </div>
 
-        {/* Shadcn Segmented Workspace Navigation */}
-        <div className="border-t border-zinc-200 bg-zinc-100/60">
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 flex items-center justify-between overflow-x-auto py-1.5 gap-2">
-            <nav className="flex items-center gap-1">
-              {(
-                [
-                  {
-                    id: "executive",
-                    label: "1. Báo cáo Quyết định & Phễu",
-                    badge: "D01–D08",
-                  },
-                  {
-                    id: "crm_pipeline",
-                    label: "2. Tiếp nhận Lead, CRM & Tài chính",
-                    badge: `B07/B08 (${db.inquiries.filter((i) => i.validity === "valid").length})`,
-                  },
-                  {
-                    id: "strategy_lab",
-                    label: "3. Chiến lược, Thị trường & Insight",
-                    badge: "B01–B03/B10",
-                  },
-                  {
-                    id: "content_channels",
-                    label: "4. Sản xuất Nội dung, UTM & Kênh",
-                    badge: `B05/B06 (${db.assets.length}→${db.publications.length})`,
-                  },
-                  {
-                    id: "team_cost",
-                    label: "5. Nguồn lực, Chi phí & Nhân sự",
-                    badge: "B04/B11",
-                  },
-                  {
-                    id: "security_qa",
-                    label: "6. Bảo mật AES-256, RBAC & Kiểm thử QA",
-                    badge: "B12/QA24",
-                  },
-                ] as const
-              ).map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                      isActive
-                        ? "bg-white text-zinc-950 shadow-xs border border-zinc-200/90 font-semibold"
-                        : "text-zinc-600 hover:text-zinc-950 hover:bg-white/50"
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span
-                      className={`font-mono text-[10px] px-1.5 py-0.2 rounded ${
-                        isActive
-                          ? "bg-zinc-900 text-white"
-                          : "bg-zinc-200/80 text-zinc-700"
+        {/* Center: Status badges */}
+        <div className="flex-1 flex items-center gap-2">
+          <Badge
+            variant={db.meta.isPeriodComplete ? "success" : "warning"}
+            className="hidden sm:inline-flex"
+          >
+            <StatusDot
+              variant={db.meta.isPeriodComplete ? "success" : "warning"}
+              pulse={!db.meta.isPeriodComplete}
+            />
+            <span>
+              Kỳ {db.meta.currentPeriod}{" "}
+              {db.meta.isPeriodComplete ? "(Đủ kỳ)" : "(MTD - Chưa hết tháng)"}
+            </span>
+            <InfoTooltip
+              title="Cảnh báo So sánh Kỳ chưa kết thúc (QA14)"
+              formula="isPeriodComplete = false"
+              source="Baseline Control (B09-02)"
+              guardrail="Khi tháng hiện tại chưa kết thúc, không được so sánh trực tiếp tổng tháng đang chạy với tổng tháng trước đầy đủ."
+            />
+          </Badge>
+          {qaReport && (
+            <button
+              onClick={() => setActiveTab("security_qa")}
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50/80 text-emerald-900 text-xs font-medium hover:bg-emerald-100 transition-colors"
+            >
+              <StatusDot variant="success" />
+              <span className="font-mono font-semibold">
+                QA: {qaReport.passedCount}/{qaReport.totalTests} PASS
+              </span>
+            </button>
+          )}
+        </div>
+
+        {/* Right: PII + Role + Logout */}
+        <div className="flex items-center gap-2.5">
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-zinc-200 bg-zinc-100/70 text-xs">
+            <StatusDot
+              variant={currentRolePolicy.canViewRawPii ? "info" : "warning"}
+            />
+            <span className="text-zinc-500">PII:</span>
+            <span className="font-mono font-semibold text-zinc-800">
+              {currentRolePolicy.canViewRawPii ? "UNMASKED" : "MASKED (QA18)"}
+            </span>
+            <InfoTooltip
+              title="Chế độ Bảo vệ Dữ liệu Cá nhân (RBAC & QA18)"
+              formula="maskPhone() / maskContactName() theo Role"
+              source="09_PHAN_QUYEN & Luật BVDLCN 91/2025/QH15"
+              guardrail={currentRolePolicy.guardrail}
+              align="right"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-zinc-500 hidden sm:inline">Vai trò:</span>
+            <select
+              aria-label="Chọn vai trò phân quyền"
+              value={activeRole}
+              onChange={(e) => handleRoleSwitch(e.target.value as SystemRoleId)}
+              className="h-8 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            >
+              {Object.values(ROLE_POLICIES).map((rp) => (
+                <option key={rp.roleId} value={rp.roleId}>
+                  [{rp.badgeCode}] {rp.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("hacoled_auth");
+              router.push("/");
+            }}
+            className="h-8 px-3 rounded-md border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+          >
+            Đăng xuất
+          </button>
+        </div>
+      </header>
+
+      {/* ── SIDEBAR ── */}
+      <aside className="fixed left-0 top-14 h-[calc(100vh-56px)] w-60 bg-zinc-950 text-white flex flex-col overflow-y-auto z-40">
+        {/* Role info card */}
+        <div className="px-3 py-3 border-b border-white/10">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Vai trò hiện tại</div>
+          <div className="text-sm font-semibold text-white">{currentRolePolicy.label}</div>
+          <div className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{currentRolePolicy.summary}</div>
+        </div>
+
+        {/* Navigation menu */}
+        <nav className="flex-1 py-3 px-2 space-y-4">
+          {menuGroups.map((group) => (
+            <div key={group.label}>
+              <div className="px-2 mb-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">
+                {group.label}
+              </div>
+              {group.items.map((item) => {
+                const isActive = activeTab === item.id;
+                const isDisabled = !item.canAccess;
+
+                if ("isExternalNav" in item && item.isExternalNav) {
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => router.push(item.href as string)}
+                      title={isDisabled ? "Không đủ quyền" : undefined}
+                      disabled={isDisabled}
+                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs transition-all ${
+                        isDisabled
+                          ? "opacity-40 cursor-not-allowed text-zinc-400"
+                          : "text-zinc-400 hover:text-white hover:bg-white/5"
                       }`}
                     >
-                      {tab.badge}
+                      <span className="text-sm">{item.icon}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-zinc-400">
+                        {item.badge}
+                      </span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => !isDisabled && setActiveTab(item.id)}
+                    title={isDisabled ? "Không đủ quyền" : undefined}
+                    disabled={isDisabled}
+                    className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs transition-all ${
+                      isActive
+                        ? "bg-white/10 text-white font-semibold"
+                        : isDisabled
+                        ? "opacity-40 cursor-not-allowed text-zinc-400"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="text-sm">{item.icon}</span>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <span
+                      className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
+                        isActive
+                          ? "bg-white text-zinc-900"
+                          : "bg-white/10 text-zinc-400"
+                      }`}
+                    >
+                      {item.badge}
                     </span>
                   </button>
                 );
               })}
-
-              {/* Tab 7: Khảo sát Team */}
-              <button
-                onClick={() => router.push("/admin/survey")}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap text-zinc-600 hover:text-zinc-950 hover:bg-white/50"
-              >
-                <span>7. Khảo sát Team</span>
-                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-200/80 text-zinc-700">
-                  Survey
-                </span>
-              </button>
-            </nav>
-
-            <div className="hidden xl:flex items-center gap-2 text-[11px] text-zinc-500">
-              <span>Baseline: {db.meta.baselineStartDate}</span>
-              <span>•</span>
-              <span>Pilot: Trường học</span>
             </div>
-          </div>
-        </div>
-      </header>
+          ))}
+        </nav>
 
-      {/* Notification Banner */}
-      {notice && (
-        <div
-          className={`border-b px-4 py-2 text-xs font-medium flex items-center justify-between ${
-            notice.type === "error"
-              ? "bg-rose-50 border-rose-200 text-rose-900"
-              : notice.type === "warning"
-              ? "bg-amber-50 border-amber-200 text-amber-900"
-              : "bg-emerald-50 border-emerald-200 text-emerald-900"
-          }`}
-        >
-          <div className="max-w-[1440px] mx-auto w-full flex items-center justify-between gap-4">
+        {/* Sidebar footer */}
+        <div className="px-3 py-3 border-t border-white/10 text-[11px] text-zinc-500">
+          <div>Baseline: {db.meta.baselineStartDate}</div>
+          <div>Pilot: Trường học</div>
+        </div>
+      </aside>
+
+      {/* ── CONTENT AREA ── */}
+      <div className="ml-60 pt-14 min-h-screen flex flex-col">
+
+        {/* Notification Banner */}
+        {notice && (
+          <div
+            className={`border-b px-6 py-2 text-xs font-medium flex items-center justify-between ${
+              notice.type === "error"
+                ? "bg-rose-50 border-rose-200 text-rose-900"
+                : notice.type === "warning"
+                ? "bg-amber-50 border-amber-200 text-amber-900"
+                : "bg-emerald-50 border-emerald-200 text-emerald-900"
+            }`}
+          >
             <div className="flex items-center gap-2">
               <StatusDot
                 variant={
@@ -867,11 +988,18 @@ export default function HacoledMarketingOS() {
               Đóng
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Main Workspace Container */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
+        {/* Page header */}
+        <div className="px-6 py-5 border-b border-zinc-200 bg-white">
+          <h1 className="text-lg font-bold text-zinc-950">{currentPageMeta.title}</h1>
+          {currentPageMeta.desc && (
+            <p className="text-sm text-zinc-500 mt-0.5">{currentPageMeta.desc}</p>
+          )}
+        </div>
+
+        {/* Tab content */}
+        <main className="flex-1 px-6 py-5 space-y-5">
         {/* =================================================================
             WORKSPACE 1: EXECUTIVE DECISION HUB & FUNNEL INTELLIGENCE (D01-D08)
            ================================================================= */}
@@ -2755,23 +2883,8 @@ export default function HacoledMarketingOS() {
             </div>
           </div>
         )}
-      </main>
-
-      {/* Minimalist Footer */}
-      <footer className="bg-white border-t border-zinc-200 py-3 px-4 sm:px-6 text-[11px] text-zinc-500">
-        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <StatusDot variant="success" />
-            <span>
-              <strong>HacoLED Marketing OS v1.0</strong> — Hệ thống Quản trị
-              Quyết định, Phễu Chuyển đổi & Bảo mật Dữ liệu Marketing
-            </span>
-          </div>
-          <div className="font-mono">
-            AES-256-GCM • RBAC PII Firewall • 28/28 Automated QA Verified
-          </div>
-        </div>
-      </footer>
+        </main>
+      </div>
     </div>
   );
 }
