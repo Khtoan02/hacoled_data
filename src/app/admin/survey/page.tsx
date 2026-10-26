@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   loadSurveyResponses,
   deleteSurveyResponse,
@@ -8,11 +9,13 @@ import {
   exportResponsesAsCsv,
   SurveyResponse,
   SURVEY_QUESTIONS,
+  getAnswerText,
 } from "../../../lib/survey-store";
 
 type AdminView = "overview" | "detail";
 
 export default function AdminSurveyPage() {
+  const router = useRouter();
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [view, setView] = useState<AdminView>("overview");
@@ -22,9 +25,13 @@ export default function AdminSurveyPage() {
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
+    if (sessionStorage.getItem("hacoled_auth") !== "ok") {
+      router.replace("/");
+      return;
+    }
     setResponses(loadSurveyResponses());
     setIsLoaded(true);
-  }, []);
+  }, [router]);
 
   const notify = (type: "success" | "error", text: string) => {
     setNotice({ type, text });
@@ -71,7 +78,7 @@ export default function AdminSurveyPage() {
         : Math.round(
             responses.reduce((sum, r) => {
               const totalLen = Object.values(r.answers).reduce(
-                (s, a) => s + (a?.length || 0),
+                (s, a) => s + (getAnswerText(a)?.length || 0),
                 0
               );
               return sum + totalLen / Math.max(1, Object.keys(r.answers).length);
@@ -126,6 +133,12 @@ export default function AdminSurveyPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/admin")}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+            >
+              ← Admin
+            </button>
             <a
               href="/survey"
               target="_blank"
@@ -193,6 +206,7 @@ export default function AdminSurveyPage() {
               <div className="divide-y divide-zinc-100">
                 {SURVEY_QUESTIONS.map((q, idx) => {
                   const ans = selectedResponse.answers[q.id];
+                  const ansText = getAnswerText(ans);
                   return (
                     <div key={q.id} className="px-6 py-5">
                       <div className="flex items-baseline gap-2 mb-2">
@@ -206,13 +220,13 @@ export default function AdminSurveyPage() {
                       <p className="text-sm font-semibold text-zinc-800 mb-2 leading-snug">
                         {q.label}
                       </p>
-                      {ans?.trim() ? (
+                      {ansText?.trim() ? (
                         <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4">
                           <p className="text-sm text-zinc-800 leading-relaxed whitespace-pre-wrap">
-                            {ans}
+                            {ansText}
                           </p>
                           <p className="text-right text-[11px] text-zinc-400 mt-2">
-                            {ans.length} ký tự
+                            {ansText.length} ký tự
                           </p>
                         </div>
                       ) : (
@@ -259,7 +273,7 @@ export default function AdminSurveyPage() {
                 <div className="space-y-4">
                   {SURVEY_QUESTIONS.map((q, idx) => {
                     const answersList = responses
-                      .map((r) => ({ name: r.respondent_name, ans: r.answers[q.id] }))
+                      .map((r) => ({ name: r.respondent_name, ans: getAnswerText(r.answers[q.id]) }))
                       .filter((a) => a.ans?.trim());
                     return (
                       <div
@@ -286,7 +300,7 @@ export default function AdminSurveyPage() {
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[11px] font-semibold text-zinc-500 mb-0.5">{a.name}</p>
                                   <p className="text-sm text-zinc-800 leading-relaxed break-words line-clamp-3">
-                                    {a.ans}
+                                    {getAnswerText(a.ans)}
                                   </p>
                                 </div>
                               </div>
@@ -349,7 +363,7 @@ export default function AdminSurveyPage() {
                   )
                   .map((r) => {
                     const answeredCount = SURVEY_QUESTIONS.filter(
-                      (q) => r.answers[q.id]?.trim()
+                      (q) => getAnswerText(r.answers[q.id])?.trim()
                     ).length;
                     const completePct = Math.round(
                       (answeredCount / SURVEY_QUESTIONS.length) * 100
@@ -388,9 +402,9 @@ export default function AdminSurveyPage() {
                             {answeredCount}/{SURVEY_QUESTIONS.length} câu
                           </p>
                           {/* Preview first answer */}
-                          {r.answers[SURVEY_QUESTIONS[0].id] && (
+                          {getAnswerText(r.answers[SURVEY_QUESTIONS[0].id]) && (
                             <p className="text-xs text-zinc-500 mt-1 line-clamp-1 italic">
-                              &ldquo;{r.answers[SURVEY_QUESTIONS[0].id]}&rdquo;
+                              &ldquo;{getAnswerText(r.answers[SURVEY_QUESTIONS[0].id])}&rdquo;
                             </p>
                           )}
                         </div>
