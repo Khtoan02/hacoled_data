@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  loadSurveyResponses,
-  deleteSurveyResponse,
   exportResponsesAsJson,
   exportResponsesAsCsv,
   SurveyResponse,
@@ -29,8 +27,13 @@ export default function AdminSurveyPage() {
       router.replace("/");
       return;
     }
-    setResponses(loadSurveyResponses());
-    setIsLoaded(true);
+    fetch("/api/survey")
+      .then((r) => r.json())
+      .then((data) => {
+        setResponses(data.responses || []);
+        setIsLoaded(true);
+      })
+      .catch(() => setIsLoaded(true));
   }, [router]);
 
   const notify = (type: "success" | "error", text: string) => {
@@ -51,16 +54,25 @@ export default function AdminSurveyPage() {
   const handleDelete = (responseId: string, name: string) => {
     if (!window.confirm(`Xóa câu trả lời của "${name}"? Không thể khôi phục.`)) return;
     setDeletingId(responseId);
-    setTimeout(() => {
-      deleteSurveyResponse(responseId);
-      setResponses(loadSurveyResponses());
-      setDeletingId(null);
-      if (selectedResponse?.response_id === responseId) {
-        setSelectedResponse(null);
-        setView("overview");
-      }
-      notify("success", `Đã xóa câu trả lời của "${name}".`);
-    }, 400);
+    fetch(`/api/survey?id=${responseId}`, { method: "DELETE" })
+      .then((r) => r.json())
+      .then((data) => {
+        setDeletingId(null);
+        if (data.ok) {
+          setResponses((prev) => prev.filter((r) => r.response_id !== responseId));
+          if (selectedResponse?.response_id === responseId) {
+            setSelectedResponse(null);
+            setView("overview");
+          }
+          notify("success", `Đã xóa câu trả lời của "${name}".`);
+        } else {
+          notify("error", "Xóa thất bại, vui lòng thử lại.");
+        }
+      })
+      .catch(() => {
+        setDeletingId(null);
+        notify("error", "Lỗi kết nối server.");
+      });
   };
 
   const handleViewDetail = (r: SurveyResponse) => {

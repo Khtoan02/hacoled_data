@@ -3,7 +3,6 @@
 import React, { useState, useRef } from "react";
 import {
   SURVEY_QUESTIONS,
-  saveSurveyResponse,
   SurveyResponse,
   SurveyQuestion,
 } from "../../lib/survey-store";
@@ -416,7 +415,7 @@ export default function SurveyPage() {
     setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
     SURVEY_QUESTIONS.forEach((q) => {
@@ -443,12 +442,25 @@ export default function SurveyPage() {
       submitted_at: new Date().toISOString(),
       answers,
     };
-    saveSurveyResponse(response);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/survey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(response),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSubmitting(false);
+        setStep("done");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setSubmitting(false);
+        alert("Có lỗi khi lưu câu trả lời: " + (data.error || "Vui lòng thử lại."));
+      }
+    } catch {
       setSubmitting(false);
-      setStep("done");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 600);
+      alert("Không thể kết nối server. Vui lòng thử lại.");
+    }
   };
 
   const answeredCount = SURVEY_QUESTIONS.filter((q) => isAnswered(q)).length;
