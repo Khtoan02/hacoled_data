@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HacoLED — Khảo sát Team</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .fade-in { animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    textarea { resize: vertical; }
+    .spin { animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-zinc-50 min-h-screen text-zinc-900">
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const ADMIN_PASSWORD = "hacoled2026";
+
+// ─── 26 CÂU HỎI 5W1H ────────────────────────────────────────────────────────
+const QUESTIONS = [
+  // A. WHO
+  { id:"q01", section:"A. WHO", sectionLabel:"Bạn là ai và đang phối hợp với ai?", num:1, label:"Tên và thời điểm tham gia", desc:"Bạn tên gì? Bạn bắt đầu tham gia HacoLED từ tháng/năm nào?", type:"text_short", required:true, placeholder:"Ví dụ: Nguyễn Văn A — tháng 8/2024" },
+  { id:"q02", section:"A. WHO", sectionLabel:"Bạn là ai và đang phối hợp với ai?", num:2, label:"Hình thức làm việc hiện tại", desc:"Hình thức làm việc hiện tại của bạn là gì?", type:"select_single", required:true, options:["Nhân sự toàn thời gian","Thực tập sinh bán thời gian","Hình thức khác","Chưa thống nhất rõ"] },
+  { id:"q03", section:"A. WHO", sectionLabel:"Bạn là ai và đang phối hợp với ai?", num:3, label:"Người giao việc và người xem lại", desc:"Ai thường giao việc cho bạn? Ai xem lại hoặc duyệt sản phẩm? Khi vướng, bạn thường hỏi ai?", type:"text_long", required:true, placeholder:"Ví dụ: Anh/chị X giao việc, chị Y duyệt nội dung..." },
+  // B. WHAT
+  { id:"q04", section:"B. WHAT", sectionLabel:"Bạn đang thực sự làm những việc gì?", num:4, label:"Công việc trong 5 ca gần nhất", desc:"Liệt kê tối đa 3-5 việc bạn đã làm trong 5 ca gần nhất. Mỗi việc ghi: làm gì, cho kênh/bộ phận nào, đã xong hay đang làm.", type:"text_long", required:true, placeholder:"Ví dụ:\n1. Viết 3 bài Facebook về công trình trường học — Kênh FB — Đã đăng\n2. Thiết kế ảnh cho bài website — Web — Đang làm" },
+  { id:"q05", section:"B. WHAT", sectionLabel:"Bạn đang thực sự làm những việc gì?", num:5, label:"Phần việc của riêng bạn", desc:"Trong các việc trên, việc nào bạn làm từ đầu đến cuối? Việc nào bạn chỉ hỗ trợ một phần?", type:"text_long", required:true, placeholder:"Ví dụ: Bài Facebook mình tự viết từ đầu đến cuối..." },
+  { id:"q06", section:"B. WHAT", sectionLabel:"Bạn đang thực sự làm những việc gì?", num:6, label:"Việc đang dở và việc cần duy trì", desc:"Hiện có việc nào bạn đang nhận, đang chờ duyệt hoặc phải làm định kỳ không?", type:"text_long", required:true, placeholder:"Ví dụ: Đang chờ duyệt bài website — hạn thứ Sáu..." },
+  { id:"q07", section:"B. WHAT", sectionLabel:"Bạn đang thực sự làm những việc gì?", num:7, label:"Một sản phẩm để cùng xem", desc:"Gửi tối đa 1-2 link sản phẩm gần đây, kể cả bản nháp. Ghi rõ phần bạn làm.", type:"text_long", required:false, placeholder:"Ví dụ: Link bài đăng Facebook: [link] — Mình viết caption..." },
+  // C. WHY
+  { id:"q08", section:"C. WHY", sectionLabel:"Bạn hiểu mục đích công việc như thế nào?", num:8, label:"HacoLED làm gì?", desc:"Nếu một người quen hỏi \"HacoLED làm gì, thường phục vụ ai?\", bạn sẽ giải thích thế nào?", type:"text_long", required:true, placeholder:"Ví dụ: HacoLED chuyên về màn hình LED, phục vụ trường học..." },
+  { id:"q09", section:"C. WHY", sectionLabel:"Bạn hiểu mục đích công việc như thế nào?", num:9, label:"Sản phẩm đó được làm cho ai?", desc:"Chọn một nội dung đã làm: bạn nghĩ ai sẽ xem, họ cần hiểu điều gì và mình mong họ làm gì?", type:"text_long", required:true, placeholder:"Ví dụ: Bài Facebook về màn hình LED — dành cho hiệu trưởng..." },
+  { id:"q10", section:"C. WHY", sectionLabel:"Bạn hiểu mục đích công việc như thế nào?", num:10, label:"Khi nào bạn biết một việc đã đạt?", desc:"Với việc gần nhất, bạn dựa vào đâu để biết đã hoàn thành đúng yêu cầu?", type:"text_long", required:true, placeholder:"Ví dụ: Khi chị X duyệt và không có sửa thêm..." },
+  // D. WHERE
+  { id:"q11", section:"D. WHERE", sectionLabel:"Bạn làm trên kênh nào, với tài liệu và công cụ gì?", num:11, label:"Kênh và phần việc đang tham gia", desc:"Với từng kênh (Website, Facebook, TikTok...), ghi những việc bạn đang thực sự làm.", type:"text_long", required:true, placeholder:"Ví dụ:\n- Facebook: viết bài, thiết kế ảnh\n- Website: cập nhật bài viết\n- TikTok: được giao nhưng chưa có tài khoản" },
+  { id:"q12", section:"D. WHERE", sectionLabel:"Bạn làm trên kênh nào, với tài liệu và công cụ gì?", num:12, label:"Nơi lưu và tìm tài liệu", desc:"Bạn đang tìm ảnh/video dự án, thông tin sản phẩm và bài mẫu ở đâu?", type:"text_long", required:true, placeholder:"Ví dụ: Ảnh dự án ở Google Drive thư mục X, bài mẫu ở Notion..." },
+  { id:"q13", section:"D. WHERE", sectionLabel:"Bạn làm trên kênh nào, với tài liệu và công cụ gì?", num:13, label:"Công cụ đang dùng", desc:"Liệt kê các công cụ bạn đang dùng: Canva, CapCut, Google Docs...", type:"text_long", required:true, placeholder:"Ví dụ: Canva (thiết kế), Google Docs (viết bài), CapCut (chưa dùng)..." },
+  // E. WHEN
+  { id:"q14", section:"E. WHEN", sectionLabel:"Bạn có thể làm và bàn giao vào lúc nào?", num:14, label:"Lịch làm thực tế", desc:"Trong hai tuần tới, bạn có thể làm những ngày và khung giờ nào? Tại văn phòng hay online?", type:"text_long", required:true, placeholder:"Ví dụ: Thứ 2-4-6: 8h-12h tại văn phòng. Thứ 3-5: online 19h-21h." },
+  { id:"q15", section:"E. WHEN", sectionLabel:"Bạn có thể làm và bàn giao vào lúc nào?", num:15, label:"Phần thời gian dành cho Marketing", desc:"Trong lịch trên, bạn còn phải dành thời gian cho công việc nào khác? Ước lượng phần còn lại cho Marketing.", type:"text_long", required:true, placeholder:"Ví dụ: Sáng thứ 2 có lịch học, còn lại dành ~80% cho Marketing..." },
+  { id:"q16", section:"E. WHEN", sectionLabel:"Bạn có thể làm và bàn giao vào lúc nào?", num:16, label:"Nhịp báo cáo và nhận kế hoạch", desc:"Khi nào phù hợp để cập nhật báo cáo (dự kiến thứ Sáu) và xác nhận kế hoạch tuần mới (thứ Bảy)?", type:"text_long", required:true, placeholder:"Ví dụ: Mình có thể cập nhật báo cáo chiều thứ Sáu và xác nhận kế hoạch tối thứ Bảy..." },
+  // F. HOW
+  { id:"q17", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:17, label:"Mức hỗ trợ phù hợp cho từng việc", desc:"Với mỗi công việc, chọn mức phù hợp:\n• A: Chưa từng làm\n• B: Làm được khi có người hướng dẫn từng bước\n• C: Làm được theo mẫu/checklist\n• D: Tự triển khai, tự kiểm tra", type:"matrix", required:true,
+    matrixRows:["Tìm và kiểm tra nguồn thông tin sản phẩm/dự án","Viết bài Facebook","Thiết kế ảnh/bộ ảnh đơn giản","Viết hoặc cập nhật bài website","Đăng/chỉnh sửa nội dung trên kênh","Dựng video ngắn","Dựng video ngang/dài","Lấy số liệu của bài đã đăng","Sắp xếp việc và cập nhật báo cáo"],
+    matrixCols:[{key:"A",label:"A — Chưa từng"},{key:"B",label:"B — Cần hướng dẫn"},{key:"C",label:"C — Theo mẫu"},{key:"D",label:"D — Tự chủ"}] },
+  { id:"q18", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:18, label:"Cách làm một việc gần đây", desc:"Chọn một việc đã nêu: bạn đã làm theo 3-5 bước nào? Bao lâu trực tiếp làm, bao lâu chờ?", type:"text_long", required:true, placeholder:"Ví dụ: Viết bài Facebook —\n1. Đọc brief (15 phút)\n2. Viết nháp (30 phút)\n3. Chờ duyệt (2 ngày)..." },
+  { id:"q19", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:19, label:"Cách sử dụng AI", desc:"Lần gần nhất dùng AI, bạn nhờ làm phần nào? Bạn giữ lại, sửa hoặc kiểm tra điều gì trước khi gửi?", type:"text_long", required:false, placeholder:"Ví dụ: Dùng ChatGPT để gợi ý caption, sau đó mình sửa lại..." },
+  { id:"q20", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:20, label:"Một lần gặp vướng mắc", desc:"Kể một lần gần đây bạn thiếu thông tin, chưa biết làm hoặc có nguy cơ trễ hạn.", type:"text_long", required:true, placeholder:"Ví dụ: Lần đó mình thiếu ảnh dự án, đã hỏi anh X nhưng mất 2 ngày mới có..." },
+  { id:"q21", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:21, label:"Thử trao đổi một đầu việc", desc:"Bạn nhận yêu cầu: \"Chiều nay cần bài Facebook về công trình này\", kèm 5 ảnh, còn 90 phút. Bạn sẽ làm gì trước?", type:"text_long", required:true, placeholder:"Ví dụ: Mình sẽ tìm thêm thông tin công trình trước, trong lúc chờ thì viết nháp caption..." },
+  { id:"q22", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:22, label:"Những điều đang cản trở bạn", desc:"Chọn tối đa 3 điều đang cản trở bạn nhất.", type:"select_multi", required:true, maxSelect:3, options:["Chưa rõ mục tiêu/tiêu chuẩn","Chưa hiểu sản phẩm","Thiếu tư liệu","Chưa biết thao tác","Thiếu công cụ/thiết bị/quyền truy cập","Chờ phản hồi","Chưa biết lấy số liệu","Nhiều việc cùng lúc","Khác (ghi rõ ở ô bên dưới)","Chưa có vướng mắc"], placeholder:"Nếu có vướng mắc khác, ghi thêm ở đây..." },
+  { id:"q23", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:23, label:"Việc muốn nhận và việc muốn học", desc:"Trong hai tuần tới, bạn muốn thử phụ trách chính việc gì và học thêm việc gì?", type:"text_long", required:false, placeholder:"Ví dụ: Muốn thử phụ trách viết bài website vì mình thích viết dài..." },
+  { id:"q24", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:24, label:"Cách hỗ trợ online phù hợp", desc:"Chọn tối đa 2 hình thức hỗ trợ online phù hợp với bạn nhất.", type:"select_multi", required:true, maxSelect:2, options:["Video quay màn hình từng bước","Hướng dẫn ngắn kèm ảnh","Bài mẫu đã duyệt kèm giải thích","Checklist tự kiểm tra","Góp ý trực tiếp trên bản nháp","Trao đổi online theo lịch khi bị vướng","Khác"] },
+  { id:"q25", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:25, label:"Kinh nghiệm phối hợp và tổng hợp", desc:"Bạn đã từng theo dõi tiến độ, nhắc hạn hoặc tổng hợp công việc cho một nhóm chưa?", type:"text_long", required:false, placeholder:"Ví dụ: Mình từng làm trưởng nhóm dự án ở trường..." },
+  { id:"q26", section:"F. HOW", sectionLabel:"Bạn đang làm như thế nào và cần hỗ trợ gì?", num:26, label:"Điều khác bạn muốn trao đổi", desc:"Có điều gì người phụ trách nên biết để giao việc và hỗ trợ bạn phù hợp hơn?", type:"text_long", required:false, placeholder:"Ví dụ: Mình học tốt hơn khi có ví dụ cụ thể..." },
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let STATE = {
+  page: 'intro',   // 'intro' | 'form' | 'done' | 'admin_login' | 'admin'
+  name: '',
+  answers: {},     // { qId: string | string[] | {row:col} }
+  errors: {},
+  submitting: false,
+  adminResponses: [], // loaded from uploaded JSON files
+  adminFilter: '',
+  adminView: 'overview', // 'overview' | 'detail'
+  adminSelected: null,
+  adminNotice: null,
+};
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function getAnswerText(ans) {
+  if (!ans) return '';
+  if (typeof ans === 'string') return ans;
+  if (Array.isArray(ans)) return ans.join(', ');
+  if (typeof ans === 'object') return Object.entries(ans).map(([r,c]) => `${r}: ${c}`).join(' | ');
+  return '';
+}
+
+function isAnswered(q) {
+  const ans = STATE.answers[q.id];
+  if (!ans) return false;
+  if (typeof ans === 'string') return ans.trim().length > 0;
+  if (Array.isArray(ans)) return ans.length > 0;
+  if (typeof ans === 'object') return (q.matrixRows||[]).every(r => !!ans[r]);
+  return false;
+}
+
+function answeredCount() { return QUESTIONS.filter(q => isAnswered(q)).length; }
+function progress() { return Math.round(answeredCount() / QUESTIONS.length * 100); }
+
+function groupedSections() {
+  const map = {};
+  QUESTIONS.forEach(q => {
+    if (!map[q.section]) map[q.section] = { label: q.sectionLabel, questions: [] };
+    map[q.section].questions.push(q);
+  });
+  return map;
+}
+
+function showNotice(text, type='success') {
+  STATE.adminNotice = { text, type };
+  render();
+  setTimeout(() => { STATE.adminNotice = null; render(); }, 3500);
+}
+
+// ─── DOWNLOAD JSON ───────────────────────────────────────────────────────────
+function downloadJSON(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCSV(responses) {
+  if (!responses.length) return;
+  const headers = ['Tên','Thời gian',...QUESTIONS.map(q=>`[${q.num}] ${q.label}`)];
+  const rows = responses.map(r => [
+    r.respondent_name,
+    new Date(r.submitted_at).toLocaleString('vi-VN'),
+    ...QUESTIONS.map(q => getAnswerText(r.answers[q.id]))
+  ]);
+  const esc = v => `"${String(v).replace(/"/g,'""')}"`;
+  const csv = [headers,...rows].map(row => row.map(esc).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `hacoled-survey-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── SUBMIT ──────────────────────────────────────────────────────────────────
+function handleSubmit() {
+  const newErrors = {};
+  QUESTIONS.forEach(q => {
+    if (q.required && !isAnswered(q)) newErrors[q.id] = 'Câu này cần điền để mình hiểu bạn hơn nhé!';
+  });
+  if (Object.keys(newErrors).length > 0) {
+    STATE.errors = newErrors;
+    render();
+    const firstId = Object.keys(newErrors)[0];
+    document.getElementById('q-'+firstId)?.scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+  STATE.submitting = true;
+  render();
+  const response = {
+    response_id: `RESP-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
+    respondent_name: STATE.name.trim(),
+    submitted_at: new Date().toISOString(),
+    answers: STATE.answers,
+  };
+  setTimeout(() => {
+    // Tải file JSON xuống máy
+    downloadJSON(response, `survey-${STATE.name.trim().replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.json`);
+    STATE.submitting = false;
+    STATE.page = 'done';
+    render();
+    window.scrollTo({ top:0, behavior:'smooth' });
+  }, 600);
+}
+
+// ─── ADMIN: load file JSON ────────────────────────────────────────────────────
+function handleFileUpload(files) {
+  const promises = Array.from(files).map(file => {
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (Array.isArray(data)) resolve(data);
+          else if (data.response_id) resolve([data]);
+          else resolve([]);
+        } catch { resolve([]); }
+      };
+      reader.readAsText(file);
+    });
+  });
+  Promise.all(promises).then(results => {
+    const all = results.flat();
+    // Merge, không trùng response_id
+    const existing = STATE.adminResponses;
+    const merged = [...existing];
+    let added = 0;
+    all.forEach(r => {
+      if (!merged.find(e => e.response_id === r.response_id)) {
+        merged.push(r);
+        added++;
+      }
+    });
+    STATE.adminResponses = merged;
+    showNotice(`Đã tải ${added} phiếu mới (tổng: ${merged.length}).`);
+  });
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('border-zinc-900','bg-zinc-50');
+  handleFileUpload(e.dataTransfer.files);
+}
+
+// ─── RENDER HELPERS ───────────────────────────────────────────────────────────
+function renderTextShort(q) {
+  const val = STATE.answers[q.id] || '';
+  const hasErr = !!STATE.errors[q.id];
+  const hasVal = val.trim().length > 0;
+  return `<input id="input-${q.id}" type="text" value="${escHtml(val)}"
+    oninput="STATE.answers['${q.id}']=this.value;if(STATE.errors['${q.id}'])delete STATE.errors['${q.id}'];updateQ('${q.id}')"
+    placeholder="${escHtml(q.placeholder||'')}"
+    class="w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all ${hasErr ? 'border-rose-300 bg-rose-50/30 focus:ring-rose-300' : hasVal ? 'border-emerald-300 bg-emerald-50/20 focus:ring-emerald-400' : 'border-zinc-200 bg-zinc-50/50 focus:ring-zinc-900 focus:border-zinc-900'}" />`;
+}
+
+function renderTextLong(q) {
+  const val = STATE.answers[q.id] || '';
+  const hasErr = !!STATE.errors[q.id];
+  const hasVal = val.trim().length > 0;
+  return `<textarea id="input-${q.id}" rows="4"
+    oninput="STATE.answers['${q.id}']=this.value;if(STATE.errors['${q.id}'])delete STATE.errors['${q.id}'];updateQ('${q.id}')"
+    placeholder="${escHtml(q.placeholder||'')}"
+    class="w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all leading-relaxed ${hasErr ? 'border-rose-300 bg-rose-50/30 focus:ring-rose-300' : hasVal ? 'border-emerald-300 bg-emerald-50/20 focus:ring-emerald-400' : 'border-zinc-200 bg-zinc-50/50 focus:ring-zinc-900 focus:border-zinc-900'}">${escHtml(val)}</textarea>
+    ${hasVal ? `<p class="mt-1 text-right text-[11px] text-zinc-400">${val.length} ký tự</p>` : ''}`;
+}
+
+function renderSelectSingle(q) {
+  const val = STATE.answers[q.id] || '';
+  return (q.options||[]).map(opt => {
+    const sel = val === opt;
+    return `<label class="flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${sel ? 'border-zinc-900 bg-zinc-50 shadow-sm' : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50/50'}">
+      <input type="radio" name="${q.id}" value="${escHtml(opt)}" ${sel?'checked':''} onchange="STATE.answers['${q.id}']=this.value;if(STATE.errors['${q.id}'])delete STATE.errors['${q.id}'];render()" class="sr-only"/>
+      <span class="flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${sel ? 'border-zinc-950 bg-zinc-950' : 'border-zinc-400 bg-white'}">
+        ${sel ? '<span class="w-1.5 h-1.5 rounded-full bg-white"></span>' : ''}
+      </span>
+      <span class="text-sm text-zinc-800 font-medium">${escHtml(opt)}</span>
+    </label>`;
+  }).join('');
+}
+
+function renderSelectMulti(q) {
+  const vals = STATE.answers[q.id] || [];
+  const maxSel = q.maxSelect || 99;
+  const hasOther = vals.some(v => v.startsWith('__other__:'));
+  const otherText = hasOther ? (vals.find(v => v.startsWith('__other__:')) || '').replace('__other__:','') : '';
+  const selectedCount = vals.length;
+
+  const opts = (q.options||[]).map(opt => {
+    const isOtherOpt = opt === 'Khác (ghi rõ ở ô bên dưới)' || opt === 'Khác';
+    const isChecked = isOtherOpt ? hasOther : vals.includes(opt);
+    const isDisabled = !isChecked && selectedCount >= maxSel;
+    return `<label class="flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${isDisabled ? 'opacity-40 cursor-not-allowed border-zinc-200 bg-zinc-50' : isChecked ? 'border-zinc-900 bg-zinc-50 shadow-sm' : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50/50'}">
+      <input type="checkbox" ${isChecked?'checked':''} ${isDisabled?'disabled':''} onchange="toggleMulti('${q.id}','${escHtml(opt)}',${maxSel})" class="sr-only"/>
+      <span class="flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${isChecked ? 'border-zinc-950 bg-zinc-950' : 'border-zinc-400 bg-white'}">
+        ${isChecked ? '<svg class="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 8"><path d="M1 4l2.5 2.5L9 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+      </span>
+      <span class="text-sm text-zinc-800 font-medium">${escHtml(opt)}</span>
+    </label>`;
+  }).join('');
+
+  const otherBox = hasOther ? `<div class="mt-3"><textarea rows="2" placeholder="${escHtml(q.placeholder||'Ghi rõ ở đây...')}"
+    oninput="updateOtherText('${q.id}',this.value)"
+    class="w-full px-4 py-3 rounded-xl border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 bg-white transition-all">${escHtml(otherText)}</textarea></div>` : '';
+
+  return `<div>
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs text-zinc-500">Chọn tối đa ${maxSel} lựa chọn</span>
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${selectedCount > 0 ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}">Đã chọn ${selectedCount}/${maxSel}</span>
+    </div>
+    <div class="space-y-2">${opts}</div>
+    ${otherBox}
+  </div>`;
+}
+
+function renderMatrix(q) {
+  const val = STATE.answers[q.id] || {};
+  const rows = q.matrixRows || [];
+  const cols = q.matrixCols || [];
+  const answeredC = Object.keys(val).length;
+  const done = answeredC === rows.length;
+
+  const tableRows = rows.map(row => {
+    const cells = cols.map(col => {
+      const isSel = val[row] === col.key;
+      return `<td class="py-3 px-2 text-center">
+        <button type="button" onclick="selectMatrix('${q.id}','${escHtml(row)}','${col.key}')"
+          class="w-8 h-8 rounded-lg border-2 font-bold text-xs transition-all ${isSel ? 'border-zinc-950 bg-zinc-950 text-white shadow' : 'border-zinc-300 bg-white text-zinc-600 hover:border-zinc-600 hover:bg-zinc-50'}">
+          ${col.key}
+        </button>
+      </td>`;
+    }).join('');
+    return `<tr class="${val[row] ? 'bg-emerald-50/30' : 'bg-white hover:bg-zinc-50/50'}">
+      <td class="py-3 px-4 text-xs font-medium text-zinc-800 leading-snug">${escHtml(row)}</td>${cells}
+    </tr>`;
+  }).join('');
+
+  const colHeaders = cols.map(col => `<th class="text-center py-3 px-2 font-medium text-zinc-600 text-xs">
+    <span class="font-bold text-zinc-950">${col.key}</span><br/>
+    <span class="text-[10px] font-normal text-zinc-500 whitespace-nowrap">${col.label.split(' — ')[1]||col.label}</span>
+  </th>`).join('');
+
+  return `<div>
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs text-zinc-500">Chọn một mức cho mỗi công việc</span>
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${done ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-500'}">${answeredC}/${rows.length} đã chọn</span>
+    </div>
+    <div class="overflow-x-auto rounded-xl border border-zinc-200">
+      <table class="w-full text-sm border-collapse">
+        <thead><tr class="bg-zinc-50 border-b border-zinc-200"><th class="text-left py-3 px-4 font-medium text-zinc-600 text-xs w-2/5">Công việc</th>${colHeaders}</tr></thead>
+        <tbody class="divide-y divide-zinc-100">${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function toggleMulti(qId, opt, maxSel) {
+  let vals = [...(STATE.answers[qId] || [])];
+  const isOtherOpt = opt === 'Khác (ghi rõ ở ô bên dưới)' || opt === 'Khác';
+  if (isOtherOpt) {
+    const hasOther = vals.some(v => v.startsWith('__other__:'));
+    if (hasOther) vals = vals.filter(v => !v.startsWith('__other__:'));
+    else { if (vals.length >= maxSel) return; vals.push('__other__:'); }
+  } else {
+    if (vals.includes(opt)) vals = vals.filter(v => v !== opt);
+    else { if (vals.length >= maxSel) return; vals.push(opt); }
+  }
+  STATE.answers[qId] = vals;
+  if (STATE.errors[qId]) delete STATE.errors[qId];
+  render();
+}
+
+function updateOtherText(qId, text) {
+  let vals = [...(STATE.answers[qId] || [])];
+  vals = vals.filter(v => !v.startsWith('__other__:'));
+  vals.push(`__other__:${text}`);
+  STATE.answers[qId] = vals;
+}
+
+function selectMatrix(qId, row, col) {
+  const val = { ...(STATE.answers[qId] || {}), [row]: col };
+  STATE.answers[qId] = val;
+  if (STATE.errors[qId]) {
+    const q = QUESTIONS.find(q => q.id === qId);
+    if (q && (q.matrixRows||[]).every(r => !!val[r])) delete STATE.errors[qId];
+  }
+  render();
+}
+
+function updateQ(qId) { render(); }
+
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function avatar(name) {
+  return (name||'?').charAt(0).toUpperCase();
+}
+
+// ─── PAGES ───────────────────────────────────────────────────────────────────
+function pageIntro() {
+  return `
+  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-zinc-100 flex items-center justify-center px-4 py-16">
+    <div class="w-full max-w-lg fade-in">
+      <div class="flex items-center gap-3 mb-10">
+        <div class="h-10 w-10 rounded-xl bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-sm shadow">HL</div>
+        <span class="font-semibold text-zinc-900 tracking-tight">HacoLED Team</span>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-8 sm:p-10">
+        <div class="mb-6">
+          <span class="inline-block text-xs font-semibold tracking-widest text-zinc-400 uppercase mb-3">Khảo sát nội bộ · 5W1H</span>
+          <h1 class="text-2xl font-bold text-zinc-950 leading-snug mb-3">Để mình hiểu bạn hơn 🙂</h1>
+          <p class="text-zinc-600 leading-relaxed text-[15px]">Khảo sát này giúp mình — với tư cách lead — nắm bắt được tình hình thực tế của từng người trong team.</p>
+        </div>
+        <div class="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-7 space-y-2.5">
+          <div class="flex items-start gap-3 text-sm text-zinc-700"><span class="text-base mt-0.5">📋</span><span><strong>26 câu hỏi</strong> bao gồm câu viết tự do, lựa chọn và bảng đánh giá kỹ năng.</span></div>
+          <div class="flex items-start gap-3 text-sm text-zinc-700"><span class="text-base mt-0.5">💾</span><span>Sau khi gửi, file JSON sẽ <strong>tự tải xuống máy bạn</strong> — gửi file đó cho Lead qua Zalo/email.</span></div>
+          <div class="flex items-start gap-3 text-sm text-zinc-700"><span class="text-base mt-0.5">⏱️</span><span>Mất khoảng <strong>20–30 phút</strong> để điền đầy đủ.</span></div>
+          <div class="flex items-start gap-3 text-sm text-zinc-700"><span class="text-base mt-0.5">💬</span><span>Hãy viết thật như đang nói chuyện — <strong>càng cụ thể càng tốt</strong>.</span></div>
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-zinc-800 mb-2">Trước tiên, bạn tên là gì? <span class="text-rose-500">*</span></label>
+          <input type="text" id="name-input" value="${escHtml(STATE.name)}"
+            oninput="STATE.name=this.value;document.getElementById('name-err').textContent=''"
+            onkeydown="if(event.key==='Enter')startSurvey()"
+            placeholder="Điền tên của bạn vào đây..."
+            class="w-full px-4 py-3 rounded-xl border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 bg-white transition-all" autofocus/>
+          <p id="name-err" class="mt-1.5 text-xs text-rose-600 font-medium"></p>
+        </div>
+        <button onclick="startSurvey()" class="w-full py-3.5 rounded-xl bg-zinc-950 text-white font-semibold text-sm hover:bg-zinc-800 active:scale-[0.98] transition-all duration-150 shadow">
+          Bắt đầu khảo sát →
+        </button>
+      </div>
+      <p class="text-center text-xs text-zinc-400 mt-5">HacoLED Marketing Team · ${new Date().toLocaleDateString('vi-VN')}</p>
+    </div>
+  </div>`;
+}
+
+function startSurvey() {
+  STATE.name = document.getElementById('name-input')?.value || STATE.name;
+  if (!STATE.name.trim()) {
+    document.getElementById('name-err').textContent = 'Bạn ơi, hãy điền tên trước nhé!';
+    return;
+  }
+  STATE.page = 'form';
+  render();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function pageForm() {
+  const sections = groupedSections();
+  const pct = progress();
+  const cnt = answeredCount();
+
+  const sectionsHtml = Object.entries(sections).map(([key, sec]) => {
+    const qs = sec.questions.map(q => {
+      const hasErr = !!STATE.errors[q.id];
+      let inputHtml = '';
+      if (q.type === 'text_short') inputHtml = renderTextShort(q);
+      else if (q.type === 'text_long') inputHtml = renderTextLong(q);
+      else if (q.type === 'select_single') inputHtml = `<div class="space-y-2">${renderSelectSingle(q)}</div>`;
+      else if (q.type === 'select_multi') inputHtml = renderSelectMulti(q);
+      else if (q.type === 'matrix') inputHtml = renderMatrix(q);
+
+      return `<div id="q-${q.id}" class="bg-white rounded-2xl border p-6 shadow-sm transition-all ${hasErr ? 'border-rose-300 shadow-rose-100/50' : 'border-zinc-200'}">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs font-bold shrink-0">${q.num}</span>
+          ${q.required ? '<span class="text-[10px] font-semibold tracking-wider text-rose-500 uppercase">Bắt buộc</span>' : '<span class="text-[10px] font-medium tracking-wider text-zinc-400 uppercase">Tùy chọn</span>'}
+        </div>
+        <label class="block text-[15px] font-semibold text-zinc-900 leading-snug mb-2">${escHtml(q.label)}</label>
+        ${q.desc ? `<p class="text-xs text-zinc-500 mb-4 leading-relaxed whitespace-pre-line">${escHtml(q.desc)}</p>` : ''}
+        ${inputHtml}
+        ${hasErr ? `<p class="mt-2 text-xs text-rose-600 font-medium flex items-center gap-1"><span>⚠️</span>${escHtml(STATE.errors[q.id])}</p>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div>
+      <div class="flex items-center gap-3 mb-5">
+        <div class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-zinc-950 text-white text-xs font-bold font-mono">${key}</div>
+        <p class="text-base font-bold text-zinc-950">${escHtml(sec.label)}</p>
+      </div>
+      <div class="space-y-5">${qs}</div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="min-h-screen bg-zinc-50/80">
+    <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-zinc-200 shadow-sm">
+      <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="h-7 w-7 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs">HL</div>
+          <span class="text-sm font-semibold text-zinc-900">Khảo sát Team · ${escHtml(STATE.name)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-28 h-2 bg-zinc-100 rounded-full overflow-hidden">
+            <div class="h-full bg-zinc-900 rounded-full transition-all duration-500" style="width:${pct}%"></div>
+          </div>
+          <span class="text-xs text-zinc-500 font-mono">${cnt}/${QUESTIONS.length}</span>
+        </div>
+      </div>
+    </header>
+    <main class="max-w-2xl mx-auto px-4 py-10">
+      <div class="mb-8">
+        <h2 class="text-xl font-bold text-zinc-950 mb-1.5">Hãy chia sẻ thật tự nhiên nhé, ${escHtml(STATE.name)} 😊</h2>
+        <p class="text-sm text-zinc-500">Không có câu trả lời đúng hay sai — mình muốn nghe suy nghĩ thật của bạn.</p>
+      </div>
+      <div class="space-y-10">${sectionsHtml}</div>
+      <div class="pt-6 pb-16">
+        <button onclick="handleSubmit()" ${STATE.submitting?'disabled':''} class="w-full py-4 rounded-xl bg-zinc-950 text-white font-semibold text-[15px] hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-150 shadow flex items-center justify-center gap-2">
+          ${STATE.submitting ? `<svg class="spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Đang xử lý...` : 'Gửi khảo sát 🚀'}
+        </button>
+      </div>
+    </main>
+  </div>`;
+}
+
+function pageDone() {
+  const cnt = answeredCount();
+  const pct = progress();
+  return `
+  <div class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-zinc-50 flex items-center justify-center px-4 py-16">
+    <div class="w-full max-w-md text-center fade-in">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100 text-4xl mb-6 shadow-sm">🎉</div>
+      <h1 class="text-2xl font-bold text-zinc-950 mb-3">Cảm ơn bạn, ${escHtml(STATE.name)}!</h1>
+      <p class="text-zinc-600 text-[15px] leading-relaxed mb-6">File JSON đã tải xuống máy của bạn. Hãy gửi file đó cho Lead qua <strong>Zalo hoặc email</strong> nhé!</p>
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
+        <p class="text-sm font-semibold text-amber-800 mb-1">📎 Bước tiếp theo:</p>
+        <p class="text-sm text-amber-700">Mở Zalo → Tìm Lead → Gửi file <code class="bg-amber-100 px-1 rounded text-xs">survey-${STATE.name.trim()}-....json</code> vừa tải xuống.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 mb-6 text-left">
+        <p class="text-sm font-semibold text-zinc-800 mb-3">Bạn đã trả lời ${cnt}/${QUESTIONS.length} câu hỏi</p>
+        <div class="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <button onclick="window.close()" class="text-sm text-zinc-500 hover:text-zinc-900 underline underline-offset-2 transition-colors">Đóng trang này</button>
+    </div>
+  </div>`;
+}
+
+function pageAdminLogin() {
+  return `
+  <div class="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+    <div class="w-full max-w-sm fade-in">
+      <div class="flex items-center gap-3 mb-10 justify-center">
+        <div class="h-10 w-10 rounded-xl bg-white text-zinc-950 flex items-center justify-center font-mono font-bold text-sm">HL</div>
+        <span class="font-semibold text-white tracking-tight">HacoLED Admin</span>
+      </div>
+      <div class="bg-zinc-900 rounded-2xl border border-zinc-800 p-8">
+        <h1 class="text-xl font-bold text-white mb-1">Xem kết quả khảo sát</h1>
+        <p class="text-zinc-400 text-sm mb-6">Chỉ dành cho Lead</p>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-zinc-300 mb-2">Mật khẩu</label>
+          <input type="password" id="admin-pw" placeholder="Nhập mật khẩu..."
+            onkeydown="if(event.key==='Enter')adminLogin()"
+            class="w-full px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"/>
+          <p id="admin-err" class="mt-1.5 text-xs text-rose-400 font-medium"></p>
+        </div>
+        <button onclick="adminLogin()" class="w-full py-3 rounded-xl bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-100 active:scale-[0.98] transition-all">
+          Đăng nhập →
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function adminLogin() {
+  const pw = document.getElementById('admin-pw')?.value || '';
+  if (pw === ADMIN_PASSWORD) {
+    STATE.page = 'admin';
+    render();
+  } else {
+    document.getElementById('admin-err').textContent = 'Sai mật khẩu, thử lại nhé!';
+  }
+}
+
+function pageAdmin() {
+  const responses = STATE.adminResponses;
+  const filter = STATE.adminFilter.toLowerCase();
+  const filtered = filter ? responses.filter(r => r.respondent_name.toLowerCase().includes(filter)) : responses;
+  const sorted = [...filtered].sort((a,b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+
+  if (STATE.adminView === 'detail' && STATE.adminSelected) {
+    return pageAdminDetail(STATE.adminSelected);
+  }
+
+  const total = responses.length;
+  const latestDate = total > 0 ? new Date(Math.max(...responses.map(r => new Date(r.submitted_at)))).toLocaleDateString('vi-VN') : '—';
+
+  // Drop zone
+  const dropzone = `
+  <div id="dropzone"
+    ondragover="event.preventDefault();this.classList.add('border-zinc-900','bg-zinc-50')"
+    ondragleave="this.classList.remove('border-zinc-900','bg-zinc-50')"
+    ondrop="handleDrop(event)"
+    class="border-2 border-dashed border-zinc-300 rounded-2xl p-8 text-center mb-6 transition-all bg-white cursor-pointer"
+    onclick="document.getElementById('file-input').click()">
+    <div class="text-3xl mb-3">📂</div>
+    <p class="font-semibold text-zinc-700 mb-1">Kéo thả file JSON vào đây</p>
+    <p class="text-sm text-zinc-400">hoặc click để chọn file · Chấp nhận nhiều file cùng lúc</p>
+    <input id="file-input" type="file" accept=".json" multiple class="hidden" onchange="handleFileUpload(this.files)"/>
+  </div>`;
+
+  // Stats
+  const statsHtml = `
+  <div class="grid grid-cols-3 gap-4 mb-8">
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"><div class="text-xl mb-1">👥</div><div class="text-xl font-bold text-zinc-950">${total}</div><div class="text-xs text-zinc-500">Tổng phản hồi</div></div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"><div class="text-xl mb-1">🕐</div><div class="text-xl font-bold text-zinc-950">${latestDate}</div><div class="text-xs text-zinc-500">Gần nhất</div></div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"><div class="text-xl mb-1">📋</div><div class="text-xl font-bold text-zinc-950">${QUESTIONS.length}</div><div class="text-xs text-zinc-500">Câu hỏi</div></div>
+  </div>`;
+
+  // Question aggregation
+  const aggHtml = total > 0 ? `
+  <div class="mb-10">
+    <h2 class="text-base font-bold text-zinc-900 mb-4 flex items-center gap-2"><span class="inline-block w-1 h-4 rounded bg-zinc-900"></span>Tổng hợp theo câu hỏi</h2>
+    <div class="space-y-4">
+      ${QUESTIONS.map((q,idx) => {
+        const list = responses.map(r => ({ name:r.respondent_name, ans:getAnswerText(r.answers[q.id]) })).filter(a=>a.ans?.trim());
+        return `<div class="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-3.5 border-b border-zinc-100 flex items-baseline gap-2">
+            <span class="text-xs font-bold text-zinc-400 font-mono">#${idx+1}</span>
+            <p class="text-sm font-semibold text-zinc-800 leading-snug">${escHtml(q.label)}</p>
+          </div>
+          ${list.length === 0 ? '<div class="px-5 py-4 text-sm text-zinc-400 italic">Chưa có ai trả lời câu này.</div>' :
+            `<div class="divide-y divide-zinc-50">${list.map(a=>`
+              <div class="px-5 py-3.5 flex gap-3 items-start">
+                <div class="shrink-0 h-6 w-6 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[10px] font-bold mt-0.5">${avatar(a.name)}</div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[11px] font-semibold text-zinc-500 mb-0.5">${escHtml(a.name)}</p>
+                  <p class="text-sm text-zinc-800 leading-relaxed break-words line-clamp-3">${escHtml(a.ans)}</p>
+                </div>
+              </div>`).join('')}</div>`}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>` : '';
+
+  // Response list
+  const listHtml = `
+  <div>
+    <div class="flex items-center justify-between mb-4 gap-4">
+      <h2 class="text-base font-bold text-zinc-900 flex items-center gap-2"><span class="inline-block w-1 h-4 rounded bg-zinc-900"></span>Xem theo người (${filtered.length})</h2>
+      <input type="search" value="${escHtml(STATE.adminFilter)}" oninput="STATE.adminFilter=this.value;render()" placeholder="Tìm tên..."
+        class="w-40 sm:w-52 px-3 py-2 rounded-lg border border-zinc-300 text-xs focus:outline-none focus:ring-2 focus:ring-zinc-900 bg-white"/>
+    </div>
+    ${sorted.length === 0 ? `<div class="text-center py-16 text-zinc-400 text-sm">${total===0 ? 'Chưa có file nào được tải lên.' : 'Không tìm thấy kết quả.'}</div>` : ''}
+    <div class="space-y-3">
+      ${sorted.map(r => {
+        const cnt = QUESTIONS.filter(q => getAnswerText(r.answers[q.id])?.trim()).length;
+        const pct = Math.round(cnt/QUESTIONS.length*100);
+        return `<div class="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 flex items-center gap-4">
+          <div class="shrink-0 h-10 w-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-sm">${avatar(r.respondent_name)}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+              <p class="font-semibold text-sm text-zinc-950 truncate">${escHtml(r.respondent_name)}</p>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${pct===100?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${pct}%</span>
+            </div>
+            <p class="text-xs text-zinc-400">${new Date(r.submitted_at).toLocaleString('vi-VN')} · ${cnt}/${QUESTIONS.length} câu</p>
+          </div>
+          <div class="shrink-0 flex items-center gap-2">
+            <button onclick="viewDetail('${r.response_id}')" class="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-semibold hover:bg-zinc-700 transition-colors">Xem</button>
+            <button onclick="deleteResponse('${r.response_id}','${escHtml(r.respondent_name)}')" class="px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 text-xs font-medium hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-colors">Xóa</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  const notice = STATE.adminNotice ? `
+  <div class="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${STATE.adminNotice.type==='success'?'bg-emerald-600':'bg-rose-600'}">
+    ${escHtml(STATE.adminNotice.text)}
+  </div>` : '';
+
+  return `
+  ${notice}
+  <div class="min-h-screen bg-zinc-50/80">
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="h-8 w-8 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs shadow-sm">HL</div>
+          <span class="font-semibold text-sm text-zinc-950">Kết quả Khảo sát Team</span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-[11px] font-mono font-semibold text-zinc-700">${total} phản hồi</span>
+        </div>
+        <div class="flex items-center gap-2">
+          ${total>0 ? `
+          <button onclick="downloadCSV(STATE.adminResponses)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">↓ CSV</button>
+          <button onclick="downloadJSON(STATE.adminResponses,'hacoled-survey-all-${new Date().toISOString().slice(0,10)}.json')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">↓ JSON</button>` : ''}
+          <button onclick="STATE.page='intro';render()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">← Trang khảo sát</button>
+        </div>
+      </div>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      ${dropzone}
+      ${statsHtml}
+      ${aggHtml}
+      ${listHtml}
+    </main>
+  </div>`;
+}
+
+function pageAdminDetail(r) {
+  const notice = STATE.adminNotice ? `<div class="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${STATE.adminNotice.type==='success'?'bg-emerald-600':'bg-rose-600'}">${escHtml(STATE.adminNotice.text)}</div>` : '';
+  return `
+  ${notice}
+  <div class="min-h-screen bg-zinc-50/80">
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
+      <div class="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
+        <div class="h-7 w-7 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs">HL</div>
+        <span class="font-semibold text-sm text-zinc-950">Chi tiết phiếu</span>
+      </div>
+    </header>
+    <main class="max-w-3xl mx-auto px-4 py-8">
+      <button onclick="STATE.adminView='overview';STATE.adminSelected=null;render()" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 mb-6 transition-colors">← Quay lại danh sách</button>
+      <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-zinc-100 flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <div class="h-9 w-9 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-sm">${avatar(r.respondent_name)}</div>
+              <h2 class="text-lg font-bold text-zinc-950">${escHtml(r.respondent_name)}</h2>
+            </div>
+            <p class="text-xs text-zinc-400 font-mono ml-11">${escHtml(r.response_id)} · ${new Date(r.submitted_at).toLocaleString('vi-VN')}</p>
+          </div>
+          <button onclick="deleteResponse('${r.response_id}','${escHtml(r.respondent_name)}')" class="shrink-0 px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-xs font-medium hover:bg-rose-50 transition-colors">Xóa</button>
+        </div>
+        <div class="divide-y divide-zinc-100">
+          ${QUESTIONS.map((q,idx) => {
+            const ans = r.answers[q.id];
+            const ansText = getAnswerText(ans);
+            return `<div class="px-6 py-5">
+              <div class="flex items-baseline gap-2 mb-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold shrink-0">${idx+1}</span>
+                <p class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">${q.required?'Bắt buộc':'Tùy chọn'}</p>
+              </div>
+              <p class="text-sm font-semibold text-zinc-800 mb-2 leading-snug">${escHtml(q.label)}</p>
+              ${ansText?.trim() ? `<div class="bg-zinc-50 rounded-xl border border-zinc-200 p-4"><p class="text-sm text-zinc-800 leading-relaxed whitespace-pre-wrap">${escHtml(ansText)}</p><p class="text-right text-[11px] text-zinc-400 mt-2">${ansText.length} ký tự</p></div>`
+              : '<div class="bg-zinc-50 rounded-xl border border-dashed border-zinc-300 px-4 py-3"><p class="text-sm text-zinc-400 italic">Không trả lời</p></div>'}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </main>
+  </div>`;
+}
+
+function viewDetail(responseId) {
+  const r = STATE.adminResponses.find(r => r.response_id === responseId);
+  if (!r) return;
+  STATE.adminSelected = r;
+  STATE.adminView = 'detail';
+  render();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function deleteResponse(responseId, name) {
+  if (!confirm(`Xóa câu trả lời của "${name}"? Không thể khôi phục.`)) return;
+  STATE.adminResponses = STATE.adminResponses.filter(r => r.response_id !== responseId);
+  if (STATE.adminSelected?.response_id === responseId) {
+    STATE.adminSelected = null;
+    STATE.adminView = 'overview';
+  }
+  showNotice(`Đã xóa câu trả lời của "${name}".`);
+}
+
+// ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function render() {
+  let html = '';
+  if (STATE.page === 'intro') html = pageIntro();
+  else if (STATE.page === 'form') html = pageForm();
+  else if (STATE.page === 'done') html = pageDone();
+  else if (STATE.page === 'admin_login') html = pageAdminLogin();
+  else if (STATE.page === 'admin') html = pageAdmin();
+  document.getElementById('app').innerHTML = html;
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // ?admin trong URL → vào trang admin
+  if (window.location.search.includes('admin') || window.location.hash === '#admin') {
+    STATE.page = 'admin_login';
+  }
+  render();
+});
+</script>
+
+<div id="app"></div>
+
+<!-- Admin link ẩn ở dưới -->
+<div style="position:fixed;bottom:12px;right:14px;z-index:999">
+  <a href="?admin" style="font-size:10px;color:#d4d4d8;text-decoration:none;font-family:monospace;">admin</a>
+</div>
+
+</body>
+</html>
