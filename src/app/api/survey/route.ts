@@ -1,60 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import { put, list } from "@vercel/blob";
 
-// ─── JSONBin.io Config ───────────────────────────────────────────────────────
-// Lưu data dạng JSON trên cloud, hoạt động tốt với Vercel serverless
-// Cần set env vars: JSONBIN_API_KEY và JSONBIN_BIN_ID
-const JSONBIN_API_KEY = process.env.JSONBIN_API_KEY || "";
-const JSONBIN_BIN_ID = process.env.JSONBIN_BIN_ID || "";
-const JSONBIN_BASE = "https://api.jsonbin.io/v3";
+const DATA_FILE = path.join(process.cwd(), "data", "survey-responses.json");
+const BLOB_PATH = "survey-responses.json";
 
-// Tự tạo bin mới nếu chưa có BIN_ID
-async function createBin(initialData: unknown[]) {
-  const res = await fetch(`${JSONBIN_BASE}/b`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Master-Key": JSONBIN_API_KEY,
-      "X-Bin-Name": "hacoled-survey-responses",
-      "X-Bin-Private": "true",
-    },
-    body: JSON.stringify(initialData),
-  });
-  const json = await res.json();
-  return json.metadata?.id as string | undefined;
+function isVercelBlob(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+// ─── Local fs Fallback ────────────────────────────────────────────────────────
+function ensureLocalFile() {
+  const dir = path.dirname(DATA_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "[]", "utf-8");
+}
+
+function readLocal(): unknown[] {
+  ensureLocalFile();
+  try {
+    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+
+function writeLocal(data: unknown[]) {
+  ensureLocalFile();
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+// ─── Unified Read / Write ────────────────────────────────────────────────────
 async function readAll(): Promise<unknown[]> {
-  if (!JSONBIN_API_KEY) return [];
-  if (!JSONBIN_BIN_ID) return [];
-  const res = await fetch(`${JSONBIN_BASE}/b/${JSONBIN_BIN_ID}/latest`, {
-    headers: { "X-Master-Key": JSONBIN_API_KEY },
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  const json = await res.json();
-  return Array.isArray(json.record) ? json.record : [];
+  if (isVercelBlob()) {
+    try {
+      const { blobs } = await list({ prefix: BLOB_PATH });
+      const target = blobs.find((b) => b.pathname === BLOB_PATH);
+      if (!target) return [];
+      // Bypass edge CDN cache by cache: 'no-store'
+      const res = await fetch(`${target.url}?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json) ? json : [];
+    } catch (e) {
+      console.error("Vercel Blob read error:", e);
+      return [];
+    }
+  }
+
+  return readLocal();
 }
 
-async function writeAll(data: unknown[]) {
-  if (!JSONBIN_API_KEY) return;
-  let binId = JSONBIN_BIN_ID;
-  // Nếu chưa có BIN_ID, tự tạo mới
-  if (!binId) {
-    binId = (await createBin(data)) || "";
-    if (!binId) throw new Error("Không thể tạo JSONBin.");
-    // Log ra console để lấy BIN_ID lần đầu
-    console.log("📦 JSONBin created, set env JSONBIN_BIN_ID =", binId);
+async function writeAll(data: unknown[]): Promise<void> {
+  if (isVercelBlob()) {
+    await put(BLOB_PATH, JSON.stringify(data, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+    });
     return;
   }
-  const res = await fetch(`${JSONBIN_BASE}/b/${binId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Master-Key": JSONBIN_API_KEY,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(`JSONBin write failed: ${res.status}`);
+
+  writeLocal(data);
 }
 
 // ─── Route Handlers ──────────────────────────────────────────────────────────
@@ -62,12 +71,6 @@ async function writeAll(data: unknown[]) {
 // GET /api/survey — lấy toàn bộ kết quả
 export async function GET() {
   try {
-    if (!JSONBIN_API_KEY) {
-      return NextResponse.json(
-        { ok: false, error: "Chưa cấu hình JSONBIN_API_KEY trong Vercel environment variables." },
-        { status: 503 }
-      );
-    }
     const responses = await readAll();
     return NextResponse.json({ ok: true, responses });
   } catch (err) {
@@ -78,12 +81,6 @@ export async function GET() {
 // POST /api/survey — lưu 1 phiếu mới
 export async function POST(req: NextRequest) {
   try {
-    if (!JSONBIN_API_KEY) {
-      return NextResponse.json(
-        { ok: false, error: "Chưa cấu hình JSONBIN_API_KEY." },
-        { status: 503 }
-      );
-    }
     const body = await req.json();
     if (!body?.response_id || !body?.respondent_name) {
       return NextResponse.json({ ok: false, error: "Thiếu dữ liệu bắt buộc." }, { status: 400 });
@@ -100,6 +97,7 @@ export async function POST(req: NextRequest) {
     await writeAll(responses);
     return NextResponse.json({ ok: true, saved: body.response_id });
   } catch (err) {
+    console.error("Save error:", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
@@ -107,9 +105,6 @@ export async function POST(req: NextRequest) {
 // DELETE /api/survey?id=RESP-xxx — xóa 1 phiếu
 export async function DELETE(req: NextRequest) {
   try {
-    if (!JSONBIN_API_KEY) {
-      return NextResponse.json({ ok: false, error: "Chưa cấu hình JSONBIN_API_KEY." }, { status: 503 });
-    }
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ ok: false, error: "Thiếu id." }, { status: 400 });
     const responses = await readAll();
