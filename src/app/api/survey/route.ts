@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { put, list } from "@vercel/blob";
+import { put, get } from "@vercel/blob";
 
 const DATA_FILE = path.join(process.cwd(), "data", "survey-responses.json");
 const BLOB_PATH = "survey-responses.json";
@@ -39,15 +39,17 @@ function writeLocal(data: unknown[]) {
 async function readAll(): Promise<unknown[]> {
   if (isVercelBlob()) {
     try {
-      const { blobs } = await list({ prefix: BLOB_PATH });
-      const target = blobs.find((b) => b.pathname === BLOB_PATH);
-      if (!target) return [];
-      // Bypass edge CDN cache by cache: 'no-store'
-      const res = await fetch(`${target.url}?t=${Date.now()}`, { cache: "no-store" });
-      if (!res.ok) return [];
-      const json = await res.json();
-      return Array.isArray(json) ? json : [];
-    } catch (e) {
+      const result = await get(BLOB_PATH, { access: "public", useCache: false });
+      if (result && result.statusCode === 200 && result.stream) {
+        const json = await new Response(result.stream).json();
+        return Array.isArray(json) ? json : [];
+      }
+      return [];
+    } catch (e: unknown) {
+      // Nếu file chưa tồn tại trên Blob, trả về mảng rỗng
+      if (typeof e === "object" && e !== null && "name" in e && (e as { name: string }).name === "BlobNotFoundError") {
+        return [];
+      }
       console.error("Vercel Blob read error:", e);
       return [];
     }
