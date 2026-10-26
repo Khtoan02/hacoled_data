@@ -101,10 +101,20 @@ export async function GET(req: NextRequest) {
         const target = blobs.find((b) => b.pathname === BLOB_PATH || b.pathname.includes("survey-responses"));
         if (target?.url) {
           debug.targetFound = true;
-          const res = await fetch(`${target.url}?t=${Date.now()}`, { cache: "no-store" });
+          const url = `${target.url}?t=${Date.now()}`;
+          const res = await fetch(url, { cache: "no-store" });
+          (debug as any).fetchStatus = res.status;
+          (debug as any).fetchUrl = target.url;
           if (res.ok) {
-            const json = await res.json();
-            if (Array.isArray(json)) responses = json;
+            const text = await res.text();
+            (debug as any).rawLength = text.length;
+            (debug as any).rawPreview = text.slice(0, 100);
+            try {
+              const json = JSON.parse(text);
+              if (Array.isArray(json)) responses = json;
+            } catch (err: any) {
+              (debug as any).jsonErr = err.message;
+            }
           }
         }
       } catch (e: any) {
