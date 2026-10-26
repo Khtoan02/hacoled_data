@@ -10,6 +10,10 @@ function isVercelBlob(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function isVercelEnv(): boolean {
+  return Boolean(process.env.VERCEL);
+}
+
 // ─── Local fs Fallback ────────────────────────────────────────────────────────
 function ensureLocalFile() {
   const dir = path.dirname(DATA_FILE);
@@ -49,6 +53,11 @@ async function readAll(): Promise<unknown[]> {
     }
   }
 
+  if (isVercelEnv()) {
+    console.warn("Running on Vercel but BLOB_READ_WRITE_TOKEN is missing.");
+    return [];
+  }
+
   return readLocal();
 }
 
@@ -61,6 +70,12 @@ async function writeAll(data: unknown[]): Promise<void> {
       contentType: "application/json",
     });
     return;
+  }
+
+  if (isVercelEnv()) {
+    throw new Error(
+      "Chưa có BLOB_READ_WRITE_TOKEN trên Vercel. Hãy đảm bảo bạn đã Connect Store 'hacoled-data-blob' vào Project và bấm Redeploy."
+    );
   }
 
   writeLocal(data);
