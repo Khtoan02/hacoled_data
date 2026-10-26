@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { put, get } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 const DATA_FILE = path.join(process.cwd(), "data", "survey-responses.json");
 const BLOB_PATH = "survey-responses.json";
@@ -38,30 +38,18 @@ function writeLocal(data: unknown[]) {
 // ─── Unified Read / Write ────────────────────────────────────────────────────
 async function readAll(): Promise<unknown[]> {
   if (isVercelBlob()) {
-    // Thử dùng SDK get() trước
     try {
-      const result = await get(BLOB_PATH, { access: "public", useCache: false });
-      if (result && result.statusCode === 200 && result.stream) {
-        const json = await new Response(result.stream).json();
-        if (Array.isArray(json)) return json;
-      }
-    } catch {
-      // Bỏ qua lỗi để thử fallback trực tiếp
-    }
-
-    // Fallback: đọc trực tiếp từ Public URL của Store
-    try {
-      const storeId = process.env.BLOB_STORE_ID?.replace("store_", "").toLowerCase();
-      if (storeId) {
-        const url = `https://${storeId}.public.blob.vercel-storage.com/${BLOB_PATH}?t=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store" });
+      const { blobs } = await list({ prefix: BLOB_PATH });
+      const target = blobs.find((b) => b.pathname === BLOB_PATH);
+      if (target?.url) {
+        const res = await fetch(`${target.url}?t=${Date.now()}`, { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json)) return json;
         }
       }
     } catch (e) {
-      console.error("Direct fetch fallback error:", e);
+      console.error("Vercel Blob list error:", e);
     }
 
     return [];
