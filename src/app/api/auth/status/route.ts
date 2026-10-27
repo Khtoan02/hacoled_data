@@ -12,11 +12,17 @@ export async function GET() {
       configured: true,
       needsSetup: !rows[0].populated,
     });
-  } catch {
+  } catch (error) {
+    const migrationRequired =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "42P01";
     return NextResponse.json({
       configured: false,
       needsSetup: false,
-      migrationRequired: true,
+      migrationRequired,
+      connectionFailed: !migrationRequired,
     });
   }
 }

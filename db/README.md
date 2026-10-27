@@ -6,12 +6,12 @@ This change adds account storage in standard PostgreSQL. It does not import surv
 
 1. In Vercel project settings, confirm `DATABASE_URL` is present for Production (the Neon integration usually adds it). Use the pooled URL for application requests.
 2. Set `ADMIN_SETUP_TOKEN` to a long randomly generated secret. Generate one locally with `openssl rand -hex 32`; do not commit it or paste it into chat.
-3. On a trusted machine, put `DATABASE_URL` in the ignored `.env.local` or supply it through the shell environment. Do not overwrite existing Blob variables. Run `npm run db:migrate`. The migration is transactional and can be rerun; it only creates the account tables and indexes.
+3. Production deployments on Vercel automatically run `npm run db:migrate` through the `prebuild` lifecycle before compiling the application. A missing/invalid connection stops the deployment. Preview and local builds skip this step. For local setup, put `DATABASE_URL` in ignored `.env.local` and run `npm run db:migrate` manually. Do not overwrite Blob variables. The migration is transactional, rerunnable, and only creates the account tables and indexes.
 4. Deploy the reviewed code. Open `/`, enter name, email, a password of 12–128 characters, and the setup token to create the first administrator. This endpoint can create only one first account, serialized by a PostgreSQL transaction lock.
 5. Remove `ADMIN_SETUP_TOKEN` from the deployment environment and redeploy after setup. Existing logins do not depend on it.
 6. Go to `/admin/members` to create named accounts, assign roles, reset passwords and lock/unlock accounts. Passwords are not recoverable; only resets are supported.
 
-There is no default administrator password. The previous shared password and sessionStorage login are removed. Deploying without DATABASE_URL and the migration shows a setup notice; administrators cannot log in until setup is complete.
+There is no default administrator password. The previous shared password and sessionStorage login are removed. Production deployment requires DATABASE_URL; administrators cannot log in until the first account is created using ADMIN_SETUP_TOKEN.
 
 ## Boundaries
 

@@ -17,6 +17,7 @@ export default function LoginPage() {
     configured: boolean;
     needsSetup: boolean;
     migrationRequired?: boolean;
+    connectionFailed?: boolean;
   } | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -82,12 +83,16 @@ export default function LoginPage() {
               <strong>
                 {status.migrationRequired
                   ? "Cần khởi tạo bảng tài khoản"
-                  : "Cần kết nối database"}
+                  : status.connectionFailed
+                    ? "Chưa kết nối được database"
+                    : "Cần kết nối database"}
               </strong>
               <p>
                 {status.migrationRequired
-                  ? "Chạy npm run db:migrate với DATABASE_URL của Neon, sau đó tải lại trang."
-                  : "Thêm DATABASE_URL của Neon vào môi trường chạy ứng dụng, chạy npm run db:migrate rồi tải lại trang."}
+                  ? "Trên Vercel, redeploy để tự khởi tạo bảng. Khi chạy local, dùng npm run db:migrate rồi tải lại trang."
+                  : status.connectionFailed
+                    ? "Kiểm tra DATABASE_URL trong Vercel và trạng thái database Neon, sau đó redeploy."
+                    : "Thêm DATABASE_URL của Neon vào môi trường chạy ứng dụng, chạy npm run db:migrate rồi tải lại trang."}
               </p>
               <small>
                 Thiết lập quản trị viên lần đầu cần ADMIN_SETUP_TOKEN ở server.
