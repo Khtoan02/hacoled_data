@@ -27,7 +27,9 @@ Existing business definitions in README.md and src/lib/store/database.ts. TailAd
 - Make frequent internal tasks easy to scan and complete.
 
 ## Member Roles and Task Access
-Six member roles: Kinh doanh (pending business permissions), Giám đốc and Leader Marketing (full administration), Trưởng phòng Marketing (own tasks plus Marketing staff/intern tasks), Nhân viên Marketing and Thực tập Marketing (identical own-task visibility). Account and task permissions are enforced on the server. Task approval configuration is a separate future workflow, not a fixed role-matrix column.
+Six member roles: Kinh doanh (pending business permissions), Giám đốc and Leader Marketing (full administration), Trưởng phòng Marketing (own tasks plus Marketing staff/intern tasks), Nhân viên Marketing and Thực tập Marketing (identical own-task visibility and reporting). Account and task permissions are enforced on the server. Task approval configuration is a separate future workflow, not a fixed role-matrix column.
 
 ## Current Operational UI
-Database-backed task table, Kanban and to-do views share priority, due dates, checklist and scoped permissions. Overview charts use actual task records; team card/table views use real members and task counts. Personal profile editing changes only the signed-in member name/email. An administrator-only UI library documents reusable components. Legacy marketing modules remain explicitly marked browser-local demonstrations.
+Database-backed task table, Kanban and to-do views share priority, due dates, checklist and scoped permissions. Assignees can submit result text, inline image links and progress for their own work; definition changes remain administrator-only. Overview charts use actual task records; team card/table views use real members and task counts. Personal profile editing changes only the signed-in member name/email. An administrator-only UI library documents reusable components. Legacy marketing modules remain explicitly marked browser-local demonstrations.
+
+Task result snapshots preserve reporter, assignee, deadline and completion timestamps for future KPI reconciliation. Completed status is not content approval or KPI achievement. KPI targets and quality scoring remain undefined.

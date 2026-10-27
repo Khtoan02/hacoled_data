@@ -30,6 +30,10 @@ export interface Task {
   created_at: string;
   updated_at: string;
   checklist: ChecklistItem[];
+  result_text: string;
+  evidence_links: string[];
+  completed_at: string | null;
+  report_version: number;
 }
 export function isOverdue(task: Task) {
   return (
@@ -57,4 +61,29 @@ export function dateInputValue(value: string | null) {
         day: "2-digit",
       }).format(new Date(value))
     : "";
+}
+
+export function validEvidenceUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (
+      ["https:", "http:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      value.length <= 2048
+    );
+  } catch {
+    return false;
+  }
+}
+export interface TaskReport {
+  id: string;
+  actor_name: string;
+  status: TaskStatus;
+  result_text: string;
+  evidence_links: string[];
+  checklist: ChecklistItem[];
+  due_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }

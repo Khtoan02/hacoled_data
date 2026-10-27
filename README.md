@@ -46,3 +46,5 @@ Thiết lập `DATABASE_URL` và `ADMIN_SETUP_TOKEN` theo `.env.example`. Dữ l
 Danh sách công việc tại `/admin/tasks` lưu trên PostgreSQL và lọc quyền tại server. Leader/Giám đốc toàn quyền; Trưởng phòng xem việc của mình cùng nhân viên/thực tập; nhân viên và thực tập chỉ xem việc được giao. Quyền Kinh doanh chờ thiết lập.
 
 Giao diện gồm tổng quan biểu đồ công việc thật, bảng/Kanban/to-do dùng chung dữ liệu, độ ưu tiên, checklist, hạn hoàn thành, quản lý đội ngũ dạng bảng/thẻ, hồ sơ cá nhân và thư viện UI tại `/admin/components`. Trang hồ sơ chỉ cho sửa tên/email của chính người đăng nhập. Phần nghiệp vụ marketing mẫu vẫn được ghi rõ và giữ riêng trong mục thu gọn. Attribution MIT của TailAdmin được lưu tại `public/licenses/tailadmin.txt`.
+
+Người được giao việc có thể mở **Kết quả & tiến độ**, nhập kết quả, cập nhật checklist/trạng thái và dán link ảnh để preview/phóng to ngay trong công việc. Mỗi lần cập nhật lưu lịch sử, người báo cáo và thời điểm hoàn thành để đối chiếu KPI về sau. Trạng thái hoàn thành chưa thay thế bước duyệt chất lượng hoặc chấm KPI.

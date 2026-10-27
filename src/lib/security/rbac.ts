@@ -87,7 +87,8 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     label: "Trưởng phòng Marketing",
     badgeCode: "MANAGER",
     taskScope: "marketing_team",
-    summary: "Xem công việc của mình, nhân viên và thực tập Marketing.",
+    summary:
+      "Theo dõi việc của mình, nhân viên và thực tập; báo cáo kết quả việc được giao cho mình.",
     guardrail:
       "Không mặc định xem việc của trưởng phòng khác, Leader, Giám đốc hoặc dữ liệu nhân sự riêng tư.",
   },
@@ -96,7 +97,8 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     roleId: "marketing_staff",
     label: "Nhân viên Marketing",
     badgeCode: "STAFF",
-    summary: "Xem công việc được giao cho mình.",
+    summary:
+      "Theo dõi tiến độ và báo cáo kết quả công việc được giao cho mình.",
     guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
   },
   marketing_intern: {
@@ -105,7 +107,7 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     label: "Thực tập Marketing",
     badgeCode: "INTERN",
     summary:
-      "Xem công việc được giao cho mình; quyền giống nhân viên Marketing.",
+      "Theo dõi và báo cáo công việc được giao cho mình; quyền giống nhân viên Marketing.",
     guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
   },
   ai_assistant: {

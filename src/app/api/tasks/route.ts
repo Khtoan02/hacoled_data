@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id") || null;
     if (id && !isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
     const tasks =
-      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at,
+      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version,
       m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id
       WHERE (${scope} = 'all' OR t.assignee_id = ${member.id} OR (${scope} = 'marketing_team' AND m.role IN ('marketing_staff','marketing_intern')))
         AND (${id}::uuid IS NULL OR t.id = ${id}::uuid) ORDER BY t.created_at DESC, t.id`;
@@ -155,8 +155,8 @@ export async function POST(req: NextRequest) {
     const actor = await requireManager(),
       data = fields(await req.json());
     const rows =
-      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist)
-      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb
+      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist, completed_at)
+      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb, CASE WHEN ${data.status ?? "pending"} = 'completed' THEN now() ELSE NULL END
       FROM app_members WHERE id = ${data.assignee_id!} AND active = true RETURNING id`;
     if (!rows.length)
       throw new RequestError("Người thực hiện không tồn tại hoặc đã bị khóa.");
@@ -168,17 +168,20 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     checkOrigin(req);
-    await requireManager();
+    const actor = await requireManager();
     const body = await req.json();
     if (!body || !isId(body.id))
       throw new RequestError("Mã công việc không hợp lệ.");
     const data = fields(body, true);
-    const tasks = await database()`UPDATE app_tasks SET
+    const tasks = await database()`WITH updated AS (UPDATE app_tasks SET
       title = COALESCE(${data.title ?? null}, title), description = COALESCE(${data.description ?? null}, description), status = COALESCE(${data.status ?? null}, status),
       priority = COALESCE(${data.priority ?? null}, priority), assignee_id = COALESCE(${data.assignee_id ?? null}::uuid, assignee_id),
       due_at = CASE WHEN ${"due_at" in data} THEN ${data.due_at ?? null}::timestamptz ELSE due_at END,
-      checklist = COALESCE(${data.checklist === undefined ? null : JSON.stringify(data.checklist)}::jsonb, checklist), updated_at = now()
-      WHERE id = ${body.id} AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true)) RETURNING id`;
+      checklist = COALESCE(${data.checklist === undefined ? null : JSON.stringify(data.checklist)}::jsonb, checklist), updated_at = now(), report_version = report_version + 1,
+      completed_at = CASE WHEN COALESCE(${data.status ?? null}, status) = 'completed' THEN CASE WHEN status = 'completed' THEN completed_at ELSE now() END ELSE NULL END
+      WHERE id = ${body.id} AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true)) RETURNING *)
+      INSERT INTO app_task_reports (id, task_id, task_title, assignee_id, actor_id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at)
+      SELECT ${randomUUID()}, id, title, assignee_id, ${actor.id}, ${actor.name}, status, result_text, evidence_links, checklist, due_at, completed_at FROM updated RETURNING task_id`;
     if (!tasks.length)
       throw new RequestError(
         "Không tìm thấy công việc hoặc người thực hiện không còn hoạt động.",

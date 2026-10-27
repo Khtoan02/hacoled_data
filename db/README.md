@@ -34,7 +34,7 @@ This deliberately targets a small internal team. Verification scans active salte
 
 `002-member-roles.sql` preserves member IDs, passwords and audit references. Legacy `fulltime_coord` maps conservatively to `marketing_staff`; an administrator can explicitly promote members to Trưởng phòng. SEO/video intern roles merge into `marketing_intern`. Previous AI member accounts become inactive staff records because AI is no longer an assignable human role. Migrated legacy-role sessions are revoked. Leader and Director IDs remain unchanged.
 
-`003-tasks.sql` adds tasks referencing real member UUIDs. `/api/tasks` applies scope in SQL before returning rows, including requests by task ID; client-side filters do not determine access. Full administrators create tasks and update progress. Manager/staff/intern access is read-only at this stage. Approval rules are not represented in the role matrix and have not yet been implemented in task management.
+`003-tasks.sql` adds tasks referencing real member UUIDs. `/api/tasks` applies scope in SQL before returning rows, including requests by task ID; client-side filters do not determine access. Full administrators create tasks and update progress. Manager/staff/interns can report progress, checklist completion and results on their own assignments through `/api/tasks/report`. Other visible tasks remain read-only. They cannot edit assignment, title, due date, priority or checklist definitions. Approval rules are not represented in the role matrix and have not yet been implemented in task management.
 
 Task lists start empty; old browser-local demonstration tasks are not imported or guessed onto real accounts. Non-admin Marketing accounts land on `/admin/tasks`. Business/financial dashboards and summary APIs require full administration; Kinh doanh lands on a pending-permissions page.
 
@@ -64,8 +64,18 @@ Periodically delete expired rows from `app_sessions` and old rows in `app_auth_a
 
 ## Task details and profiles
 
-`004-task-details.sql` adds constrained priority, JSON checklist and update timestamps without replacing existing tasks. Full administrators can create/edit/delete tasks, update checklists and move status through table, Kanban or to-do views. Other Marketing roles retain the read-only scope described above. Charts and team completion figures derive from these real task records.
+`004-task-details.sql` adds constrained priority, JSON checklist and update timestamps without replacing existing tasks. Full administrators can create/edit/delete tasks, update checklists and move status through table, Kanban or to-do views. Other Marketing roles retain scoped visibility and can report only their own assignments as described below. Charts and team completion figures derive from these real task records.
 
 `/api/profile` returns only the signed-in member’s public account fields and accepts name/email updates for that same member. Role, active status, IDs and password changes cannot be submitted through this endpoint. Password resets remain in member administration.
 
 The UI workflow suite verifies persisted priority/checklist, Kanban drag, to-do completion, editing/deletion, profile updates, prohibited role changes and restricted mutation access, with desktop/mobile captures.
+
+## Results, evidence and KPI groundwork
+
+`005-task-reports.sql` adds result text, up to 10 browser-previewed evidence URLs, server-recorded completion time and a report version. Staff, interns and managers may report only their own assignments. Leader/Director may report any task. The report endpoint accepts only status, result text, evidence links and existing checklist item completion; assignment/definition fields are rejected. Concurrent stale submissions return 409 and the UI offers an explicit reload without silently discarding drafts.
+
+Every report and administrator edit atomically appends an immutable snapshot to `app_task_reports`: actor name/ID, task title, assignee, due date, result, evidence, checklist, status and completion time. Reopening clears the current completion timestamp but keeps prior snapshots. Repeated completed-state updates preserve the original completion time. Existing completed tasks are not assigned invented historical completion dates. History is retained even if an administrator deletes a task; normal task history APIs require access to an existing task. Current history is limited to the latest 50 entries in the UI; all records remain in PostgreSQL.
+
+URLs are loaded only by the browser with no referrer, never fetched/proxied by the application server. Only HTTP/HTTPS without embedded credentials are accepted. Image preview depends on the source's permissions and hotlink policy; ordinary Drive/share-page URLs may not render as images. Broken previews do not erase the saved URL. No image upload or image storage service is added.
+
+Completion is a self-reported progress state, not approval or a scored KPI. Target quantities, quality review, weighting, reporting periods and KPI dashboards still require business definitions. These timestamps and attribution snapshots provide source records for that later work.

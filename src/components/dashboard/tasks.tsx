@@ -19,6 +19,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { TaskResult } from "./task-report";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
 import {
@@ -90,6 +91,8 @@ export function TasksPage() {
     priority: "normal",
     checklist: [],
   });
+  const [reportDirty, setReportDirty] = useState(false);
+  const [detailTab, setDetailTab] = useState<"details" | "result">("details");
   const [newItem, setNewItem] = useState("");
   const load = useCallback(
     async (silent = false) => {
@@ -169,6 +172,7 @@ export function TasksPage() {
     setError("");
     setNewItem("");
     setOpened(task);
+    setDetailTab(task === "new" || full ? "details" : "result");
     setDraft(
       task === "new"
         ? {
@@ -190,6 +194,27 @@ export function TasksPage() {
             checklist: task.checklist.map((item) => ({ ...item })),
           },
     );
+  }
+  function closeDetails() {
+    if (busy) return;
+    if (
+      reportDirty &&
+      !window.confirm("Kết quả chưa lưu. Bạn muốn đóng và bỏ thay đổi?")
+    )
+      return;
+    setReportDirty(false);
+    setOpened(null);
+  }
+  function switchDetailTab(tab: "details" | "result") {
+    if (tab === detailTab) return;
+    if (
+      reportDirty &&
+      tab !== detailTab &&
+      !window.confirm("Kết quả chưa lưu. Bạn muốn chuyển mục và bỏ thay đổi?")
+    )
+      return;
+    setReportDirty(false);
+    setDetailTab(tab);
   }
   async function remove(task: Task) {
     if (
@@ -404,7 +429,7 @@ export function TasksPage() {
               ? "Kéo thả thẻ hoặc mở chi tiết để chuyển trạng thái."
               : full
                 ? "Quản lý tiến độ và người thực hiện."
-                : "Bạn đang ở chế độ xem."}
+                : "Mở công việc để xem hoặc báo cáo kết quả."}
           </span>
         </div>
         <div className="advanced-toolbar">
@@ -620,6 +645,19 @@ export function TasksPage() {
                         >
                           {t.title}
                         </button>
+                        <button
+                          type="button"
+                          className="task-result-link"
+                          onClick={() => {
+                            open(t);
+                            setDetailTab("result");
+                          }}
+                        >
+                          <MessageSquareText size={13} />
+                          {t.result_text || t.evidence_links.length
+                            ? "Xem kết quả"
+                            : "Kết quả & tiến độ"}
+                        </button>
                         {t.checklist.length > 0 && (
                           <small className="table-task-checklist">
                             <ListChecks size={13} />
@@ -685,16 +723,61 @@ export function TasksPage() {
               ? "Giao việc rõ ràng, theo dõi tiến độ cùng đội ngũ."
               : `Người thực hiện: ${opened.assignee_name}`
           }
-          onClose={() => {
-            if (!busy) setOpened(null);
-          }}
+          onClose={closeDetails}
         >
           {error && (
             <div className="drawer-notice">
               <Notice>{error}</Notice>
             </div>
           )}
-          {full ? (
+          {opened !== "new" && (
+            <div
+              className="task-detail-tabs"
+              role="group"
+              aria-label="Nội dung công việc"
+            >
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={detailTab === "details"}
+                onClick={() => switchDetailTab("details")}
+              >
+                Thông tin giao việc
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={detailTab === "result"}
+                onClick={() => switchDetailTab("result")}
+              >
+                Kết quả & tiến độ
+              </button>
+            </div>
+          )}
+          {opened !== "new" && detailTab === "result" ? (
+            <TaskResult
+              key={opened.id}
+              task={opened}
+              canReport={
+                full ||
+                (opened.assignee_id === member.id &&
+                  ROLE_POLICIES[member.role].taskScope !== "none")
+              }
+              onDirty={setReportDirty}
+              onBusy={setBusy}
+              onSaved={(updated) => {
+                setOpened(updated);
+                setTasks((current) =>
+                  current.map((t) => (t.id === updated.id ? updated : t)),
+                );
+                setDraft((current) => ({
+                  ...current,
+                  status: updated.status,
+                  checklist: updated.checklist,
+                }));
+              }}
+            />
+          ) : full ? (
             <form
               className="account-form task-editor"
               onSubmit={(e) => {
@@ -951,8 +1034,8 @@ export function TasksPage() {
                 )}
                 <p className="readonly-note">
                   <MessageSquareText size={16} />
-                  Bạn có quyền xem. Liên hệ người quản lý khi cần cập nhật công
-                  việc.
+                  Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu đây
+                  là công việc được giao cho mình.
                 </p>
               </div>
             )
