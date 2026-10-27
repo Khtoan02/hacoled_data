@@ -31,6 +31,7 @@ import {
   Pagination,
   Panel,
 } from "./ui";
+import { ChannelIdentity, ChannelSelect } from "./channel-picker";
 type Extra = {
   id: string;
   title: string;
@@ -259,21 +260,16 @@ export function KpisPage() {
             </option>
           ))}
         </select>
-        <select
-          aria-label="Lọc kênh KPI"
+        <ChannelSelect
+          ariaLabel="Lọc kênh KPI"
           value={channel}
-          onChange={(e) => {
-            setChannel(e.target.value);
+          channels={channels}
+          onChange={(value) => {
+            setChannel(value);
             setPage(1);
           }}
-        >
-          <option value="all">Mọi kênh</option>
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          specialOptions={[{ value: "all", label: "Mọi kênh" }]}
+        />
         <button
           className="secondary-button"
           disabled={loading}
@@ -361,14 +357,21 @@ export function KpisPage() {
               <div className="kpi-grid">
                 {visible.map((k) => {
                   const progress = kpiProgress(k);
+                  const channelEntry = channels.find(
+                    (channel) => channel.id === k.channel_id,
+                  );
                   return (
                     <article key={k.id} className="kpi-card">
                       <div className="kpi-card-head">
                         <div>
                           <h3>
-                            {OUTPUT_TYPES[k.output_type].label} ·{" "}
-                            {k.channel_name}
+                            {OUTPUT_TYPES[k.output_type].label}
                           </h3>
+                          {channelEntry ? (
+                            <ChannelIdentity channel={channelEntry} compact />
+                          ) : (
+                            <p>{k.channel_name}</p>
+                          )}
                           <p>
                             {k.assignee_name} · {monthLabel(k.month)}
                           </p>
@@ -497,7 +500,18 @@ export function KpisPage() {
                           </Link>
                         </td>
                         <td>{t.assignee_name}</td>
-                        <td>{t.channel_name || "Chưa gắn kênh"}</td>
+                        <td>
+                          {channels.find((c) => c.id === t.channel_id) ? (
+                            <ChannelIdentity
+                              channel={channels.find(
+                                (c) => c.id === t.channel_id,
+                              )!}
+                              compact
+                            />
+                          ) : (
+                            t.channel_name || "Chưa gắn kênh"
+                          )}
+                        </td>
                         <td>
                           {t.delivered_quantity}{" "}
                           {OUTPUT_TYPES[t.output_type].unit}
@@ -559,23 +573,17 @@ export function KpisPage() {
               </label>
               <label>
                 Kênh được giao
-                <select
-                  required
-                  aria-label="Kênh được giao KPI"
+                <ChannelSelect
+                  ariaLabel="Kênh được giao KPI"
                   value={draft.channel_id}
-                  onChange={(e) =>
-                    setDraft({ ...draft, channel_id: e.target.value })
+                  channels={channels.filter(
+                    (c) => c.active || c.id === draft.channel_id,
+                  )}
+                  onChange={(value) =>
+                    setDraft({ ...draft, channel_id: value })
                   }
-                >
-                  <option value="">Chọn kênh</option>
-                  {channels
-                    .filter((c) => c.active || c.id === draft.channel_id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
+                  specialOptions={[{ value: "", label: "Chọn kênh" }]}
+                />
               </label>
               <div className="field-pair">
                 <label>

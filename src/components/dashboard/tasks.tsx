@@ -58,6 +58,7 @@ import {
   PriorityBadge,
   StatusBadge,
 } from "./ui";
+import { ChannelIdentity, ChannelSelect } from "./channel-picker";
 const pageSize = 10;
 type Draft = {
   kpi_id: string;
@@ -381,6 +382,7 @@ export function TasksPage() {
   }
   function card(task: Task) {
     const done = task.checklist.filter((item) => item.done).length;
+    const channel = channels.find((item) => item.id === task.channel_id);
     return (
       <article
         key={task.id}
@@ -401,9 +403,11 @@ export function TasksPage() {
         <button className="task-card-title" onClick={() => open(task)}>
           {task.title}
         </button>
-        {task.channel_name && (
+        {channel ? (
+          <ChannelIdentity channel={channel} compact />
+        ) : task.channel_name ? (
           <p className="task-channel-label">{task.channel_name}</p>
-        )}
+        ) : null}
         {task.description && (
           <p className="task-card-description">{task.description}</p>
         )}
@@ -532,20 +536,16 @@ export function TasksPage() {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Lọc kênh công việc"
+          <ChannelSelect
+            ariaLabel="Lọc kênh công việc"
             value={channelFilter}
-            onChange={(e) => changeFilter(setChannelFilter, e.target.value)}
-          >
-            <option value="all">Mọi kênh</option>
-            <option value="none">Chưa gắn kênh</option>
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.active ? "" : " (lưu trữ)"}
-              </option>
-            ))}
-          </select>
+            channels={channels}
+            onChange={(value) => changeFilter(setChannelFilter, value)}
+            specialOptions={[
+              { value: "all", label: "Mọi kênh" },
+              { value: "none", label: "Chưa gắn kênh" },
+            ]}
+          />
           <label className="table-search">
             <Search size={17} />
             <input
@@ -777,11 +777,18 @@ export function TasksPage() {
                           {t.planned_quantity}{" "}
                           {OUTPUT_TYPES[t.output_type].unit}
                         </small>
-                        {t.channel_name && (
+                        {channels.find((c) => c.id === t.channel_id) ? (
+                          <ChannelIdentity
+                            channel={channels.find(
+                              (c) => c.id === t.channel_id,
+                            )!}
+                            compact
+                          />
+                        ) : t.channel_name ? (
                           <small className="task-channel-label">
                             {t.channel_name}
                           </small>
-                        )}
+                        ) : null}
                         {t.checklist.length > 0 && (
                           <small className="table-task-checklist">
                             <ListChecks size={13} />
@@ -1043,27 +1050,23 @@ export function TasksPage() {
               </section>
               <label>
                 Kênh thực hiện
-                <select
-                  aria-label="Kênh thực hiện"
+                <ChannelSelect
+                  ariaLabel="Kênh thực hiện"
                   value={draft.channel_id}
-                  onChange={(e) =>
+                  channels={channels.filter(
+                    (c) => c.active || c.id === draft.channel_id,
+                  )}
+                  onChange={(value) =>
                     setDraft({
                       ...draft,
                       kpi_id: "",
-                      channel_id: e.target.value,
+                      channel_id: value,
                     })
                   }
-                >
-                  <option value="">Chưa gắn kênh</option>
-                  {channels
-                    .filter((c) => c.active || c.id === draft.channel_id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.active ? "" : " (lưu trữ)"}
-                      </option>
-                    ))}
-                </select>
+                  specialOptions={[
+                    { value: "", label: "Chưa gắn kênh" },
+                  ]}
+                />
               </label>
               <label>
                 Người thực hiện
@@ -1272,7 +1275,16 @@ export function TasksPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      {opened.channel_name}
+                      {channels.find((c) => c.id === opened.channel_id) ? (
+                        <ChannelIdentity
+                          channel={channels.find(
+                            (c) => c.id === opened.channel_id,
+                          )!}
+                          compact
+                        />
+                      ) : (
+                        opened.channel_name
+                      )}
                     </a>
                   ) : (
                     "Chưa gắn kênh"

@@ -17,6 +17,7 @@ import {
 } from "../../lib/kpis";
 import type { SocialChannel } from "../../lib/social";
 import { Notice, StatusBadge } from "./ui";
+import { ChannelSelect } from "./channel-picker";
 function timestamp(value: string) {
   return new Date(value).toLocaleString("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -388,24 +389,18 @@ export function TaskResult({
           </section>
           <label>
             Kênh thực hiện
-            <select
-              aria-label="Kênh báo cáo"
+            <ChannelSelect
+              ariaLabel="Kênh báo cáo"
               value={channelId}
-              onChange={(e) => {
-                setChannelId(e.target.value);
+              channels={channels.filter(
+                (c) => c.active || c.id === channelId,
+              )}
+              onChange={(value) => {
+                setChannelId(value);
                 setKpiId("");
               }}
-            >
-              <option value="">Chưa gắn kênh</option>
-              {channels
-                .filter((c) => c.active || c.id === channelId)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.active ? "" : " (lưu trữ)"}
-                  </option>
-                ))}
-            </select>
+              specialOptions={[{ value: "", label: "Chưa gắn kênh" }]}
+            />
           </label>
           {kpiId && (
             <p className="result-hint">

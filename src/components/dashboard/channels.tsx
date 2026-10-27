@@ -2,16 +2,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
-  AtSign,
-  Camera,
   ExternalLink,
   Eye,
   EyeOff,
-  Globe2,
-  Hash,
   KeyRound,
-  Music2,
-  Play,
   Plus,
   Search,
   ShieldCheck,
@@ -34,6 +28,7 @@ import {
   Pagination,
   Panel,
 } from "./ui";
+import { ChannelPlatformIcon } from "./channel-picker";
 type Draft = {
   id?: string;
   version?: number;
@@ -59,55 +54,9 @@ const fresh = (): Draft => ({
   access: [],
   username: "",
   password: "",
-  replace: false,
+  replace: true,
   clear: false,
 });
-
-function SocialPlatformBadge({ platform }: { platform: SocialPlatform }) {
-  let mark: React.ReactNode;
-  switch (platform) {
-    case "facebook":
-      mark = <span className="social-platform-letter facebook-mark">f</span>;
-      break;
-    case "instagram":
-      mark = <Camera size={21} strokeWidth={2} />;
-      break;
-    case "tiktok":
-      mark = <Music2 size={21} strokeWidth={2.2} />;
-      break;
-    case "youtube":
-      mark = <Play size={20} strokeWidth={2.2} fill="currentColor" />;
-      break;
-    case "zalo":
-      mark = <span className="social-platform-letter zalo-mark">Z</span>;
-      break;
-    case "linkedin":
-      mark = <span className="social-platform-letter linkedin-mark">in</span>;
-      break;
-    case "threads":
-      mark = <AtSign size={22} strokeWidth={2} />;
-      break;
-    case "website":
-      mark = <Globe2 size={21} strokeWidth={2} />;
-      break;
-    default:
-      mark = <Hash size={21} strokeWidth={2} />;
-  }
-  return (
-    <span className="social-platform-identity">
-      <span
-        className={`social-platform-icon platform-${platform}`}
-        aria-hidden="true"
-      >
-        {mark}
-      </span>
-      <span className="social-platform-copy">
-        <small>Nền tảng</small>
-        <strong>{SOCIAL_PLATFORMS[platform]}</strong>
-      </span>
-    </span>
-  );
-}
 
 export function ChannelsPage() {
   const member = useMember(),
@@ -206,6 +155,7 @@ export function ChannelsPage() {
         ...fresh(),
         ...c,
         access: d.access.map((a: { member_id: string }) => a.member_id),
+        replace: false,
       };
       setDraft(loaded);
       setInitialDraft(JSON.stringify(loaded));
@@ -233,6 +183,8 @@ export function ChannelsPage() {
     setBusy(true);
     setError("");
     const { replace, clear, username, password, ...metadata } = draft;
+    const hasNewCredentials =
+      replace && Boolean(username.trim() || password.length);
     // Build an explicit payload: GET metadata such as permission flags never returns to the write API.
     const body = {
       id: metadata.id,
@@ -246,7 +198,7 @@ export function ChannelsPage() {
       access: metadata.access,
       ...(clear
         ? { clear_credentials: true }
-        : replace
+        : hasNewCredentials
           ? { credentials: { username, password } }
           : {}),
     };
@@ -393,7 +345,13 @@ export function ChannelsPage() {
             {visible.map((c) => (
               <article className="social-card" key={c.id}>
                 <div className="social-card-top">
-                  <SocialPlatformBadge platform={c.platform} />
+                  <span className="social-platform-identity">
+                    <ChannelPlatformIcon platform={c.platform} />
+                    <span className="social-platform-copy">
+                      <small>Nền tảng</small>
+                      <strong>{SOCIAL_PLATFORMS[c.platform]}</strong>
+                    </span>
+                  </span>
                   <span className={`social-state ${c.active ? "active" : ""}`}>
                     {c.active ? "Đang sử dụng" : "Đã lưu trữ"}
                   </span>
@@ -552,55 +510,91 @@ export function ChannelsPage() {
               <section className="social-editor-section">
                 <h3>Thông tin đăng nhập</h3>
                 <p className="result-hint">
-                  Thông tin được mã hóa. Bỏ chọn thay thế để giữ nguyên thông
-                  tin đã lưu.
+                  Tài khoản và mật khẩu được mã hóa trước khi lưu. Để trống khi
+                  tạo kênh nếu chưa muốn lưu thông tin đăng nhập.
                 </p>
-                <label className="social-checkbox">
-                  <input
-                    type="checkbox"
-                    disabled={!configured}
-                    checked={draft.replace}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        replace: e.target.checked,
-                        clear: false,
-                      })
-                    }
-                  />
-                  Nhập hoặc thay thế tài khoản/mật khẩu
-                </label>
-                {draft.replace && (
-                  <>
-                    <label>
-                      Tài khoản đăng nhập
-                      <input
-                        autoComplete="off"
-                        maxLength={254}
-                        value={draft.username}
-                        onChange={(e) =>
-                          setDraft({ ...draft, username: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Mật khẩu kênh
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        maxLength={1000}
-                        value={draft.password}
-                        onChange={(e) =>
-                          setDraft({ ...draft, password: e.target.value })
-                        }
-                      />
-                    </label>
-                    <p className="result-hint">
-                      Điền thông tin muốn lưu mới. Để trống mật khẩu sẽ lưu tài
-                      khoản không kèm mật khẩu.
-                    </p>
-                  </>
+                {!configured && (
+                  <Notice tone="info">
+                    Cấu hình SOCIAL_CREDENTIALS_KEY trên server để bật lưu tài
+                    khoản và mật khẩu.
+                  </Notice>
                 )}
+                {draft.id && (
+                  <label className="social-checkbox">
+                    <input
+                      type="checkbox"
+                      disabled={!configured || draft.clear}
+                      checked={draft.replace}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          replace: e.target.checked,
+                          clear: false,
+                          username: "",
+                          password: "",
+                        })
+                      }
+                    />
+                    Cập nhật thông tin đăng nhập đang lưu
+                  </label>
+                )}
+                <div className="field-pair social-credential-fields">
+                  <label>
+                    Tài khoản đăng nhập
+                    <input
+                      autoComplete="off"
+                      maxLength={254}
+                      disabled={
+                        !configured ||
+                        draft.clear ||
+                        Boolean(draft.id && !draft.replace)
+                      }
+                      value={draft.username}
+                      placeholder={
+                        draft.id && !draft.replace
+                          ? "Bật cập nhật để nhập tài khoản mới"
+                          : "Email, số điện thoại hoặc tên đăng nhập"
+                      }
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          replace: true,
+                          username: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Mật khẩu kênh
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      maxLength={1000}
+                      disabled={
+                        !configured ||
+                        draft.clear ||
+                        Boolean(draft.id && !draft.replace)
+                      }
+                      value={draft.password}
+                      placeholder={
+                        draft.id && !draft.replace
+                          ? "Mật khẩu hiện tại vẫn được giữ nguyên"
+                          : "Nhập mật khẩu cần lưu"
+                      }
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          replace: true,
+                          password: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <p className="result-hint">
+                  Khi chỉnh sửa, thông tin cũ được giữ nguyên cho đến khi bạn
+                  bật cập nhật và nhập giá trị mới.
+                </p>
                 {draft.id && (
                   <label className="social-checkbox">
                     <input
