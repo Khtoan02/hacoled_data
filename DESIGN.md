@@ -34,7 +34,7 @@ typography:
     fontWeight: 600
 rounded:
   control: "8px"
-  panel: "14px"
+  panel: "16px"
   legacy-panel: "12px"
   status: "6px"
 spacing:
@@ -74,7 +74,7 @@ components:
 
 A light, TailAdmin-inspired operations interface: white navigation and panels, a quiet gray canvas, clear data hierarchy, and restrained red and yellow brand details. The user confirmed this direction, local Chakra Petch typography, and the supplied Đông Sơn artwork.
 
-Scope is the dashboard shell, overview, member management, task lists and login. Existing operational detail views retain their components with scoped brand overrides; this document does not imply a full redesign of those views. Source authority is `src/app/globals.css`, dashboard shell and member components, root layout, Tailwind configuration, and the shared UI primitives.
+Scope is the dashboard shell, live task overview, member management, task table/Kanban/to-do, personal profile, component library and login. Existing operational detail views retain their components with scoped brand overrides; this document does not imply a full redesign of those views. Source authority is `src/app/globals.css`, dashboard shell and member components, root layout, Tailwind configuration, and the shared UI primitives.
 
 ## Colors
 
@@ -105,7 +105,11 @@ Controls use the control radius, major new panels use the panel radius, and reta
 - **Buttons:** Semibold labels with outline icons and a minimum height (42px). Primary uses red and darkens on hover; secondary uses a white surface and neutral border. Disabled controls reduce opacity to (0.55). Icon buttons are square (36px).
 - **Fields:** Account inputs use a neutral border, red caret and red focus border with a translucent red outline. Visible labels accompany form fields; password visibility has an explicit accessible label. Search and role filters retain their compact table styling.
 - **Navigation:** Outline Lucide icons use consistent stroke treatment; active rows pair a pale red surface with red text and a chevron. Group labels are small and tracked. Search operates on available workspace destinations.
-- **Task lists:** Reuse member-table panel, toolbar, scoped search and horizontally scrollable table patterns. Show assignee and progress; creation/status controls appear only for full administrators.
+- **Tasks:** One database-backed collection supports table, Kanban and to-do views. Shared search/status/priority/assignee filters and pagination keep the table compact. Priority, checklist progress, assignee and due date appear consistently. Full administrators can create, edit, drag between statuses, complete and delete tasks; other Marketing roles retain scoped read-only access. The detail drawer provides a keyboard-accessible alternative to dragging.
+- **Charts:** Recharts renders actual monthly task creation and status distribution. Period controls change the monthly window; empty data stays explicit. Legacy marketing metrics are grouped behind a clearly labelled demonstration disclosure.
+- **Team:** Table and card views share real member actions and task completion counts. Initial avatars use actual names.
+- **Profile:** Members can edit their own name/email. Role, account state and security information are read-only.
+- **Shared primitives:** Panel, Notice, EmptyState, LoadingState, Avatar, StatusBadge, PriorityBadge, Pagination and Drawer live in `src/components/dashboard/ui`. Drawers trap focus, support Escape and return focus to the invoking control. `/admin/components` demonstrates the same controls for full administrators; examples do not persist business data.
 - **Panels and tables:** Separate section headers, toolbar, table and footnote. Member identity combines an initial avatar, name and email. Status uses a dot and text, never color alone. Loading, empty, failure and success states remain explicit.
 - **Đông Sơn artwork:** Preserve `/brand/dongson-original.webp`. Render it through the supplied CSS luminance mask with gold as its background, decorative and noninteractive. Crop within panels; keep artwork behind content. Welcome, sidebar note, member intro and login apply their own scale and opacity.
 - **Retained detail components:** Badges, meters, metric cards and explanatory tooltips keep their existing APIs. Scoped brand overrides replace selected dark/blue accents with red; tooltip panels remain ink-colored. On mobile, tooltip content becomes a fixed bottom panel within viewport gutters.
@@ -118,3 +122,7 @@ Controls use the control radius, major new panels use the panel radius, and reta
 - **Don't** replace the supplied drum with an invented pattern or use it behind dense table text.
 - **Don't** promote gold into the default action color or remove semantic status labels.
 - **Don't** assume the retained operational detail views have adopted every new panel treatment.
+
+## Reference and licensing
+
+The user-supplied `free-nextjs-admin-dashboard-main.zip` informed panel, table, chart, team and profile hierarchy. Kanban/to-do and real application workflows were implemented for HacoLED. TailAdmin MIT attribution is preserved in `public/licenses/tailadmin.txt`. Desktop and 390px mobile workflow captures are stored in ignored `.impeccable/review/`.

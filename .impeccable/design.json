@@ -86,7 +86,7 @@
       "kind": "card",
       "description": "Member panel from the implemented dashboard.",
       "html": "<section class=\"ds-card\"><h2>Danh sách thành viên</h2><p>Thêm, cập nhật vai trò và kiểm soát trạng thái truy cập.</p></section>",
-      "css": ".ds-card{font-family:var(--font-chakra),sans-serif;font-size:12px;background:white;border:1px solid var(--line);border-radius:14px;padding:22px 24px;color:var(--ink)}.ds-card h2{font-size:16px;font-weight:600;margin:0}.ds-card p{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 0}"
+      "css": ".ds-card{font-family:var(--font-chakra),sans-serif;font-size:12px;background:white;border:1px solid var(--line);border-radius:16px;padding:22px 24px;color:var(--ink)}.ds-card h2{font-size:16px;font-weight:600;margin:0}.ds-card p{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 0}"
     }
   ]
 }

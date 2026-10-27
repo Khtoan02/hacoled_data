@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { OperationalOverview } from "../../components/dashboard/overview";
 import { DashboardShell } from "../../components/dashboard/shell";
 import { useMember } from "../../components/dashboard/session";
 import { CalendarDays, Info } from "lucide-react";
@@ -666,13 +667,15 @@ export default function HacoledMarketingOS() {
       description={activeTab === "executive" ? "Theo dõi hiệu quả, nắm bắt cơ hội và kết nối hoạt động của đội ngũ." : currentPageMeta.desc}
       activeTab={activeTab} onTabChange={tab => { if (canAccessTab(tab)) { setActiveTab(tab as WorkspaceTab); window.history.replaceState(null, "", `/admin?tab=${tab}`); } }}>
       {notice && <div role="status" className={`form-message ${notice.type === "error" ? "error" : notice.type === "success" ? "success" : ""}`}><span className="flex-1">{notice.text}</span><button onClick={() => setNotice(null)} className="underline">Đóng</button></div>}
-      {activeTab === "executive" && <section className="dashboard-welcome"><div className="dongson-pattern" aria-hidden="true" /><div><h2>Chào {member.name.split(" ").slice(-1)[0]}, cùng nhìn lại hiệu quả.</h2><p>Từ chiến lược đến chuyển đổi — mọi chỉ số đều có nguồn dữ liệu để bạn kiểm tra và đưa ra quyết định.</p></div><div className="welcome-period"><span className="flex items-center gap-2"><CalendarDays size={14} />Kỳ đang theo dõi</span><strong>{db.meta.currentPeriod}</strong></div></section>}
-      <div className="demo-notice"><Info size={16} /><span>Dữ liệu nghiệp vụ minh họa · Các thay đổi ở phân hệ này đang lưu trên trình duyệt. Tài khoản thành viên được quản lý riêng trên database.</span></div>
+      {activeTab === "executive" && <OperationalOverview />}
+      {activeTab !== "executive" && <div className="demo-notice"><Info size={16} /><span>Dữ liệu marketing minh họa · Thay đổi trong phân hệ này lưu trên trình duyệt.</span></div>}
       <div className="legacy-workspace space-y-5">
         {/* =================================================================
             WORKSPACE 1: EXECUTIVE DECISION HUB & FUNNEL INTELLIGENCE (D01-D08)
            ================================================================= */}
         {activeTab === "executive" && (
+          <details className="legacy-details"><summary>Báo cáo marketing minh họa <span>Chỉ số, phễu chuyển đổi và mô hình tài chính mẫu</span></summary>
+          <div className="demo-notice"><Info size={16} /><span>Dữ liệu bên dưới là dữ liệu minh họa, lưu tại trình duyệt; chưa kết nối dữ liệu marketing thực tế.</span></div>
           <div className="space-y-5">
             {/* Top Bar: Period Controls & MoM Safe Calculator */}
             <div className="bg-white rounded-xl border border-zinc-200 p-4 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1060,6 +1063,7 @@ export default function HacoledMarketingOS() {
               </div>
             </div>
           </div>
+          </details>
         )}
 
         {/* =================================================================

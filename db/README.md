@@ -61,3 +61,11 @@ PGlite verifies PostgreSQL schema/query behavior and application flows; final co
 ## Maintenance
 
 Periodically delete expired rows from `app_sessions` and old rows in `app_auth_attempts`. Retain audit records according to internal policy. Export backups using standard PostgreSQL tools and test restoration separately.
+
+## Task details and profiles
+
+`004-task-details.sql` adds constrained priority, JSON checklist and update timestamps without replacing existing tasks. Full administrators can create/edit/delete tasks, update checklists and move status through table, Kanban or to-do views. Other Marketing roles retain the read-only scope described above. Charts and team completion figures derive from these real task records.
+
+`/api/profile` returns only the signed-in member’s public account fields and accepts name/email updates for that same member. Role, active status, IDs and password changes cannot be submitted through this endpoint. Password resets remain in member administration.
+
+The UI workflow suite verifies persisted priority/checklist, Kanban drag, to-do completion, editing/deletion, profile updates, prohibited role changes and restricted mutation access, with desktop/mobile captures.

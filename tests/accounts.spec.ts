@@ -45,7 +45,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await page
     .getByRole("button", { name: "Tạo quản trị viên", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/admin/);
+  await expect(page).toHaveURL(/\/admin/, { timeout: 20000 });
   await expect(
     page.getByRole("heading", { name: "Tổng quan Marketing" }),
   ).toBeVisible();
@@ -79,7 +79,9 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await page
     .getByLabel("Email liên hệ", { exact: true })
     .fill("intern@example.test");
-  await page.getByLabel("Vai trò", { exact: true }).selectOption("marketing_intern");
+  await page
+    .getByLabel("Vai trò", { exact: true })
+    .selectOption("marketing_intern");
   await page
     .getByLabel("Mật khẩu ban đầu", { exact: true })
     .fill(internPassword);

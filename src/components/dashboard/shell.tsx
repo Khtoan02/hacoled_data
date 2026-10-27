@@ -14,6 +14,8 @@ import {
   LogOut,
   Menu,
   PanelLeftClose,
+  UserRound,
+  Component,
   Search,
   ShieldCheck,
   Users,
@@ -80,6 +82,20 @@ export const workspaceItems = [
     icon: ShieldCheck,
     group: "",
   },
+  {
+    id: "profile",
+    label: "Hồ sơ cá nhân",
+    icon: UserRound,
+    href: "/admin/profile",
+    group: "TÀI KHOẢN",
+  },
+  {
+    id: "components",
+    label: "Thư viện giao diện",
+    icon: Component,
+    href: "/admin/components",
+    group: "",
+  },
 ];
 
 export function Brand({ compact = false }: { compact?: boolean }) {
@@ -126,6 +142,21 @@ export function DashboardShell({
   const [mobileOpen, setMobileOpen] = useState(false),
     [search, setSearch] = useState("");
   const [logoutError, setLogoutError] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(
+        localStorage.getItem("hacoled_sidebar_collapsed") === "true",
+      );
+    } catch {}
+  }, []);
+  function toggleSidebar() {
+    const value = !collapsed;
+    setCollapsed(value);
+    try {
+      localStorage.setItem("hacoled_sidebar_collapsed", String(value));
+    } catch {}
+  }
   const menuTrigger = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -160,6 +191,7 @@ export function DashboardShell({
     };
   }, [mobileOpen]);
   const allowed = (id: string) => {
+    if (id === "profile") return true;
     if (id === "tasks") return policy.taskScope !== "none";
     return isFullAccess(member.role);
   };
@@ -188,7 +220,7 @@ export function DashboardShell({
         .includes(search.toLocaleLowerCase("vi")),
   );
   return (
-    <div className="dashboard-app">
+    <div className={`dashboard-app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <a href="#workspace-content" className="skip-link">
         Đến nội dung
       </a>
@@ -224,6 +256,7 @@ export function DashboardShell({
               <div key={item.id}>
                 {item.group && <p className="nav-group">{item.group}</p>}
                 <button
+                  title={item.label}
                   onClick={() => go(item.id, item.href)}
                   className={`nav-item ${active ? "active" : ""}`}
                   aria-current={active ? "page" : undefined}
@@ -266,12 +299,18 @@ export function DashboardShell({
           >
             <Menu size={20} />
           </button>
-          <PanelLeftClose
-            className="desktop-only text-zinc-400"
-            size={21}
-            strokeWidth={1.5}
-            aria-hidden="true"
-          />
+          <button
+            className="icon-button desktop-only sidebar-toggle"
+            aria-label={
+              collapsed
+                ? "Mở rộng thanh điều hướng"
+                : "Thu gọn thanh điều hướng"
+            }
+            aria-expanded={!collapsed}
+            onClick={toggleSidebar}
+          >
+            <PanelLeftClose size={20} strokeWidth={1.6} />
+          </button>
           <div className="workspace-search">
             <Search size={18} />
             <input
@@ -300,13 +339,19 @@ export function DashboardShell({
             )}
           </div>
           <div className="topbar-account">
-            <span className="account-avatar">
-              {member.name.slice(0, 1).toUpperCase()}
-            </span>
-            <span className="account-description">
-              <strong>{member.name}</strong>
-              <small>{policy.label}</small>
-            </span>
+            <Link
+              href="/admin/profile"
+              className="account-profile-link"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              <span className="account-avatar">
+                {member.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="account-description">
+                <strong>{member.name}</strong>
+                <small>{policy.label}</small>
+              </span>
+            </Link>
             <button
               className="icon-button"
               onClick={logout}
@@ -331,7 +376,13 @@ export function DashboardShell({
                   ? "Phân quyền"
                   : pathname.includes("survey")
                     ? "Khảo sát"
-                    : "Dashboard"}
+                    : pathname.includes("tasks")
+                      ? "Công việc"
+                      : pathname.includes("profile")
+                        ? "Hồ sơ"
+                        : pathname.includes("components")
+                          ? "Giao diện"
+                          : "Dashboard"}
               </span>
             </div>
           </div>

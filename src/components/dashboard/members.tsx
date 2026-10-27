@@ -6,6 +6,9 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  LayoutGrid,
+  List,
+  Mail,
   Loader2,
   LockKeyhole,
   Plus,
@@ -24,6 +27,8 @@ import {
   isFullAccess,
   type MemberRoleId,
 } from "../../lib/security/rbac";
+import { Avatar, Pagination } from "./ui";
+import type { Task } from "../../lib/tasks";
 import type { Member } from "../../lib/auth/types";
 
 const emptyForm = {
@@ -34,6 +39,9 @@ const emptyForm = {
 };
 export function MembersPage() {
   const self = useMember();
+  const [view, setView] = useState<"table" | "grid">("table");
+  const [page, setPage] = useState(1);
+  const [taskStats, setTaskStats] = useState<Task[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]),
     [loading, setLoading] = useState(true);
   const [error, setError] = useState(""),
@@ -53,6 +61,17 @@ export function MembersPage() {
         data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setMembers(data.members);
+      try {
+        const taskResponse = await fetch("/api/tasks", { cache: "no-store" });
+        if (!taskResponse.ok) {
+          setTaskStats(null);
+        } else {
+          const taskData = await taskResponse.json();
+          setTaskStats(taskData.tasks);
+        }
+      } catch {
+        setTaskStats(null);
+      }
     } catch (e) {
       setError(
         e instanceof Error
@@ -107,6 +126,11 @@ export function MembersPage() {
         .toLocaleLowerCase("vi")
         .includes(search.toLocaleLowerCase("vi")),
   );
+  const currentPage = Math.min(
+    page,
+    Math.max(1, Math.ceil(filtered.length / 10)),
+  );
+  const visible = filtered.slice((currentPage - 1) * 10, currentPage * 10);
   return (
     <DashboardShell
       title="Thành viên & Phân quyền"
@@ -331,13 +355,19 @@ export function MembersPage() {
               aria-label="Tìm tên hoặc email thành viên"
               placeholder="Tìm tên hoặc email…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </label>
           <select
             aria-label="Lọc theo vai trò"
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
           >
             <option value="all">Tất cả vai trò</option>
             {MEMBER_ROLES.map((p) => (
@@ -347,47 +377,66 @@ export function MembersPage() {
             ))}
           </select>
         </div>
-        <div className="table-scroll">
-          <table className="members-table">
-            <thead>
-              <tr>
-                <th>Thành viên</th>
-                <th>Vai trò</th>
-                <th>Trạng thái</th>
-                <th>Ngày tham gia</th>
-                <th className="text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="table-empty">
-                    <Loader2 className="animate-spin inline mr-2" size={18} />
-                    Đang tải thành viên…
-                  </td>
-                </tr>
-              ) : filtered.length ? (
-                filtered.map((m) => (
-                  <tr key={m.id}>
-                    <td>
-                      <div className="member-identity">
-                        <span
-                          className={`member-avatar ${isFullAccess(m.role) ? "admin" : ""}`}
-                        >
-                          {m.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span>
-                          <strong>
-                            {m.name}
-                            {m.id === self.id && (
-                              <small className="you-badge">Bạn</small>
-                            )}
-                          </strong>
-                          <small>{m.email}</small>
-                        </span>
-                      </div>
-                    </td>
-                    <td>
+        <div className="member-view-controls">
+          <span>Hiển thị đội ngũ</span>
+          <div className="segmented-control">
+            <button
+              aria-label="Hiển thị dạng bảng"
+              aria-pressed={view === "table"}
+              className={view === "table" ? "active" : ""}
+              onClick={() => setView("table")}
+            >
+              <List size={16} />
+              Bảng
+            </button>
+            <button
+              aria-label="Hiển thị dạng thẻ"
+              aria-pressed={view === "grid"}
+              className={view === "grid" ? "active" : ""}
+              onClick={() => setView("grid")}
+            >
+              <LayoutGrid size={16} />
+              Thẻ thành viên
+            </button>
+          </div>
+        </div>
+        {view === "grid" ? (
+          <div className="team-grid">
+            {loading ? (
+              <p className="table-empty">Đang tải đội ngũ…</p>
+            ) : visible.length ? (
+              visible.map((m) => {
+                const assigned = taskStats?.filter(
+                    (t) => t.assignee_id === m.id,
+                  ),
+                  done = assigned?.filter(
+                    (t) => t.status === "completed",
+                  ).length;
+                return (
+                  <article key={m.id} className="team-card">
+                    <div className="team-card-top">
+                      <Avatar
+                        name={m.name}
+                        size="large"
+                        tone={isFullAccess(m.role) ? "brand" : "neutral"}
+                      />
+                      <span
+                        className={`member-status ${m.active ? "enabled" : "disabled"}`}
+                      >
+                        <span />
+                        {m.active ? "Hoạt động" : "Đã khóa"}
+                      </span>
+                    </div>
+                    <h3>
+                      {m.name}
+                      {m.id === self.id && <small>Bạn</small>}
+                    </h3>
+                    <p className="team-card-email">
+                      <Mail size={14} />
+                      {m.email}
+                    </p>
+                    <label className="team-card-role">
+                      Vai trò
                       <select
                         aria-label={`Vai trò của ${m.name}`}
                         value={m.role}
@@ -411,74 +460,204 @@ export function MembersPage() {
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td>
-                      <span
-                        className={`member-status ${m.active ? "enabled" : "disabled"}`}
-                      >
-                        <span />
-                        {m.active ? "Hoạt động" : "Đã khóa"}
+                    </label>
+                    <div className="team-workload">
+                      <span>
+                        Công việc hoàn thành
+                        <strong>
+                          {assigned ? `${done}/${assigned.length}` : "—"}
+                        </strong>
                       </span>
+                      <progress
+                        max={Math.max(1, assigned?.length || 0)}
+                        value={done || 0}
+                        aria-label={`Tiến độ ${m.name}`}
+                      />
+                    </div>
+                    <div className="team-card-actions">
+                      <button
+                        className="secondary-button"
+                        disabled={busy}
+                        onClick={() => {
+                          setResetMember(m);
+                          setAdding(false);
+                          setForm(emptyForm);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <KeyRound size={15} />
+                        Đặt lại mật khẩu
+                      </button>
+                      <button
+                        className="secondary-button compact"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `${m.active ? "Khóa" : "Mở khóa"} tài khoản ${m.name}?`,
+                            )
+                          )
+                            void mutate(
+                              { id: m.id, active: !m.active },
+                              "PATCH",
+                              m.active
+                                ? "Đã khóa tài khoản."
+                                : "Đã mở khóa tài khoản.",
+                            );
+                        }}
+                      >
+                        {m.active ? "Khóa" : "Mở khóa"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <p className="table-empty">
+                Không có thành viên phù hợp với bộ lọc.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="members-table">
+              <thead>
+                <tr>
+                  <th>Thành viên</th>
+                  <th>Vai trò</th>
+                  <th>Trạng thái</th>
+                  <th>Ngày tham gia</th>
+                  <th className="text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="table-empty">
+                      <Loader2 className="animate-spin inline mr-2" size={18} />
+                      Đang tải thành viên…
                     </td>
-                    <td className="date-cell">
-                      {new Date(m.created_at).toLocaleDateString("vi-VN", {
-                        timeZone: "Asia/Ho_Chi_Minh",
-                      })}
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          className="icon-button"
-                          title="Đặt lại mật khẩu"
-                          aria-label={`Đặt lại mật khẩu cho ${m.name}`}
+                  </tr>
+                ) : filtered.length ? (
+                  visible.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        <div className="member-identity">
+                          <span
+                            className={`member-avatar ${isFullAccess(m.role) ? "admin" : ""}`}
+                          >
+                            {m.name.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span>
+                            <strong>
+                              {m.name}
+                              {m.id === self.id && (
+                                <small className="you-badge">Bạn</small>
+                              )}
+                            </strong>
+                            <small>{m.email}</small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <select
+                          aria-label={`Vai trò của ${m.name}`}
+                          value={m.role}
                           disabled={busy}
-                          onClick={() => {
-                            setResetMember(m);
-                            setAdding(false);
-                            setForm(emptyForm);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                        >
-                          <KeyRound size={17} />
-                        </button>
-                        <button
-                          className="secondary-button compact"
-                          disabled={busy}
-                          onClick={() => {
+                          onChange={(e) => {
                             if (
                               window.confirm(
-                                `${m.active ? "Khóa" : "Mở khóa"} tài khoản ${m.name}?`,
+                                `Đổi vai trò của ${m.name}? Thành viên sẽ cần đăng nhập lại.`,
                               )
                             )
                               void mutate(
-                                { id: m.id, active: !m.active },
+                                { id: m.id, role: e.target.value },
                                 "PATCH",
-                                m.active
-                                  ? "Đã khóa tài khoản và thu hồi phiên đăng nhập."
-                                  : "Đã mở khóa tài khoản.",
+                                "Đã cập nhật vai trò và thu hồi phiên đăng nhập cũ.",
                               );
                           }}
                         >
-                          {m.active ? "Khóa" : "Mở khóa"}
-                        </button>
-                      </div>
+                          {MEMBER_ROLES.map((p) => (
+                            <option value={p.roleId} key={p.roleId}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <span
+                          className={`member-status ${m.active ? "enabled" : "disabled"}`}
+                        >
+                          <span />
+                          {m.active ? "Hoạt động" : "Đã khóa"}
+                        </span>
+                      </td>
+                      <td className="date-cell">
+                        {new Date(m.created_at).toLocaleDateString("vi-VN", {
+                          timeZone: "Asia/Ho_Chi_Minh",
+                        })}
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            className="icon-button"
+                            title="Đặt lại mật khẩu"
+                            aria-label={`Đặt lại mật khẩu cho ${m.name}`}
+                            disabled={busy}
+                            onClick={() => {
+                              setResetMember(m);
+                              setAdding(false);
+                              setForm(emptyForm);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <KeyRound size={17} />
+                          </button>
+                          <button
+                            className="secondary-button compact"
+                            disabled={busy}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `${m.active ? "Khóa" : "Mở khóa"} tài khoản ${m.name}?`,
+                                )
+                              )
+                                void mutate(
+                                  { id: m.id, active: !m.active },
+                                  "PATCH",
+                                  m.active
+                                    ? "Đã khóa tài khoản và thu hồi phiên đăng nhập."
+                                    : "Đã mở khóa tài khoản.",
+                                );
+                            }}
+                          >
+                            {m.active ? "Khóa" : "Mở khóa"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="table-empty">
+                      {error
+                        ? "Chưa tải được dữ liệu. Bấm Làm mới để thử lại."
+                        : "Không có thành viên phù hợp với bộ lọc."}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="table-empty">
-                    {error
-                      ? "Chưa tải được dữ liệu. Bấm Làm mới để thử lại."
-                      : "Không có thành viên phù hợp với bộ lọc."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Pagination
+          page={currentPage}
+          total={filtered.length}
+          pageSize={10}
+          onChange={setPage}
+        />
         <div className="table-footnote">
-          Hiển thị {filtered.length} / {members.length} thành viên
+          {members.length} thành viên trong hệ thống
           <span>Leader Marketing và Giám đốc được quản lý tài khoản.</span>
         </div>
       </section>
