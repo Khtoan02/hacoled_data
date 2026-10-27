@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { DashboardShell } from "../../components/dashboard/shell";
+import { useMember } from "../../components/dashboard/session";
+import { CalendarDays, Info } from "lucide-react";
 import {
   INITIAL_HACOLED_DB,
   HacoledDatabase,
@@ -52,22 +54,14 @@ type WorkspaceTab =
   | "team_survey";
 
 export default function HacoledMarketingOS() {
-  const router = useRouter();
-
-  // Auth check
-  useEffect(() => {
-    if (sessionStorage.getItem("hacoled_auth") !== "ok") {
-      router.replace("/");
-    }
-  }, [router]);
-
+  const member = useMember();
   // Core Database State
   const [db, setDb] = useState<HacoledDatabase>(INITIAL_HACOLED_DB);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Active Workspace & Active Role (RBAC)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("executive");
-  const [activeRole, setActiveRole] = useState<SystemRoleId>("lead_marketing");
+  const activeRole = member.role;
 
   // System Notification Toast (Minimalist banner)
   const [notice, setNotice] = useState<{
@@ -291,32 +285,6 @@ export default function HacoledMarketingOS() {
   }, [db]);
 
   // Handlers
-  const handleRoleSwitch = (nextRole: SystemRoleId) => {
-    setActiveRole(nextRole);
-    const policy = ROLE_POLICIES[nextRole];
-    if (!policy.canViewRawPii) {
-      // Log RBAC PII protection activation
-      const authCheck = authorizeAction({
-        roleId: nextRole,
-        actionType: "VIEW_RAW_PII",
-        entityType: "contacts",
-        entityId: "ALL_CONTACTS",
-      });
-      if (authCheck.auditEntry) {
-        setDb((prev) => ({
-          ...prev,
-          auditLog: [authCheck.auditEntry!, ...prev.auditLog],
-        }));
-      }
-      notify(
-        "warning",
-        `Đã chuyển sang vai trò [${policy.label}]: Tự động bật chế độ che thông tin cá nhân (PII Masking - QA18).`
-      );
-    } else {
-      notify("success", `Đã chuyển sang vai trò [${policy.label}].`);
-    }
-  };
-
   const handleLeadIntakeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const res = processLeadIntake(db, {
@@ -648,103 +616,6 @@ export default function HacoledMarketingOS() {
 
   const currentRolePolicy = ROLE_POLICIES[activeRole];
 
-  // Sidebar menu groups with RBAC
-  const menuGroups = [
-    {
-      label: "Phân tích",
-      items: [
-        {
-          id: "executive" as WorkspaceTab,
-          icon: "📊",
-          label: "Báo cáo Quyết định",
-          badge: "D01–D08",
-          canAccess: true,
-        },
-      ],
-    },
-    {
-      label: "CRM & Kinh doanh",
-      items: [
-        {
-          id: "crm_pipeline" as WorkspaceTab,
-          icon: "📥",
-          label: "Tiếp nhận Lead & CRM",
-          badge: "B07/B08",
-          canAccess:
-            currentRolePolicy.canConfirmCustomerStatus ||
-            currentRolePolicy.canViewRawPii,
-        },
-      ],
-    },
-    {
-      label: "Chiến lược",
-      items: [
-        {
-          id: "strategy_lab" as WorkspaceTab,
-          icon: "🎯",
-          label: "Chiến lược & Insight",
-          badge: "B01–B03",
-          canAccess:
-            currentRolePolicy.canApproveClaimsAndInsights ||
-            activeRole === "lead_marketing" ||
-            activeRole === "executive",
-        },
-      ],
-    },
-    {
-      label: "Nội dung & Kênh",
-      items: [
-        {
-          id: "content_channels" as WorkspaceTab,
-          icon: "✍️",
-          label: "Nội dung & UTM",
-          badge: "B05/B06",
-          canAccess:
-            currentRolePolicy.canPublishContent ||
-            currentRolePolicy.canEditRawMetrics,
-        },
-      ],
-    },
-    {
-      label: "Team & Vận hành",
-      items: [
-        {
-          id: "team_cost" as WorkspaceTab,
-          icon: "👤",
-          label: "Nhân sự & Chi phí",
-          badge: "B04/B11",
-          canAccess:
-            currentRolePolicy.canViewSalaryAndHrPrivate ||
-            activeRole === "lead_marketing",
-        },
-        {
-          id: "team_survey" as WorkspaceTab,
-          icon: "📋",
-          label: "Khảo sát Team",
-          badge: "Survey",
-          canAccess: true,
-          isExternalNav: true,
-          href: "/admin/survey",
-        },
-      ],
-    },
-    {
-      label: "Bảo mật & Hệ thống",
-      items: [
-        {
-          id: "security_qa" as WorkspaceTab,
-          icon: "🔒",
-          label: "Bảo mật & Kiểm thử QA",
-          badge: "B12/QA24",
-          canAccess:
-            currentRolePolicy.canManagePermissions ||
-            activeRole === "lead_marketing" ||
-            activeRole === "executive",
-        },
-      ],
-    },
-  ];
-
   const PAGE_META: Record<WorkspaceTab, { title: string; desc: string }> = {
     executive: {
       title: "Báo cáo Quyết định & Phễu Chuyển đổi",
@@ -775,231 +646,29 @@ export default function HacoledMarketingOS() {
 
   const currentPageMeta = PAGE_META[activeTab];
 
+  const canAccessTab = (tab: string) => {
+    if (tab === "crm_pipeline") return currentRolePolicy.canConfirmCustomerStatus || currentRolePolicy.canViewRawPii;
+    if (tab === "strategy_lab") return currentRolePolicy.canApproveClaimsAndInsights || activeRole === "executive";
+    if (tab === "team_cost") return currentRolePolicy.canViewSalaryAndHrPrivate;
+    if (tab === "security_qa") return currentRolePolicy.canManagePermissions || activeRole === "executive";
+    return tab === "executive" || tab === "content_channels";
+  };
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && canAccessTab(tab)) setActiveTab(tab as WorkspaceTab);
+  // Role is fixed by the authenticated server session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRole]);
+
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
-
-      {/* ── TOPBAR ── */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b border-zinc-200 flex items-center px-4 gap-4">
-        {/* Logo + Brand (same width as sidebar) */}
-        <div className="flex items-center gap-2.5 w-60 shrink-0">
-          <div className="h-8 w-8 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs tracking-tighter shadow-xs">
-            HL
-          </div>
-          <span className="font-semibold text-sm tracking-tight text-zinc-950">
-            HacoLED Data
-          </span>
-          <Badge variant="outline" className="font-mono text-[10px]">
-            v1.0
-          </Badge>
-        </div>
-
-        {/* Center: Status badges */}
-        <div className="flex-1 flex items-center gap-2">
-          <Badge
-            variant={db.meta.isPeriodComplete ? "success" : "warning"}
-            className="hidden sm:inline-flex"
-          >
-            <StatusDot
-              variant={db.meta.isPeriodComplete ? "success" : "warning"}
-              pulse={!db.meta.isPeriodComplete}
-            />
-            <span>
-              Kỳ {db.meta.currentPeriod}{" "}
-              {db.meta.isPeriodComplete ? "(Đủ kỳ)" : "(MTD - Chưa hết tháng)"}
-            </span>
-            <InfoTooltip
-              title="Cảnh báo So sánh Kỳ chưa kết thúc (QA14)"
-              formula="isPeriodComplete = false"
-              source="Baseline Control (B09-02)"
-              guardrail="Khi tháng hiện tại chưa kết thúc, không được so sánh trực tiếp tổng tháng đang chạy với tổng tháng trước đầy đủ."
-            />
-          </Badge>
-          {qaReport && (
-            <button
-              onClick={() => setActiveTab("security_qa")}
-              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50/80 text-emerald-900 text-xs font-medium hover:bg-emerald-100 transition-colors"
-            >
-              <StatusDot variant="success" />
-              <span className="font-mono font-semibold">
-                QA: {qaReport.passedCount}/{qaReport.totalTests} PASS
-              </span>
-            </button>
-          )}
-        </div>
-
-        {/* Right: PII + Role + Logout */}
-        <div className="flex items-center gap-2.5">
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-zinc-200 bg-zinc-100/70 text-xs">
-            <StatusDot
-              variant={currentRolePolicy.canViewRawPii ? "info" : "warning"}
-            />
-            <span className="text-zinc-500">PII:</span>
-            <span className="font-mono font-semibold text-zinc-800">
-              {currentRolePolicy.canViewRawPii ? "UNMASKED" : "MASKED (QA18)"}
-            </span>
-            <InfoTooltip
-              title="Chế độ Bảo vệ Dữ liệu Cá nhân (RBAC & QA18)"
-              formula="maskPhone() / maskContactName() theo Role"
-              source="09_PHAN_QUYEN & Luật BVDLCN 91/2025/QH15"
-              guardrail={currentRolePolicy.guardrail}
-              align="right"
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-zinc-500 hidden sm:inline">Vai trò:</span>
-            <select
-              aria-label="Chọn vai trò phân quyền"
-              value={activeRole}
-              onChange={(e) => handleRoleSwitch(e.target.value as SystemRoleId)}
-              className="h-8 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-zinc-900"
-            >
-              {Object.values(ROLE_POLICIES).map((rp) => (
-                <option key={rp.roleId} value={rp.roleId}>
-                  [{rp.badgeCode}] {rp.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={() => {
-              sessionStorage.removeItem("hacoled_auth");
-              router.push("/");
-            }}
-            className="h-8 px-3 rounded-md border border-zinc-300 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
-          >
-            Đăng xuất
-          </button>
-        </div>
-      </header>
-
-      {/* ── SIDEBAR ── */}
-      <aside className="fixed left-0 top-14 h-[calc(100vh-56px)] w-60 bg-zinc-950 text-white flex flex-col overflow-y-auto z-40">
-        {/* Role info card */}
-        <div className="px-3 py-3 border-b border-white/10">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Vai trò hiện tại</div>
-          <div className="text-sm font-semibold text-white">{currentRolePolicy.label}</div>
-          <div className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{currentRolePolicy.summary}</div>
-        </div>
-
-        {/* Navigation menu */}
-        <nav className="flex-1 py-3 px-2 space-y-4">
-          {menuGroups.map((group) => (
-            <div key={group.label}>
-              <div className="px-2 mb-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">
-                {group.label}
-              </div>
-              {group.items.map((item) => {
-                const isActive = activeTab === item.id;
-                const isDisabled = !item.canAccess;
-
-                if ("isExternalNav" in item && item.isExternalNav) {
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => router.push(item.href as string)}
-                      title={isDisabled ? "Không đủ quyền" : undefined}
-                      disabled={isDisabled}
-                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs transition-all ${
-                        isDisabled
-                          ? "opacity-40 cursor-not-allowed text-zinc-400"
-                          : "text-zinc-400 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      <span className="text-sm">{item.icon}</span>
-                      <span className="flex-1 text-left">{item.label}</span>
-                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-zinc-400">
-                        {item.badge}
-                      </span>
-                    </button>
-                  );
-                }
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => !isDisabled && setActiveTab(item.id)}
-                    title={isDisabled ? "Không đủ quyền" : undefined}
-                    disabled={isDisabled}
-                    className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs transition-all ${
-                      isActive
-                        ? "bg-white/10 text-white font-semibold"
-                        : isDisabled
-                        ? "opacity-40 cursor-not-allowed text-zinc-400"
-                        : "text-zinc-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <span className="text-sm">{item.icon}</span>
-                    <span className="flex-1 text-left">{item.label}</span>
-                    <span
-                      className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
-                        isActive
-                          ? "bg-white text-zinc-900"
-                          : "bg-white/10 text-zinc-400"
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        {/* Sidebar footer */}
-        <div className="px-3 py-3 border-t border-white/10 text-[11px] text-zinc-500">
-          <div>Baseline: {db.meta.baselineStartDate}</div>
-          <div>Pilot: Trường học</div>
-        </div>
-      </aside>
-
-      {/* ── CONTENT AREA ── */}
-      <div className="ml-60 pt-14 min-h-screen flex flex-col">
-
-        {/* Notification Banner */}
-        {notice && (
-          <div
-            className={`border-b px-6 py-2 text-xs font-medium flex items-center justify-between ${
-              notice.type === "error"
-                ? "bg-rose-50 border-rose-200 text-rose-900"
-                : notice.type === "warning"
-                ? "bg-amber-50 border-amber-200 text-amber-900"
-                : "bg-emerald-50 border-emerald-200 text-emerald-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <StatusDot
-                variant={
-                  notice.type === "error"
-                    ? "danger"
-                    : notice.type === "warning"
-                    ? "warning"
-                    : "success"
-                }
-              />
-              <span>{notice.text}</span>
-            </div>
-            <button
-              onClick={() => setNotice(null)}
-              className="text-[11px] underline opacity-75 hover:opacity-100"
-            >
-              Đóng
-            </button>
-          </div>
-        )}
-
-        {/* Page header */}
-        <div className="px-6 py-5 border-b border-zinc-200 bg-white">
-          <h1 className="text-lg font-bold text-zinc-950">{currentPageMeta.title}</h1>
-          {currentPageMeta.desc && (
-            <p className="text-sm text-zinc-500 mt-0.5">{currentPageMeta.desc}</p>
-          )}
-        </div>
-
-        {/* Tab content */}
-        <main className="flex-1 px-6 py-5 space-y-5">
+    <DashboardShell title={activeTab === "executive" ? "Tổng quan Marketing" : currentPageMeta.title}
+      description={activeTab === "executive" ? "Theo dõi hiệu quả, nắm bắt cơ hội và kết nối hoạt động của đội ngũ." : currentPageMeta.desc}
+      activeTab={activeTab} onTabChange={tab => { if (canAccessTab(tab)) { setActiveTab(tab as WorkspaceTab); window.history.replaceState(null, "", `/admin?tab=${tab}`); } }}>
+      {notice && <div role="status" className={`form-message ${notice.type === "error" ? "error" : notice.type === "success" ? "success" : ""}`}><span className="flex-1">{notice.text}</span><button onClick={() => setNotice(null)} className="underline">Đóng</button></div>}
+      {activeTab === "executive" && <section className="dashboard-welcome"><div className="dongson-pattern" aria-hidden="true" /><div><h2>Chào {member.name.split(" ").slice(-1)[0]}, cùng nhìn lại hiệu quả.</h2><p>Từ chiến lược đến chuyển đổi — mọi chỉ số đều có nguồn dữ liệu để bạn kiểm tra và đưa ra quyết định.</p></div><div className="welcome-period"><span className="flex items-center gap-2"><CalendarDays size={14} />Kỳ đang theo dõi</span><strong>{db.meta.currentPeriod}</strong></div></section>}
+      <div className="demo-notice"><Info size={16} /><span>Dữ liệu nghiệp vụ minh họa · Các thay đổi ở phân hệ này đang lưu trên trình duyệt. Tài khoản thành viên được quản lý riêng trên database.</span></div>
+      <div className="legacy-workspace space-y-5">
         {/* =================================================================
             WORKSPACE 1: EXECUTIVE DECISION HUB & FUNNEL INTELLIGENCE (D01-D08)
            ================================================================= */}
@@ -1088,7 +757,10 @@ export default function HacoledMarketingOS() {
                   <div
                     key={m.code}
                     onClick={() => setSelectedMetric(m)}
-                    className={`group cursor-pointer rounded-xl border p-4 transition-all bg-white ${
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMetric(m); } }}
+                    className={`metric-card group cursor-pointer rounded-xl border p-4 transition-all bg-white ${
                       isSelected
                         ? "border-zinc-950 ring-2 ring-zinc-950/10 shadow-sm"
                         : "border-zinc-200/90 hover:border-zinc-400 shadow-2xs"
@@ -1096,7 +768,7 @@ export default function HacoledMarketingOS() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
+                        <span className="metric-code font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
                           {m.code}
                         </span>
                         <span className="text-[11px] text-zinc-400 font-mono">
@@ -1131,7 +803,7 @@ export default function HacoledMarketingOS() {
                       <div className="text-xs font-medium text-zinc-500 line-clamp-1">
                         {m.label}
                       </div>
-                      <div className="text-lg font-bold tracking-tight text-zinc-950 tabular-nums mt-0.5">
+                      <div className="metric-value text-zinc-950 tabular-nums mt-0.5">
                         {m.formattedValue}
                       </div>
                     </div>
@@ -2883,8 +2555,7 @@ export default function HacoledMarketingOS() {
             </div>
           </div>
         )}
-        </main>
       </div>
-    </div>
+    </DashboardShell>
   );
 }

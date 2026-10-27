@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { put, list } from "@vercel/blob";
+import { apiError, checkOrigin, getMember, RequestError } from "../../../lib/auth/server";
+import { ROLE_POLICIES } from "../../../lib/security/rbac";
+
+async function requireSurveyAccess() {
+  const member = await getMember();
+  if (!member) throw new RequestError("Vui lòng đăng nhập.", 401);
+  if (!ROLE_POLICIES[member.role].canViewSalaryAndHrPrivate) throw new RequestError("Bạn không có quyền xem kết quả khảo sát.", 403);
+}
 
 const DATA_FILE = path.join(process.cwd(), "data", "survey-responses.json");
 const BLOB_PATH = "survey-responses.json";
@@ -90,6 +98,7 @@ export const revalidate = 0;
 
 // GET /api/survey — lấy toàn bộ kết quả
 export async function GET(req: NextRequest) {
+  try { await requireSurveyAccess(); } catch (error) { return apiError(error); }
   try {
     let responses: unknown[] = [];
 
@@ -152,6 +161,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/survey?id=RESP-xxx — xóa 1 phiếu
 export async function DELETE(req: NextRequest) {
+  try { checkOrigin(req); await requireSurveyAccess(); } catch (error) { return apiError(error); }
   try {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ ok: false, error: "Thiếu id." }, { status: 400 });

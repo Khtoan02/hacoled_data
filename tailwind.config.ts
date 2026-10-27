@@ -8,14 +8,15 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: { sans: ["var(--font-chakra)", "sans-serif"] },
       colors: {
         brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          500: "#2563eb",
-          600: "#1d4ed8",
-          700: "#1e40af",
-          900: "#1e3a8a",
+          50: "#fff1f0",
+          100: "#ffe0df",
+          500: "#d32b33",
+          600: "#bd2027",
+          700: "#94171d",
+          900: "#701319",
         },
       },
     },

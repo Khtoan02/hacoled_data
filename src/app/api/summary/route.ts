@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getMember, apiError, RequestError } from "../../../lib/auth/server";
 import { INITIAL_HACOLED_DB } from "../../../lib/store/database";
 import { computeAllDecisionMetrics } from "../../../lib/engine/analytics-engine";
 import { ROLE_POLICIES } from "../../../lib/security/rbac";
@@ -17,6 +18,9 @@ import {
 import { FIELD_DICTIONARY } from "../../../lib/spec-fields";
 
 export async function GET() {
+  try {
+    if (!await getMember()) throw new RequestError("Vui lòng đăng nhập.", 401);
+  } catch (error) { return apiError(error); }
   const computedMetrics = computeAllDecisionMetrics(INITIAL_HACOLED_DB);
   const roleCount = Object.keys(ROLE_POLICIES).length;
 

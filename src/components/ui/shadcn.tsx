@@ -37,7 +37,7 @@ export function InfoTooltip({
       </span>
       <span
         role="tooltip"
-        className={`pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-all duration-150 absolute bottom-full mb-2 ${posClass} w-72 sm:w-80 p-3 rounded-lg bg-zinc-950 text-zinc-100 border border-zinc-800 shadow-2xl z-50 text-left font-normal leading-relaxed`}
+        className={`info-tooltip-panel pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-all duration-150 absolute bottom-full mb-2 ${posClass} w-72 sm:w-80 p-3 rounded-lg bg-zinc-950 text-zinc-100 border border-zinc-800 shadow-2xl z-50 text-left font-normal leading-relaxed`}
       >
         <span className="block text-xs font-semibold text-white pb-1.5 mb-1.5 border-b border-zinc-800">
           {title}

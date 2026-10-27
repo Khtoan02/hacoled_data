@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { DashboardShell } from "../../../components/dashboard/shell";
 import {
   exportResponsesAsJson,
   exportResponsesAsCsv,
@@ -27,23 +28,20 @@ export default function AdminSurveyPage() {
   const fetchResponses = () => {
     setLoading(true);
     fetch(`/api/survey?t=${Date.now()}`, { cache: "no-store" })
-      .then((r) => r.json())
+      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Không tải được dữ liệu"); return data; })
       .then((data) => {
         setResponses(data.responses || []);
         setIsLoaded(true);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
+        setNotice({ type: "error", text: error.message || "Không tải được dữ liệu khảo sát." });
         setIsLoaded(true);
         setLoading(false);
       });
   };
 
   useEffect(() => {
-    if (sessionStorage.getItem("hacoled_auth") !== "ok") {
-      router.replace("/");
-      return;
-    }
     fetchResponses();
   }, [router]);
 
@@ -125,7 +123,8 @@ export default function AdminSurveyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50/80 text-zinc-900">
+    <DashboardShell title="Khảo sát đội ngũ" description="Lắng nghe đội ngũ, hiểu nguồn lực và định hướng phát triển.">
+    <div className="legacy-workspace text-zinc-900">
       {/* Toast */}
       {notice && (
         <div
@@ -138,8 +137,8 @@ export default function AdminSurveyPage() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <header className="bg-white rounded-xl border border-zinc-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-14 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg bg-zinc-950 text-white flex items-center justify-center font-mono font-bold text-xs shadow-sm">
               HL
@@ -198,7 +197,7 @@ export default function AdminSurveyPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <div className="py-6">
         {/* ── DETAIL VIEW ── */}
         {view === "detail" && selectedResponse && (
           <div>
@@ -484,7 +483,8 @@ export default function AdminSurveyPage() {
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
+    </DashboardShell>
   );
 }

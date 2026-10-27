@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T09:27:27.558988+00:00",
+  "title": "Design System: HacoLED Data",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "search-overlay",
+        "value": "0 12px 25px #24293612",
+        "purpose": "Workspace search results."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "0.16s",
+        "purpose": "Button background and navigation color transitions."
+      },
+      {
+        "name": "mobile-drawer",
+        "value": "transform 0.2s ease-out",
+        "purpose": "Mobile sidebar movement; disabled by reduced-motion preference."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-max",
+        "value": "640px"
+      },
+      {
+        "name": "drawer-max",
+        "value": "1023px"
+      },
+      {
+        "name": "compact-desktop-max",
+        "value": "1200px"
+      },
+      {
+        "name": "wide-min",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary button from the implemented dashboard.",
+      "html": "<button class=\"ds-primary\">Lưu thay đổi</button>",
+      "css": ".ds-primary{font-family:var(--font-chakra),sans-serif;font-size:12px;background:var(--red);color:white;border:1px solid transparent;border-radius:8px;padding:10px 17px;min-height:42px;font-weight:600;cursor:pointer;transition:background .16s}.ds-primary:hover{background:var(--red-dark)}.ds-primary:focus-visible{outline:3px solid #bd20275c;outline-offset:3px;}.ds-primary:disabled{opacity:.55;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary button from the implemented dashboard.",
+      "html": "<button class=\"ds-secondary\">Làm mới</button>",
+      "css": ".ds-secondary{font-family:var(--font-chakra),sans-serif;font-size:12px;background:white;color:#525e70;border:1px solid #dfe3ea;border-radius:8px;padding:10px 17px;min-height:42px;font-weight:600;cursor:pointer;transition:background .16s}.ds-secondary:hover{background:#f8f9fb}.ds-secondary:focus-visible{outline:3px solid #bd20275c;outline-offset:3px;}"
+    },
+    {
+      "name": "Account field",
+      "kind": "input",
+      "refersTo": "account-input",
+      "description": "Account field from the implemented dashboard.",
+      "html": "<label class=\"ds-label\">Email đăng nhập<input class=\"ds-input\" type=\"email\" placeholder=\"thanhvien@hacoled.com\"></label>",
+      "css": ".ds-label{font-family:var(--font-chakra),sans-serif;font-size:12px;display:flex;flex-direction:column;gap:8px;color:#344054;font-weight:500}.ds-input{font:inherit;font-size:13px;font-weight:400;color:var(--ink);height:45px;padding:11px 13px;border:1px solid #d7dce4;border-radius:8px;background:white;caret-color:var(--red)}.ds-input::placeholder{color:#7b8493}.ds-input:focus{outline:2px solid #bd202726;border-color:var(--red)}"
+    },
+    {
+      "name": "Active navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Active navigation from the implemented dashboard.",
+      "html": "<button class=\"ds-nav\" aria-current=\"page\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/></svg>Tổng quan</button>",
+      "css": ".ds-nav{font-family:var(--font-chakra),sans-serif;font-size:12px;display:flex;align-items:center;gap:11px;min-height:46px;width:100%;padding:12px;border:0;border-radius:8px;background:#fff0f0;color:var(--red);font-size:13px;font-weight:600;text-align:left;cursor:pointer;transition:background .16s,color .16s}.ds-nav:hover{background:#f7f8fa}.ds-nav:focus-visible{outline:3px solid #bd20275c;outline-offset:3px;}"
+    },
+    {
+      "name": "Enabled status",
+      "kind": "chip",
+      "description": "Enabled status from the implemented dashboard.",
+      "html": "<span class=\"ds-status\"><span></span>Hoạt động</span>",
+      "css": ".ds-status{font-family:var(--font-chakra),sans-serif;font-size:12px;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:6px;font-size:10px;background:#eaf8f1;color:#167b52}.ds-status>span{width:5px;height:5px;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Member panel",
+      "kind": "card",
+      "description": "Member panel from the implemented dashboard.",
+      "html": "<section class=\"ds-card\"><h2>Danh sách thành viên</h2><p>Thêm, cập nhật vai trò và kiểm soát trạng thái truy cập.</p></section>",
+      "css": ".ds-card{font-family:var(--font-chakra),sans-serif;font-size:12px;background:white;border:1px solid var(--line);border-radius:14px;padding:22px 24px;color:var(--ink)}.ds-card h2{font-size:16px;font-weight:600;margin:0}.ds-card p{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 0}"
+    }
+  ]
+}

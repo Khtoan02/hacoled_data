@@ -28,3 +28,17 @@ npm run dev
 ```
 
 Dự án được xây dựng bằng **Next.js 14 (App Router) + TypeScript + Tailwind CSS**, tương thích trực tiếp khi kết nối từ GitHub `https://github.com/Khtoan02/hacoled_data.git` sang **Vercel**.
+
+## Dashboard HacoLED & tài khoản thành viên
+
+Dashboard sử dụng bố cục lấy cảm hứng từ [TailAdmin](https://github.com/TailAdmin/free-nextjs-admin-dashboard), được triển khai riêng cho HacoLED với nền sáng, đỏ–vàng, Chakra Petch tự lưu trữ và họa tiết trống đồng được tô vàng bằng CSS mask. Không thay thế ứng dụng bằng template demo.
+
+Phiên bản hiện tại dùng Next.js 15.5 và React 18. Trang `/admin/members` quản lý thành viên, mật khẩu và vai trò bằng PostgreSQL/Neon. Xem [hướng dẫn thiết lập](db/README.md) trước khi triển khai; không còn mật khẩu mặc định hoặc đăng nhập qua sessionStorage.
+
+```bash
+npm run db:migrate
+npm run build
+npm run test:e2e
+```
+
+Thiết lập `DATABASE_URL` và `ADMIN_SETUP_TOKEN` theo `.env.example`. Dữ liệu nghiệp vụ trình duyệt và khảo sát Blob cũ chưa được chuyển sang PostgreSQL trong thay đổi này.
