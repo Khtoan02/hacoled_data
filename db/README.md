@@ -13,12 +13,20 @@ This change adds account storage in standard PostgreSQL. It does not import surv
 
 There is no default administrator password. The previous shared password and sessionStorage login are removed. Production deployment requires DATABASE_URL; administrators cannot log in until the first account is created using ADMIN_SETUP_TOKEN.
 
+## Password-only sign-in
+
+Members enter only their individually assigned password. Email remains a contact/profile field in member management, not a login requirement. Existing salted password hashes and roles remain unchanged; no new migration or environment variable is required.
+
+Creation and password reset reject reuse of any other account's password, including inactive accounts. Existing duplicate active passwords are rejected at login rather than selecting an arbitrary identity; a manager must assign separate passwords. Writes check a credential snapshot under the account transaction lock to prevent concurrent duplicates. Session creation uses the same lock and verifies the current password hash so reset/revocation cannot race with login.
+
+This deliberately targets a small internal team. Verification scans active salted scrypt hashes sequentially, so cost grows with account count. No plaintext passwords or fast deterministic password fingerprints are stored.
+
 ## Boundaries
 
 - Lead Marketing manages members. Other roles cannot call member APIs. Survey results require the role's HR-private-data permission.
 - Account changes revoke existing sessions. The last active Lead Marketing account cannot be disabled or demoted. Member changes are audited without passwords.
 - Session cookies are HTTP-only, SameSite=Lax, Secure in production, with seven-day expiry. Each request checks the active account and current role in PostgreSQL.
-- Passwords use salted scrypt. Mutations require same-origin requests. Login attempts are limited per normalized email (10 attempts per 15 minutes).
+- Passwords use salted scrypt. Mutations require same-origin requests. Failed login attempts are limited per client IP (10 per 15 minutes). Vercel provides the trusted x-real-ip header; other hosting must configure a trusted reverse proxy to overwrite that header. Successful logins remove only their own counted attempt.
 - Existing Marketing OS modules still use demonstration/browser-local data. They explicitly display this limitation. Their client-side UI permissions are not a substitute for a future server-backed operational API.
 - Survey submissions still use the existing Blob/local-file store. The new API access checks protect results, but the old public Blob URL remains a separate exposure until data is migrated to private storage/PostgreSQL. Do not delete the old file until a verified backup and migration have been completed.
 - No deployment, production database migration or changes to live Blob data are performed by the local build/tests.

@@ -180,7 +180,7 @@ export function MembersPage() {
               <p>
                 {resetMember
                   ? "Các phiên đăng nhập cũ sẽ được thu hồi sau khi lưu."
-                  : "Tạo tài khoản và giao vai trò phù hợp cho thành viên."}
+                  : "Mỗi người đăng nhập bằng mật khẩu riêng; email chỉ dùng để quản lý hồ sơ."}
               </p>
             </div>
             <button
@@ -227,7 +227,7 @@ export function MembersPage() {
                   />
                 </label>
                 <label>
-                  Email đăng nhập
+                  Email liên hệ
                   <input
                     type="email"
                     required
@@ -286,7 +286,8 @@ export function MembersPage() {
             <div className="member-form-actions">
               <p>
                 <LockKeyhole size={15} />
-                Mật khẩu được băm; không thể xem lại sau khi lưu.
+                Mật khẩu phải riêng cho từng người; không thể xem lại sau khi
+                lưu.
               </p>
               <button className="primary-button" disabled={busy}>
                 {busy ? (

@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 const origin = "http://127.0.0.1:3100";
 const password = "Test-only-password-2026!";
+const internPassword = "Intern-only-password-2026!";
 
 test("accounts, server permissions, session revocation and responsive dashboard", async ({
   page,
@@ -76,10 +77,12 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     .click();
   await page.getByLabel("Họ và tên", { exact: true }).fill("Minh Anh");
   await page
-    .getByLabel("Email đăng nhập", { exact: true })
+    .getByLabel("Email liên hệ", { exact: true })
     .fill("intern@example.test");
   await page.getByLabel("Vai trò", { exact: true }).selectOption("intern_seo");
-  await page.getByLabel("Mật khẩu ban đầu", { exact: true }).fill(password);
+  await page
+    .getByLabel("Mật khẩu ban đầu", { exact: true })
+    .fill(internPassword);
   await page
     .getByRole("button", { name: "Tạo thành viên", exact: true })
     .click();
@@ -90,6 +93,21 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     path: ".impeccable/review/members-desktop.png",
     fullPage: true,
   });
+  const visitorContext = await page.context().browser()!.newContext();
+  const visitor = await visitorContext.newPage();
+  await visitor.goto(origin);
+  await expect(
+    visitor.getByRole("button", { name: "Đăng nhập", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    visitor.getByRole("textbox", { name: "Email", exact: true }),
+  ).toHaveCount(0);
+  await visitor.getByLabel("Mật khẩu", { exact: true }).fill(password);
+  await visitor.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+  await expect(
+    visitor.getByRole("heading", { name: "Tổng quan Marketing" }),
+  ).toBeVisible();
+  await visitorContext.close();
   const api = page.request;
   const listed = await (await api.get("/api/members")).json();
   expect(JSON.stringify(listed)).not.toContain("password_hash");
@@ -104,6 +122,27 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   );
   expect(
     (
+      await api.post("/api/members", {
+        headers: { Origin: origin },
+        data: {
+          name: "Duplicate",
+          email: "duplicate@example.test",
+          role: "intern_seo",
+          password,
+        },
+      })
+    ).status(),
+  ).toBe(409);
+  expect(
+    (
+      await api.patch("/api/members", {
+        headers: { Origin: origin },
+        data: { id: intern.id, password },
+      })
+    ).status(),
+  ).toBe(409);
+  expect(
+    (
       await api.patch("/api/members", {
         headers: { Origin: origin },
         data: { id: owner.id, active: false },
@@ -111,6 +150,23 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     ).status(),
   ).toBe(409);
   expect((await api.get("/api/members")).status()).toBe(200); // Rejected update must not revoke the current session.
+  const concurrent = await Promise.all(
+    ["a", "b"].map((suffix) =>
+      api.post("/api/members", {
+        headers: { Origin: origin },
+        data: {
+          name: `Concurrent ${suffix}`,
+          email: `concurrent-${suffix}@example.test`,
+          role: "intern_seo",
+          password: "Concurrent-only-password-2026!",
+        },
+      }),
+    ),
+  );
+  expect(concurrent.map((response) => response.status()).sort()).toEqual([
+    201, 409,
+  ]);
+
   expect(
     (
       await anonymous.post("/api/auth/setup", {
@@ -130,14 +186,14 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   expect(
     (
       await staff.post("/api/auth/login", {
-        data: { email: "intern@example.test", password: "wrong-password" },
+        data: { password: "wrong-password" },
       })
     ).status(),
   ).toBe(401);
   expect(
     (
       await staff.post("/api/auth/login", {
-        data: { email: "intern@example.test", password },
+        data: { password: internPassword },
       })
     ).status(),
   ).toBe(200);
@@ -173,7 +229,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   expect(
     (
       await staff.post("/api/auth/login", {
-        data: { email: "intern@example.test", password },
+        data: { password: internPassword },
       })
     ).status(),
   ).toBe(401);
@@ -181,7 +237,6 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     (
       await staff.post("/api/auth/login", {
         data: {
-          email: "intern@example.test",
           password: "Reset-only-password-2026!",
         },
       })
@@ -198,12 +253,14 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   expect((await staff.get("/api/summary")).status()).toBe(401);
   for (let i = 0; i < 10; i++)
     await anonymous.post("/api/auth/login", {
-      data: { email: "missing@example.test", password },
+      headers: { "x-real-ip": "198.51.100.42" },
+      data: { password: "wrong-password-" + Math.random() },
     });
   expect(
     (
       await anonymous.post("/api/auth/login", {
-        data: { email: "missing@example.test", password },
+        headers: { "x-real-ip": "198.51.100.42" },
+        data: { password: "wrong-password-" + Math.random() },
       })
     ).status(),
   ).toBe(429);

@@ -6,29 +6,28 @@ import {
   RequestError,
   createSession,
 } from "../../../../lib/auth/server";
-import {
-  digest,
-  hashPassword,
-  verifyPassword,
-} from "../../../../lib/auth/password";
+import { digest, verifyPassword } from "../../../../lib/auth/password";
 
 export async function POST(req: NextRequest) {
   try {
     checkOrigin(req);
     const body = await req.json();
-    const email =
-      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     if (
-      !email ||
-      email.length > 254 ||
       typeof body.password !== "string" ||
+      body.password.length < 12 ||
       body.password.length > 128
     ) {
-      throw new RequestError("Email hoặc mật khẩu không đúng.", 401);
+      throw new RequestError(
+        "Mật khẩu không đúng hoặc tài khoản đã bị khóa.",
+        401,
+      );
     }
     const sql = database();
-    // Persistent throttling works across serverless instances, including non-existent accounts.
-    const key = digest(`login:${email}`);
+    // Vercel supplies x-real-ip. A trusted reverse proxy must overwrite it on other hosts.
+    // Do not key throttling on the supplied password: changing guesses must not reset the limit.
+    const key = digest(
+      `password-login:${req.headers.get("x-real-ip") || "local-shared"}`,
+    );
     const attempts =
       await sql`INSERT INTO app_auth_attempts (key) VALUES (${key})
       ON CONFLICT (key) DO UPDATE SET
@@ -41,14 +40,25 @@ export async function POST(req: NextRequest) {
         429,
       );
     const rows =
-      await sql`SELECT id, password_hash, active FROM app_members WHERE email = ${email}`;
-    const member = rows[0];
-    const stored =
-      member?.password_hash || (await hashPassword("unused-dummy-password"));
-    if (!(await verifyPassword(body.password, stored)) || !member?.active)
-      throw new RequestError("Email hoặc mật khẩu không đúng.", 401);
-    await createSession(member.id);
-    await sql`DELETE FROM app_auth_attempts WHERE key = ${key}`;
+      await sql`SELECT id, password_hash FROM app_members WHERE active = true ORDER BY id`;
+    const matches: { id: string; password_hash: string }[] = [];
+    for (const member of rows) {
+      if (await verifyPassword(body.password, member.password_hash))
+        matches.push(member as { id: string; password_hash: string });
+    }
+    if (matches.length > 1)
+      throw new RequestError(
+        "Mật khẩu bị trùng giữa các tài khoản. Nhờ quản trị viên cấp lại mật khẩu riêng.",
+        409,
+      );
+    if (matches.length !== 1)
+      throw new RequestError(
+        "Mật khẩu không đúng hoặc tài khoản đã bị khóa.",
+        401,
+      );
+    await createSession(matches[0].id, matches[0].password_hash);
+    // Remove only this successful attempt, preserving concurrent/earlier failures.
+    await sql`UPDATE app_auth_attempts SET attempts = GREATEST(attempts - 1, 0) WHERE key = ${key}`;
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiError(error);

@@ -46,7 +46,9 @@ export default function LoginPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(
+            status?.needsSetup ? form : { password: form.password },
+          ),
         },
       );
       const data = await response.json();
@@ -76,7 +78,7 @@ export default function LoginPage() {
           <p>
             {status?.needsSetup
               ? "Tạo tài khoản quản trị đầu tiên cho HacoLED Data."
-              : "Đăng nhập để quản lý dữ liệu marketing HacoLED."}
+              : "Nhập mật khẩu riêng được cấp để vào không gian HacoLED."}
           </p>
           {status && !status.configured && (
             <div className="setup-notice">
@@ -113,18 +115,20 @@ export default function LoginPage() {
                 />
               </label>
             )}
-            <label>
-              Email
-              <input
-                type="email"
-                required
-                maxLength={254}
-                autoComplete="username"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="ban@hacoled.com"
-              />
-            </label>
+            {status?.needsSetup && (
+              <label>
+                Email
+                <input
+                  type="email"
+                  required
+                  maxLength={254}
+                  autoComplete="username"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="ban@hacoled.com"
+                />
+              </label>
+            )}
             <label>
               Mật khẩu
               <span className="password-input">
@@ -144,7 +148,7 @@ export default function LoginPage() {
                   placeholder={
                     status?.needsSetup
                       ? "Tối thiểu 12 ký tự"
-                      : "Nhập mật khẩu của bạn"
+                      : "Nhập mật khẩu được cấp"
                   }
                 />
                 <button

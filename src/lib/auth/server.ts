@@ -25,10 +25,21 @@ export async function getMember(): Promise<Member | null> {
   return (rows[0] as Member) || null;
 }
 
-export async function createSession(memberId: string) {
+export async function createSession(memberId: string, expectedHash?: string) {
   const token = randomBytes(32).toString("hex");
-  await database()`INSERT INTO app_sessions (token_hash, member_id, expires_at)
-    VALUES (${digest(token)}, ${memberId}, now() + interval '7 days')`;
+  const sql = database();
+  const results = await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(724109)`,
+    sql`INSERT INTO app_sessions (token_hash, member_id, expires_at)
+    SELECT ${digest(token)}, id, now() + interval '7 days' FROM app_members
+    WHERE id = ${memberId} AND active = true AND (${expectedHash ?? null}::text IS NULL OR password_hash = ${expectedHash ?? null})
+    RETURNING member_id`,
+  ]);
+  if (!results[1].length)
+    throw new RequestError(
+      "Tài khoản vừa thay đổi. Vui lòng đăng nhập lại.",
+      401,
+    );
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -8,6 +8,7 @@ import {
   requireManager,
 } from "../../../lib/auth/server";
 import { hashPassword, validPassword } from "../../../lib/auth/password";
+import { uniquePasswordSnapshot } from "../../../lib/auth/credentials";
 import { ROLE_POLICIES, type SystemRoleId } from "../../../lib/security/rbac";
 
 export const dynamic = "force-dynamic";
@@ -49,14 +50,21 @@ export async function POST(req: NextRequest) {
     const id = randomUUID(),
       hash = await hashPassword(body.password),
       sql = database();
+    const snapshot = await uniquePasswordSnapshot(body.password);
     const results = await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(724109)`,
       sql`INSERT INTO app_members (id, name, email, role, password_hash)
-        VALUES (${id}, ${name}, ${email}, ${body.role}, ${hash}) ON CONFLICT (email) DO NOTHING RETURNING id`,
+        SELECT ${id}, ${name}, ${email}, ${body.role}, ${hash}
+        WHERE (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', id, 'password_hash', password_hash) ORDER BY id), '[]'::jsonb) FROM app_members) = ${snapshot}::jsonb
+        ON CONFLICT (email) DO NOTHING RETURNING id`,
       sql`INSERT INTO app_member_audit (actor_id, target_id, action)
         SELECT ${actor.id}, id, 'member_created' FROM app_members WHERE id = ${id}`,
     ]);
-    if (!results[0].length)
-      throw new RequestError("Email này đã có tài khoản.", 409);
+    if (!results[1].length)
+      throw new RequestError(
+        "Email đã tồn tại hoặc danh sách tài khoản vừa thay đổi. Kiểm tra và thử lại.",
+        409,
+      );
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     return apiError(error);
@@ -85,13 +93,19 @@ export async function PATCH(req: NextRequest) {
     }
     const passwordHash =
       body.password === undefined ? null : await hashPassword(body.password);
+    const snapshot =
+      body.password === undefined
+        ? null
+        : await uniquePasswordSnapshot(body.password, body.id);
     const sql = database();
     // Serialize account changes and preserve at least one active administrator, even under concurrent requests.
     const results = await sql.transaction([
       sql`SELECT pg_advisory_xact_lock(724109)`,
       sql`WITH updated AS (UPDATE app_members SET role = COALESCE(${role ?? null}, role), active = COALESCE(${body.active ?? null}, active),
         password_hash = COALESCE(${passwordHash}, password_hash)
-        WHERE id = ${body.id} AND (
+        WHERE id = ${body.id}
+        AND (${snapshot}::jsonb IS NULL OR (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', id, 'password_hash', password_hash) ORDER BY id), '[]'::jsonb) FROM app_members) = ${snapshot}::jsonb)
+        AND (
           role <> 'lead_marketing' OR NOT active OR
           (COALESCE(${role ?? null}, role) = 'lead_marketing' AND COALESCE(${body.active ?? null}, active)) OR
           EXISTS(SELECT 1 FROM app_members other WHERE other.id <> ${body.id} AND other.active AND other.role = 'lead_marketing')
