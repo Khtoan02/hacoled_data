@@ -133,8 +133,8 @@ export function MembersPage() {
   const visible = filtered.slice((currentPage - 1) * 10, currentPage * 10);
   return (
     <DashboardShell
-      title="Thành viên & Phân quyền"
-      description="Đúng người, đúng vai trò. Quản lý quyền truy cập trong một không gian."
+      title="Thành viên & quyền truy cập"
+      description="Quản lý tài khoản, vai trò và phạm vi truy cập của từng thành viên."
       actions={
         <button
           className="primary-button"

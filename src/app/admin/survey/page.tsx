@@ -123,7 +123,7 @@ export default function AdminSurveyPage() {
   }
 
   return (
-    <DashboardShell title="Khảo sát đội ngũ" description="Lắng nghe đội ngũ, hiểu nguồn lực và định hướng phát triển.">
+    <DashboardShell title="Kết quả khảo sát" description="Tổng hợp phản hồi để hiểu năng lực, nguồn lực và nhu cầu phát triển của đội ngũ.">
     <div className="legacy-workspace text-zinc-900">
       {/* Toast */}
       {notice && (

@@ -251,8 +251,8 @@ export function ChannelsPage() {
     visible = filtered.slice((current - 1) * 9, current * 9);
   return (
     <DashboardShell
-      title="Kênh social"
-      description="Danh mục kênh, link truy cập và quyền sử dụng tài khoản của HacoLED."
+      title="Tài khoản kênh"
+      description="Quản lý danh mục kênh, đường dẫn và quyền sử dụng tài khoản của HacoLED."
       actions={
         full ? (
           <button className="primary-button" onClick={() => void edit()}>

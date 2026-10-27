@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [status, setStatus] = useState<{
     configured: boolean;
     needsSetup: boolean;
+    localAuthBypass?: boolean;
     migrationRequired?: boolean;
     connectionFailed?: boolean;
   } | null>(null);
@@ -31,11 +32,34 @@ export default function LoginPage() {
   useEffect(() => {
     fetch("/api/auth/status", { cache: "no-store" })
       .then((r) => r.json())
-      .then(setStatus)
+      .then((data) => {
+        setStatus(data);
+        if (data.localAuthBypass) {
+          router.replace("/admin");
+          router.refresh();
+        }
+      })
       .catch(() =>
         setError("Chưa tải được trạng thái hệ thống. Vui lòng tải lại trang."),
       );
-  }, []);
+  }, [router]);
+
+  if (status?.localAuthBypass) {
+    return (
+      <div className="login-page">
+        <section className="login-panel">
+          <Brand />
+          <div className="login-form-wrap">
+            <span className="login-lock">
+              <ShieldCheck size={24} strokeWidth={1.5} />
+            </span>
+            <h1>Đang mở workspace local…</h1>
+            <p>Chế độ phát triển đang bỏ qua bước đăng nhập.</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");

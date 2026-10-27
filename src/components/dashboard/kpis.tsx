@@ -205,8 +205,8 @@ export function KpisPage() {
   );
   return (
     <DashboardShell
-      title="KPI & hiệu suất"
-      description="Chỉ tiêu theo tháng, sản lượng đã hoàn thành và phần việc làm thêm của đội ngũ."
+      title="KPI tháng"
+      description="Theo dõi chỉ tiêu, sản lượng hoàn thành và công việc ngoài KPI theo từng tháng."
       actions={
         full ? (
           <button

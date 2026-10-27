@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
-import { database } from "../../../../lib/auth/server";
+import {
+  database,
+  isLocalAuthBypassEnabled,
+} from "../../../../lib/auth/server";
 
 export const dynamic = "force-dynamic";
 export async function GET() {
+  if (isLocalAuthBypassEnabled())
+    return NextResponse.json({
+      configured: true,
+      needsSetup: false,
+      localAuthBypass: true,
+    });
+
   if (!process.env.DATABASE_URL)
     return NextResponse.json({ configured: false, needsSetup: false });
   try {

@@ -8,6 +8,23 @@ import { digest } from "./password";
 import type { Member } from "./types";
 
 export const SESSION_COOKIE = "hacoled_session";
+
+const LOCAL_DEVELOPMENT_MEMBER: Member = {
+  id: "local-development-user",
+  name: "Local Admin",
+  email: "local@hacoled.test",
+  role: "executive",
+  active: true,
+  created_at: "2026-01-01T00:00:00.000Z",
+};
+
+export function isLocalAuthBypassEnabled() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.LOCAL_AUTH_BYPASS === "true"
+  );
+}
+
 export function database() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_NOT_CONFIGURED");
@@ -15,6 +32,8 @@ export function database() {
 }
 
 export async function getMember(): Promise<Member | null> {
+  if (isLocalAuthBypassEnabled()) return LOCAL_DEVELOPMENT_MEMBER;
+
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token || !process.env.DATABASE_URL) return null;
   const rows = await database()`

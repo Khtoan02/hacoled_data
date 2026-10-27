@@ -619,28 +619,28 @@ export default function HacoledMarketingOS() {
 
   const PAGE_META: Record<WorkspaceTab, { title: string; desc: string }> = {
     executive: {
-      title: "Báo cáo Quyết định & Phễu Chuyển đổi",
-      desc: "Chỉ số D01–D08 · Drill-down truy nguyên dữ liệu (QA24)",
+      title: "Tổng quan vận hành",
+      desc: "Công việc, KPI và trạng thái đội ngũ trong một màn hình.",
     },
     crm_pipeline: {
-      title: "Tiếp nhận Lead, CRM & Tài chính",
-      desc: "Intake Engine · B07/B08 · Phân tách tài chính 3 tầng QA16",
+      title: "Khách hàng & cơ hội",
+      desc: "Theo dõi liên hệ, tổ chức, cơ hội và giá trị kinh doanh.",
     },
     strategy_lab: {
-      title: "Chiến lược, Thị trường & Insight",
-      desc: "Phân khúc · Persona · TAM/SAM/SOM · B01–B03/B10",
+      title: "Thị trường & insight",
+      desc: "Phân khúc, khách hàng mục tiêu, bằng chứng và insight đã kiểm chứng.",
     },
     content_channels: {
-      title: "Sản xuất Nội dung, UTM & Kênh",
-      desc: "Brief → Asset → Publication · UTM Firewall B08-02 · B05/B06",
+      title: "Nội dung & xuất bản",
+      desc: "Quản lý brief, sản phẩm nội dung, lần đăng và kết quả theo kênh.",
     },
     team_cost: {
-      title: "Nguồn lực, Chi phí & Nhân sự",
-      desc: "RBAC Nhân sự · Chi phí vận hành · B04/B11",
+      title: "Nguồn lực & chi phí",
+      desc: "Theo dõi năng lực đội ngũ, thời gian và chi phí vận hành.",
     },
     security_qa: {
-      title: "Bảo mật AES-256 & Kiểm thử QA",
-      desc: "AES-256-GCM · RBAC · 24 ca kiểm thử tự động · B12/QA24",
+      title: "Chất lượng dữ liệu & kiểm thử",
+      desc: "Rà soát quyền truy cập, chất lượng dữ liệu và các ca kiểm thử hệ thống.",
     },
     team_survey: { title: "Khảo sát Team", desc: "" },
   };
@@ -663,8 +663,8 @@ export default function HacoledMarketingOS() {
   }, [activeRole]);
 
   return (
-    <DashboardShell title={activeTab === "executive" ? "Tổng quan Marketing" : currentPageMeta.title}
-      description={activeTab === "executive" ? "Theo dõi hiệu quả, nắm bắt cơ hội và kết nối hoạt động của đội ngũ." : currentPageMeta.desc}
+    <DashboardShell title={currentPageMeta.title}
+      description={currentPageMeta.desc}
       activeTab={activeTab} onTabChange={tab => { if (canAccessTab(tab)) { setActiveTab(tab as WorkspaceTab); window.history.replaceState(null, "", `/admin?tab=${tab}`); } }}>
       {notice && <div role="status" className={`form-message ${notice.type === "error" ? "error" : notice.type === "success" ? "success" : ""}`}><span className="flex-1">{notice.text}</span><button onClick={() => setNotice(null)} className="underline">Đóng</button></div>}
       {activeTab === "executive" && <OperationalOverview />}

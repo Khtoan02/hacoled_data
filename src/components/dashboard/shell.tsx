@@ -6,19 +6,29 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
+  BookOpen,
   ChevronRight,
   ClipboardList,
+  Database,
+  FlaskConical,
+  Globe2,
+  History,
   Crosshair,
   FileText,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   PanelLeftClose,
+  RotateCcw,
+  Sparkles,
+  Target,
   UserRound,
-  Component,
   Search,
   ShieldCheck,
   Users,
+  WalletCards,
+  Waypoints,
   X,
 } from "lucide-react";
 import { ROLE_POLICIES, isFullAccess } from "../../lib/security/rbac";
@@ -26,74 +36,151 @@ import { useMember } from "./session";
 
 export const workspaceItems = [
   {
+    id: "executive",
+    label: "Tổng quan vận hành",
+    icon: LayoutDashboard,
+    group: "TỔNG QUAN",
+  },
+  {
     id: "tasks",
     label: "Công việc",
     icon: ClipboardList,
     href: "/admin/tasks",
-    group: "CÔNG VIỆC",
+    group: "",
   },
   {
     id: "kpis",
-    label: "KPI & hiệu suất",
+    label: "KPI tháng",
     icon: BarChart3,
     href: "/admin/kpis",
     group: "",
   },
   {
-    id: "executive",
-    label: "Tổng quan",
-    icon: LayoutDashboard,
-    group: "KHÔNG GIAN LÀM VIỆC",
-  },
-  {
-    id: "crm_pipeline",
-    label: "Khách hàng & Cơ hội",
-    icon: BarChart3,
-    group: "",
+    id: "solutions_proof",
+    label: "Giải pháp & bằng chứng",
+    icon: BookOpen,
+    group: "CHIẾN LƯỢC",
+    available: false,
   },
   {
     id: "strategy_lab",
-    label: "Chiến lược & Insight",
+    label: "Thị trường & insight",
     icon: Crosshair,
     group: "",
   },
   {
-    id: "channels",
-    label: "Kênh social",
+    id: "campaigns_budget",
+    label: "Mục tiêu & chiến dịch",
+    icon: Target,
+    group: "",
+    available: false,
+  },
+  {
+    id: "experiments",
+    label: "Thử nghiệm & tối ưu",
+    icon: FlaskConical,
+    group: "",
+    available: false,
+  },
+  {
+    id: "content_channels",
+    label: "Nội dung & xuất bản",
     icon: FileText,
+    group: "NỘI DUNG & KÊNH",
+  },
+  {
+    id: "channels",
+    label: "Tài khoản kênh",
+    icon: Megaphone,
     href: "/admin/channels",
     group: "",
   },
   {
-    id: "content_channels",
-    label: "Nội dung & Kênh",
-    icon: FileText,
+    id: "website_seo",
+    label: "Website & SEO",
+    icon: Globe2,
     group: "",
+    available: false,
+  },
+  {
+    id: "crm_pipeline",
+    label: "Khách hàng & cơ hội",
+    icon: Waypoints,
+    group: "KHÁCH HÀNG",
+  },
+  {
+    id: "lead_sources",
+    label: "Hành vi & nguồn lead",
+    icon: BarChart3,
+    group: "",
+    available: false,
+  },
+  {
+    id: "sales_handoff",
+    label: "Bàn giao Sales",
+    icon: ArrowUpRight,
+    group: "",
+    available: false,
   },
   {
     id: "team_cost",
-    label: "Nhân sự & Chi phí",
-    icon: Users,
+    label: "Nguồn lực & chi phí",
+    icon: WalletCards,
     group: "ĐỘI NGŨ",
   },
   {
     id: "team_survey",
-    label: "Khảo sát đội ngũ",
+    label: "Kết quả khảo sát",
     icon: ClipboardList,
     href: "/admin/survey",
     group: "",
   },
   {
+    id: "learning_hub",
+    label: "Học liệu & phát triển",
+    icon: BookOpen,
+    group: "",
+    available: false,
+  },
+  {
     id: "members",
-    label: "Thành viên & Phân quyền",
+    label: "Thành viên & quyền truy cập",
     icon: ShieldCheck,
     href: "/admin/members",
-    group: "QUẢN TRỊ",
+    group: "QUẢN TRỊ HỆ THỐNG",
   },
   {
     id: "security_qa",
-    label: "Bảo mật & Kiểm thử",
+    label: "Chất lượng dữ liệu & kiểm thử",
     icon: ShieldCheck,
+    group: "",
+  },
+  {
+    id: "data_dictionary",
+    label: "Từ điển dữ liệu",
+    icon: Database,
+    group: "",
+    available: false,
+  },
+  {
+    id: "activity_log",
+    label: "Nhật ký hoạt động",
+    icon: History,
+    group: "",
+    available: false,
+  },
+  {
+    id: "backup_restore",
+    label: "Sao lưu & khôi phục",
+    icon: RotateCcw,
+    group: "",
+    available: false,
+  },
+  {
+    id: "components",
+    label: "Thư viện giao diện",
+    icon: Sparkles,
+    href: "/admin/components",
     group: "",
   },
   {
@@ -102,13 +189,6 @@ export const workspaceItems = [
     icon: UserRound,
     href: "/admin/profile",
     group: "TÀI KHOẢN",
-  },
-  {
-    id: "components",
-    label: "Thư viện giao diện",
-    icon: Component,
-    href: "/admin/components",
-    group: "",
   },
 ];
 
@@ -229,7 +309,6 @@ export function DashboardShell({
   }
   const searchResults = workspaceItems.filter(
     (item) =>
-      allowed(item.id) &&
       item.label
         .toLocaleLowerCase("vi")
         .includes(search.toLocaleLowerCase("vi")),
@@ -263,7 +342,9 @@ export function DashboardShell({
         </div>
         <nav aria-label="Điều hướng chính" className="sidebar-nav">
           {workspaceItems.map((item) => {
-            if (!allowed(item.id)) return null;
+            const unavailable = item.available === false;
+            const restricted = !unavailable && !allowed(item.id);
+            const disabled = unavailable || restricted;
             const active = item.href
               ? pathname === item.href
               : pathname === "/admin" && activeTab === item.id;
@@ -272,12 +353,18 @@ export function DashboardShell({
                 {item.group && <p className="nav-group">{item.group}</p>}
                 <button
                   title={item.label}
-                  onClick={() => go(item.id, item.href)}
-                  className={`nav-item ${active ? "active" : ""}`}
+                  onClick={() => !disabled && go(item.id, item.href)}
+                  className={`nav-item ${active ? "active" : ""} ${disabled ? "is-disabled" : ""}`}
                   aria-current={active ? "page" : undefined}
+                  disabled={disabled}
+                  aria-label={`${item.label}${unavailable ? " — Sắp có" : restricted ? " — Không có quyền" : ""}`}
                 >
                   <item.icon size={19} strokeWidth={1.7} />
-                  <span>{item.label}</span>
+                  <span className="nav-item-label">{item.label}</span>
+                  {unavailable && <small className="nav-status">Sắp có</small>}
+                  {restricted && (
+                    <small className="nav-status">Không có quyền</small>
+                  )}
                   {active && <ChevronRight size={15} />}
                 </button>
               </div>
@@ -329,8 +416,8 @@ export function DashboardShell({
           <div className="workspace-search">
             <Search size={18} />
             <input
-              aria-label="Tìm phân hệ"
-              placeholder="Tìm trong không gian làm việc…"
+              aria-label="Tìm chức năng"
+              placeholder="Tìm menu hoặc chức năng…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -340,15 +427,33 @@ export function DashboardShell({
                   searchResults.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => go(item.id, item.href)}
+                      onClick={() =>
+                        item.available !== false &&
+                        allowed(item.id) &&
+                        go(item.id, item.href)
+                      }
+                      disabled={
+                        item.available === false || !allowed(item.id)
+                      }
+                      className={
+                        item.available === false || !allowed(item.id)
+                          ? "is-disabled"
+                          : ""
+                      }
                     >
                       <item.icon size={16} />
-                      {item.label}
-                      <ChevronRight size={14} />
+                      <span>{item.label}</span>
+                      {item.available === false ? (
+                        <small>Sắp có</small>
+                      ) : !allowed(item.id) ? (
+                        <small>Không có quyền</small>
+                      ) : (
+                        <ChevronRight size={14} />
+                      )}
                     </button>
                   ))
                 ) : (
-                  <p>Không tìm thấy phân hệ.</p>
+                  <p>Không tìm thấy chức năng.</p>
                 )}
               </div>
             )}
@@ -390,18 +495,18 @@ export function DashboardShell({
                 {pathname.includes("members")
                   ? "Phân quyền"
                   : pathname.includes("survey")
-                    ? "Khảo sát"
+                    ? "Kết quả khảo sát"
                     : pathname.includes("tasks")
                       ? "Công việc"
                       : pathname.includes("profile")
                         ? "Hồ sơ"
                         : pathname.includes("kpis")
-                          ? "KPI & hiệu suất"
+                          ? "KPI tháng"
                           : pathname.includes("channels")
-                            ? "Kênh social"
+                            ? "Tài khoản kênh"
                             : pathname.includes("components")
                               ? "Giao diện"
-                              : "Dashboard"}
+                              : "Tổng quan"}
               </span>
             </div>
           </div>
