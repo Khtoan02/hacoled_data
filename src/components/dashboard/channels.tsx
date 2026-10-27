@@ -2,10 +2,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
+  AtSign,
+  Camera,
   ExternalLink,
   Eye,
   EyeOff,
+  Globe2,
+  Hash,
   KeyRound,
+  Music2,
+  Play,
   Plus,
   Search,
   ShieldCheck,
@@ -56,6 +62,53 @@ const fresh = (): Draft => ({
   replace: false,
   clear: false,
 });
+
+function SocialPlatformBadge({ platform }: { platform: SocialPlatform }) {
+  let mark: React.ReactNode;
+  switch (platform) {
+    case "facebook":
+      mark = <span className="social-platform-letter facebook-mark">f</span>;
+      break;
+    case "instagram":
+      mark = <Camera size={21} strokeWidth={2} />;
+      break;
+    case "tiktok":
+      mark = <Music2 size={21} strokeWidth={2.2} />;
+      break;
+    case "youtube":
+      mark = <Play size={20} strokeWidth={2.2} fill="currentColor" />;
+      break;
+    case "zalo":
+      mark = <span className="social-platform-letter zalo-mark">Z</span>;
+      break;
+    case "linkedin":
+      mark = <span className="social-platform-letter linkedin-mark">in</span>;
+      break;
+    case "threads":
+      mark = <AtSign size={22} strokeWidth={2} />;
+      break;
+    case "website":
+      mark = <Globe2 size={21} strokeWidth={2} />;
+      break;
+    default:
+      mark = <Hash size={21} strokeWidth={2} />;
+  }
+  return (
+    <span className="social-platform-identity">
+      <span
+        className={`social-platform-icon platform-${platform}`}
+        aria-hidden="true"
+      >
+        {mark}
+      </span>
+      <span className="social-platform-copy">
+        <small>Nền tảng</small>
+        <strong>{SOCIAL_PLATFORMS[platform]}</strong>
+      </span>
+    </span>
+  );
+}
+
 export function ChannelsPage() {
   const member = useMember(),
     full = isFullAccess(member.role);
@@ -340,9 +393,7 @@ export function ChannelsPage() {
             {visible.map((c) => (
               <article className="social-card" key={c.id}>
                 <div className="social-card-top">
-                  <span className="social-platform">
-                    {SOCIAL_PLATFORMS[c.platform]}
-                  </span>
+                  <SocialPlatformBadge platform={c.platform} />
                   <span className={`social-state ${c.active ? "active" : ""}`}>
                     {c.active ? "Đang sử dụng" : "Đã lưu trữ"}
                   </span>

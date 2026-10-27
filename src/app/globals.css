@@ -3105,10 +3105,27 @@ progress::-moz-progress-bar {
 .social-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; padding:24px; }
 .social-card { min-width:0; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px; padding:20px; }
 .social-card-top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
-.social-platform { color:var(--red); font-size:12px; font-weight:600; }
+.social-platform-identity { display:flex; align-items:center; gap:11px; min-width:0; }
+.social-platform-icon { width:40px; height:40px; flex:0 0 40px; display:inline-flex; align-items:center; justify-content:center; border-radius:11px; color:#fff; box-shadow:0 5px 12px #24293614; }
+.social-platform-copy { display:flex; min-width:0; flex-direction:column; gap:2px; }
+.social-platform-copy small { color:var(--muted); font-size:9px; font-weight:500; letter-spacing:.7px; line-height:1; text-transform:uppercase; }
+.social-platform-copy strong { color:var(--ink); font-size:13px; font-weight:600; line-height:1.35; }
+.social-platform-letter { display:block; color:inherit; font-family:Arial,sans-serif; font-weight:700; line-height:1; }
+.facebook-mark { font-size:27px; transform:translateY(2px); }
+.zalo-mark { font-size:20px; }
+.linkedin-mark { font-size:17px; letter-spacing:-1px; }
+.platform-facebook { background:#1877f2; }
+.platform-instagram { background:linear-gradient(135deg,#833ab4 8%,#fd1d1d 52%,#fcb045 100%); }
+.platform-tiktok { background:#101114; text-shadow:-2px 0 #25f4ee,2px 0 #fe2c55; }
+.platform-youtube { background:#ff0033; }
+.platform-zalo { background:#0068ff; }
+.platform-linkedin { background:#0a66c2; }
+.platform-threads { background:#101114; }
+.platform-website { background:#bd2027; }
+.platform-other { background:#687386; }
 .social-state { color:var(--muted); background:#f5f6fa; border-radius:6px; padding:4px 7px; font-size:10px; }
 .social-state.active { color:#167b52; background:#eaf8f1; }
-.social-card h3 { font-size:17px; font-weight:600; margin:18px 0 5px; overflow-wrap:anywhere; }
+.social-card h3 { font-size:17px; font-weight:600; margin:16px 0 5px; overflow-wrap:anywhere; }
 .social-handle { color:var(--muted); font-size:12px; }
 .social-url { display:flex; gap:7px; align-items:flex-start; color:var(--red); font-size:12px; margin:15px 0; line-height:1.7; overflow-wrap:anywhere; }
 .social-url svg { flex-shrink:0; margin-top:3px; }
