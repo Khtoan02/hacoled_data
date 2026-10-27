@@ -61,6 +61,7 @@ export async function PATCH(req: NextRequest) {
             "delivered_quantity",
             "delivered_on",
             "channel_id",
+            "channel_ids",
             "version",
             "status",
             "result_text",
@@ -99,23 +100,34 @@ export async function PATCH(req: NextRequest) {
       throw new RequestError("Checklist không hợp lệ.");
     if ("channel_id" in b && b.channel_id !== null && !isId(b.channel_id))
       throw new RequestError("Kênh không hợp lệ.");
+    if ("channel_ids" in b) {
+      if (!Array.isArray(b.channel_ids) || b.channel_ids.length > 20 || b.channel_ids.some((id: unknown) => !isId(id)) || new Set(b.channel_ids).size !== b.channel_ids.length)
+        throw new RequestError("Danh sách kênh không hợp lệ (tối đa 20 kênh).");
+      b.channel_id = b.channel_ids[0] ?? null;
+    }
     const production = outputFields(b);
     const links = [...new Set<string>(b.evidence_links)],
       done = JSON.stringify(b.completed_items);
+    const channelJson = "channel_ids" in b ? JSON.stringify(b.channel_ids) : null;
     const rows =
-      await database()`WITH updated AS (UPDATE app_tasks t SET kpi_id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END,output_type=COALESCE(${production.output_type ?? null},t.output_type),delivered_quantity=COALESCE(${production.delivered_quantity ?? null}::int,t.delivered_quantity),
+      await database()`WITH input AS (SELECT ${channelJson}::jsonb AS channel_ids), updated AS (UPDATE app_tasks t SET kpi_id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END,output_type=COALESCE(${production.output_type ?? null},t.output_type),delivered_quantity=COALESCE(${production.delivered_quantity ?? null}::int,t.delivered_quantity),
       delivered_on=CASE WHEN ${"delivered_on" in production} THEN COALESCE(${production.delivered_on ?? null}::date,CASE WHEN ${b.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) ELSE COALESCE(t.delivered_on,CASE WHEN ${b.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) END,
       channel_id=CASE WHEN ${"channel_id" in b} THEN ${b.channel_id ?? null}::uuid ELSE t.channel_id END, status=${b.status}, result_text=${b.result_text.trim()}, evidence_links=${JSON.stringify(links)}::jsonb,
       checklist=COALESCE((SELECT jsonb_agg(jsonb_set(item,'{done}',to_jsonb((item->>'id') IN (SELECT jsonb_array_elements_text(${done}::jsonb)))) ORDER BY ord) FROM jsonb_array_elements(t.checklist) WITH ORDINALITY AS e(item,ord)), '[]'::jsonb),
       completed_at=CASE WHEN ${b.status}='completed' THEN CASE WHEN t.status='completed' THEN t.completed_at ELSE now() END ELSE NULL END,
       updated_at=now(), report_version=t.report_version+1
       WHERE t.id=${b.id} AND (${isFullAccess(member.role)} OR t.assignee_id=${member.id}) AND t.report_version=${b.version}
-      AND (${b.channel_id ?? null}::uuid IS NULL OR t.channel_id=${b.channel_id ?? null}::uuid OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${b.channel_id ?? null}::uuid AND active=true))
+      AND (${channelJson}::jsonb IS NULL OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(${channelJson}::jsonb) x WHERE NOT EXISTS(SELECT 1 FROM app_social_channels c WHERE c.id=x::uuid AND c.active=true)))
       AND (CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END IS NULL OR EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END AND (k.active OR k.id=t.kpi_id) AND k.assignee_id=t.assignee_id AND k.channel_id=CASE WHEN ${"channel_id" in b} THEN ${b.channel_id ?? null}::uuid ELSE t.channel_id END AND k.output_type=COALESCE(${production.output_type ?? null},t.output_type)))
       AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(${done}::jsonb) d(id) WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(t.checklist) c WHERE c->>'id'=d.id)) RETURNING t.*),
+      removed AS (DELETE FROM app_task_channels tc USING updated u,input i WHERE i.channel_ids IS NOT NULL AND tc.task_id=u.id RETURNING tc.task_id),
+      linked AS (INSERT INTO app_task_channels(task_id,channel_id) SELECT u.id,x::uuid FROM updated u CROSS JOIN input i CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(i.channel_ids,'[]'::jsonb)) x ON CONFLICT DO NOTHING RETURNING task_id),
       logged AS (INSERT INTO app_task_reports (id,task_id,task_title,assignee_id,actor_id,actor_name,status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,channel_name,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on)
       SELECT ${randomUUID()},id,title,assignee_id,${member.id},${member.name},status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,(SELECT name FROM app_social_channels WHERE id=updated.channel_id)  ,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on FROM updated RETURNING task_id)
-      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.kpi_id,u.output_type,u.planned_quantity,u.delivered_quantity,to_char(u.delivered_on,'YYYY-MM-DD') AS delivered_on,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform FROM updated u JOIN logged l ON l.task_id=u.id LEFT JOIN app_social_channels c ON c.id=u.channel_id`;
+      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.kpi_id,u.output_type,u.planned_quantity,u.delivered_quantity,to_char(u.delivered_on,'YYYY-MM-DD') AS delivered_on,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('id',sc.id,'name',sc.name,'url',sc.url,'platform',sc.platform,'handle',sc.handle,'active',sc.active) ORDER BY CASE WHEN sc.id=u.channel_id THEN 0 ELSE 1 END,sc.name) FROM app_task_channels tc JOIN app_social_channels sc ON sc.id=tc.channel_id WHERE tc.task_id=u.id),'[]'::jsonb) AS channels,
+      COALESCE((SELECT jsonb_agg(tc.channel_id ORDER BY CASE WHEN tc.channel_id=u.channel_id THEN 0 ELSE 1 END) FROM app_task_channels tc WHERE tc.task_id=u.id),'[]'::jsonb) AS channel_ids
+      FROM updated u JOIN logged l ON l.task_id=u.id LEFT JOIN app_social_channels c ON c.id=u.channel_id`;
     if (!rows.length)
       throw new RequestError(
         "Công việc vừa thay đổi hoặc bạn không có quyền cập nhật. Tải lại chi tiết trước khi gửi lại.",

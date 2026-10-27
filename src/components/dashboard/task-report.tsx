@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import {
   OUTPUT_TYPES,
+  SELECTABLE_OUTPUT_TYPES,
   monthLabel,
   kpiProgress,
   type Kpi,
@@ -17,7 +18,7 @@ import {
 } from "../../lib/kpis";
 import type { SocialChannel } from "../../lib/social";
 import { Notice, StatusBadge } from "./ui";
-import { ChannelSelect } from "./channel-picker";
+import { ChannelMultiSelect } from "./channel-picker";
 function timestamp(value: string) {
   return new Date(value).toLocaleString("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -92,7 +93,7 @@ export function TaskResult({
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  const [channelId, setChannelId] = useState(task.channel_id ?? "");
+  const [channelIds, setChannelIds] = useState(task.channel_ids?.length ? task.channel_ids : task.channel_id ? [task.channel_id] : []);
   const [status, setStatus] = useState(task.status),
     [result, setResult] = useState(task.result_text),
     [links, setLinks] = useState(task.evidence_links);
@@ -111,7 +112,7 @@ export function TaskResult({
       outputType !== task.output_type ||
       quantity !== task.delivered_quantity ||
       deliveredOn !== (task.delivered_on ?? "") ||
-      channelId !== (task.channel_id ?? "") ||
+      JSON.stringify(channelIds) !== JSON.stringify(task.channel_ids?.length ? task.channel_ids : task.channel_id ? [task.channel_id] : []) ||
       status !== task.status ||
       result !== task.result_text ||
       JSON.stringify(links) !== JSON.stringify(task.evidence_links) ||
@@ -191,7 +192,7 @@ export function TaskResult({
       setOutputType(latest.output_type);
       setQuantity(latest.delivered_quantity);
       setDeliveredOn(latest.delivered_on ?? "");
-      setChannelId(latest.channel_id ?? "");
+      setChannelIds(latest.channel_ids?.length ? latest.channel_ids : latest.channel_id ? [latest.channel_id] : []);
       setStatus(latest.status);
       setResult(latest.result_text);
       setLinks(latest.evidence_links);
@@ -225,7 +226,7 @@ export function TaskResult({
           body: JSON.stringify({
             id: task.id,
             version: task.report_version,
-            channel_id: channelId || null,
+            channel_ids: channelIds,
             kpi_id: kpiId || null,
             output_type: outputType,
             delivered_quantity: quantity,
@@ -318,7 +319,7 @@ export function TaskResult({
                   const k = kpis.find((k) => k.id === e.target.value);
                   setKpiId(e.target.value);
                   if (k) {
-                    setChannelId(k.channel_id);
+                    setChannelIds((values) => [k.channel_id, ...values.filter((id) => id !== k.channel_id)]);
                     setOutputType(k.output_type);
                   }
                 }}
@@ -348,7 +349,7 @@ export function TaskResult({
                   value={outputType}
                   onChange={(e) => setOutputType(e.target.value as OutputType)}
                 >
-                  {Object.entries(OUTPUT_TYPES).map(([id, v]) => (
+                  {SELECTABLE_OUTPUT_TYPES.map(([id, v]) => (
                     <option key={id} value={id}>
                       {v.label}
                     </option>
@@ -389,23 +390,21 @@ export function TaskResult({
           </section>
           <label>
             Kênh thực hiện
-            <ChannelSelect
+            <ChannelMultiSelect
               ariaLabel="Kênh báo cáo"
-              value={channelId}
+              values={channelIds}
               channels={channels.filter(
-                (c) => c.active || c.id === channelId,
+                (c) => c.active || channelIds.includes(c.id),
               )}
-              onChange={(value) => {
-                setChannelId(value);
-                setKpiId("");
+              onChange={(values) => {
+                setChannelIds(values);
+                if (selectedKpi && !values.includes(selectedKpi.channel_id)) setKpiId("");
               }}
-              specialOptions={[{ value: "", label: "Chưa gắn kênh" }]}
             />
           </label>
           {kpiId && (
             <p className="result-hint">
-              Đổi kênh sẽ gỡ liên kết KPI hiện tại. Chọn lại chỉ tiêu phù hợp
-              nếu cần.
+              Kênh của KPI phải nằm trong danh sách đã chọn. Bỏ kênh đó sẽ gỡ liên kết KPI hiện tại.
             </p>
           )}
           <label>

@@ -1,5 +1,6 @@
 import type { OutputType } from "./kpis";
 import type { MemberRoleId } from "./security/rbac";
+import type { SocialPlatform } from "./social";
 export const TASK_STATUSES = {
   pending: "Chưa bắt đầu",
   in_progress: "Đang thực hiện",
@@ -18,10 +19,22 @@ export interface ChecklistItem {
   title: string;
   done: boolean;
 }
+export interface TaskBrief {
+  content_pillar?: string;
+  content_format?: string;
+  cta?: string;
+  website_url?: string;
+  primary_keyword?: string;
+  slug?: string;
+  outbound_links?: string;
+  content_direction?: string;
+  notes?: string;
+}
 export interface Task {
   id: string;
   title: string;
   description: string;
+  brief: TaskBrief;
   kpi_id: string | null;
   output_type: OutputType;
   planned_quantity: number;
@@ -31,6 +44,15 @@ export interface Task {
   channel_name: string | null;
   channel_url: string | null;
   channel_platform: string | null;
+  channel_ids: string[];
+  channels: Array<{
+    id: string;
+    name: string;
+    url: string;
+    platform: SocialPlatform;
+    handle: string;
+    active: boolean;
+  }>;
   assignee_id: string;
   assignee_name: string;
   assignee_role: MemberRoleId;

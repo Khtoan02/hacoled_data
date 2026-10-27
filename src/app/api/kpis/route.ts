@@ -10,7 +10,7 @@ import {
 } from "../../../lib/auth/server";
 import { ROLE_POLICIES } from "../../../lib/security/rbac";
 import { isUuid } from "../../../lib/social";
-import { currentMonth, OUTPUT_TYPES, validMonth } from "../../../lib/kpis";
+import { currentMonth, OUTPUT_TYPES, SELECTABLE_OUTPUT_TYPES, validMonth } from "../../../lib/kpis";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
@@ -92,7 +92,7 @@ async function save(req: NextRequest, create: boolean) {
         !isUuid(b.channel_id) ||
         !validMonth(b.month) ||
         typeof b.output_type !== "string" ||
-        !Object.hasOwn(OUTPUT_TYPES, b.output_type)
+        !SELECTABLE_OUTPUT_TYPES.some(([id]) => id === b.output_type)
       )
         throw new RequestError(
           "Chọn nhân sự, kênh, loại sản phẩm và tháng hợp lệ.",
@@ -129,3 +129,21 @@ async function save(req: NextRequest, create: boolean) {
 }
 export const POST = (req: NextRequest) => save(req, true);
 export const PATCH = (req: NextRequest) => save(req, false);
+export async function DELETE(req: NextRequest) {
+  try {
+    checkOrigin(req);
+    const actor = await requireManager();
+    const id = req.nextUrl.searchParams.get("id");
+    if (!isUuid(id)) throw new RequestError("Mã KPI không hợp lệ.");
+    const sql = database();
+    const results = await sql.transaction([
+      sql`UPDATE app_tasks SET kpi_id=NULL,updated_at=now(),report_version=report_version+1 WHERE kpi_id=${id}`,
+      sql`DELETE FROM app_kpi_audit WHERE kpi_id=${id}`,
+      sql`DELETE FROM app_kpis WHERE id=${id} RETURNING id`,
+    ]);
+    if (!results[2].length) throw new RequestError("Không tìm thấy KPI.", 404);
+    return NextResponse.json({ ok: true, actor: actor.id });
+  } catch (e) {
+    return apiError(e);
+  }
+}

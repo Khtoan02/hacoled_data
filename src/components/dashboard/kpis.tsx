@@ -9,12 +9,14 @@ import {
   Plus,
   RefreshCw,
   Target,
+  Trash2,
 } from "lucide-react";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
 import { isFullAccess, ROLE_POLICIES } from "../../lib/security/rbac";
 import {
   OUTPUT_TYPES,
+  SELECTABLE_OUTPUT_TYPES,
   currentMonth,
   kpiProgress,
   monthLabel,
@@ -179,6 +181,22 @@ export function KpisPage() {
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chưa lưu được KPI.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(kpi: Kpi) {
+    if (busy || !window.confirm(`Xóa KPI ${OUTPUT_TYPES[kpi.output_type].label} của ${kpi.assignee_name}? Các công việc liên quan sẽ chuyển thành ngoài KPI.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch(`/api/kpis?id=${encodeURIComponent(kpi.id)}`, { method: "DELETE" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      await load();
+      setMessage("Đã xóa KPI. Công việc cũ được giữ lại và chuyển thành ngoài KPI.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Chưa xóa được KPI.");
     } finally {
       setBusy(false);
     }
@@ -440,13 +458,14 @@ export function KpisPage() {
                           </Link>
                         )}
                         {full && (
-                          <button
-                            className="icon-button"
-                            aria-label={`Sửa KPI ${k.channel_name} ${k.assignee_name}`}
-                            onClick={() => edit(k)}
-                          >
-                            <Target size={16} />
-                          </button>
+                          <>
+                            <button className="icon-button" aria-label={`Sửa KPI ${k.channel_name} ${k.assignee_name}`} onClick={() => edit(k)}>
+                              <Target size={16} />
+                            </button>
+                            <button className="icon-button danger" aria-label={`Xóa KPI ${k.channel_name} ${k.assignee_name}`} disabled={busy} onClick={() => void remove(k)}>
+                              <Trash2 size={16} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </article>
@@ -611,7 +630,7 @@ export function KpisPage() {
                       })
                     }
                   >
-                    {Object.entries(OUTPUT_TYPES).map(([id, v]) => (
+                    {SELECTABLE_OUTPUT_TYPES.map(([id, v]) => (
                       <option key={id} value={id}>
                         {v.label}
                       </option>

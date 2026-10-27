@@ -198,3 +198,61 @@ export function ChannelSelect({
     </div>
   );
 }
+
+export function ChannelMultiSelect({ values, channels, onChange, ariaLabel, disabled = false }: {
+  values: string[];
+  channels: SocialChannel[];
+  onChange: (values: string[]) => void;
+  ariaLabel: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const selected = channels.filter((channel) => values.includes(channel.id));
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  function toggle(id: string) {
+    onChange(values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
+  }
+  return (
+    <div className={`channel-picker channel-multi ${open ? "is-open" : ""}`} ref={root}>
+      <button type="button" className="channel-picker-trigger" aria-label={ariaLabel}
+        aria-haspopup="listbox" aria-controls={listId} aria-expanded={open} disabled={disabled}
+        onClick={() => setOpen(!open)}>
+        <span className="channel-multi-summary">
+          {selected.length ? `${selected.length} kênh đã chọn` : "Chưa chọn kênh"}
+          {selected.length > 0 && <small>{selected.map((c) => channelIdentifier(c)).join(" · ")}</small>}
+        </span>
+        <ChevronDown size={16} className="channel-picker-chevron" />
+      </button>
+      {open && (
+        <div className="channel-picker-menu" id={listId} role="listbox" aria-multiselectable="true">
+          {channels.map((channel) => {
+            const checked = values.includes(channel.id);
+            return (
+              <button type="button" role="option" aria-selected={checked} key={channel.id} onClick={() => toggle(channel.id)}>
+                <ChannelIdentity channel={channel} compact />
+                <span className={`channel-multi-check ${checked ? "checked" : ""}`}>{checked && <Check size={14} />}</span>
+              </button>
+            );
+          })}
+          {!channels.length && <p className="channel-picker-empty">Chưa có kênh hoạt động.</p>}
+        </div>
+      )}
+    </div>
+  );
+}

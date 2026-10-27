@@ -1,13 +1,19 @@
 export const OUTPUT_TYPES = {
   post: { label: "Bài viết", unit: "bài" },
   video: { label: "Video dài", unit: "video" },
-  short_video: { label: "Video ngắn", unit: "video" },
-  story: { label: "Story", unit: "story" },
+  short_video: {
+    label: "Video dọc ngắn (Short Video / Story)",
+    unit: "video",
+  },
+  story: { label: "Video dọc ngắn (dữ liệu cũ)", unit: "video" },
   image: { label: "Thiết kế / ảnh", unit: "sản phẩm" },
   livestream: { label: "Livestream", unit: "buổi" },
   other: { label: "Công việc khác", unit: "đơn vị" },
 } as const;
 export type OutputType = keyof typeof OUTPUT_TYPES;
+export const SELECTABLE_OUTPUT_TYPES = Object.entries(OUTPUT_TYPES).filter(
+  ([id]) => id !== "story",
+) as [Exclude<OutputType, "story">, (typeof OUTPUT_TYPES)[OutputType]][];
 export interface Kpi {
   id: string;
   assignee_id: string;
