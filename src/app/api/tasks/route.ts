@@ -19,6 +19,7 @@ const isId = (value: unknown): value is string =>
   typeof value === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 interface Fields {
+  channel_id?: string | null;
   title?: string;
   description?: string;
   assignee_id?: string;
@@ -37,6 +38,7 @@ function fields(body: unknown, partial = false): Fields {
       (key) =>
         ![
           "id",
+          "channel_id",
           "title",
           "description",
           "assignee_id",
@@ -48,6 +50,11 @@ function fields(body: unknown, partial = false): Fields {
     )
   )
     throw new RequestError("Có trường dữ liệu không được hỗ trợ.");
+  if ("channel_id" in input) {
+    if (input.channel_id !== null && !isId(input.channel_id))
+      throw new RequestError("Kênh không hợp lệ.");
+    output.channel_id = input.channel_id as string | null;
+  }
   if (!partial || "title" in input) {
     if (
       typeof input.title !== "string" ||
@@ -132,8 +139,8 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id") || null;
     if (id && !isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
     const tasks =
-      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version,
-      m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id
+      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version, t.channel_id, c.name AS channel_name, c.url AS channel_url, c.platform AS channel_platform,
+      m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id LEFT JOIN app_social_channels c ON c.id=t.channel_id
       WHERE (${scope} = 'all' OR t.assignee_id = ${member.id} OR (${scope} = 'marketing_team' AND m.role IN ('marketing_staff','marketing_intern')))
         AND (${id}::uuid IS NULL OR t.id = ${id}::uuid) ORDER BY t.created_at DESC, t.id`;
     if (id && !tasks.length)
@@ -155,11 +162,11 @@ export async function POST(req: NextRequest) {
     const actor = await requireManager(),
       data = fields(await req.json());
     const rows =
-      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist, completed_at)
-      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb, CASE WHEN ${data.status ?? "pending"} = 'completed' THEN now() ELSE NULL END
-      FROM app_members WHERE id = ${data.assignee_id!} AND active = true RETURNING id`;
+      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist, completed_at, channel_id)
+      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb, CASE WHEN ${data.status ?? "pending"} = 'completed' THEN now() ELSE NULL END, ${data.channel_id ?? null}::uuid
+      FROM app_members WHERE (${data.channel_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND id = ${data.assignee_id!} AND active = true RETURNING id`;
     if (!rows.length)
-      throw new RequestError("Người thực hiện không tồn tại hoặc đã bị khóa.");
+      throw new RequestError("Người thực hiện hoặc kênh không tồn tại, đã khóa hoặc đã lưu trữ.");
     return NextResponse.json({ ok: true, id: rows[0].id }, { status: 201 });
   } catch (error) {
     return apiError(error);
@@ -175,16 +182,17 @@ export async function PATCH(req: NextRequest) {
     const data = fields(body, true);
     const tasks = await database()`WITH updated AS (UPDATE app_tasks SET
       title = COALESCE(${data.title ?? null}, title), description = COALESCE(${data.description ?? null}, description), status = COALESCE(${data.status ?? null}, status),
+      channel_id = CASE WHEN ${"channel_id" in data} THEN ${data.channel_id ?? null}::uuid ELSE channel_id END,
       priority = COALESCE(${data.priority ?? null}, priority), assignee_id = COALESCE(${data.assignee_id ?? null}::uuid, assignee_id),
       due_at = CASE WHEN ${"due_at" in data} THEN ${data.due_at ?? null}::timestamptz ELSE due_at END,
       checklist = COALESCE(${data.checklist === undefined ? null : JSON.stringify(data.checklist)}::jsonb, checklist), updated_at = now(), report_version = report_version + 1,
       completed_at = CASE WHEN COALESCE(${data.status ?? null}, status) = 'completed' THEN CASE WHEN status = 'completed' THEN completed_at ELSE now() END ELSE NULL END
-      WHERE id = ${body.id} AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true)) RETURNING *)
-      INSERT INTO app_task_reports (id, task_id, task_title, assignee_id, actor_id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at)
-      SELECT ${randomUUID()}, id, title, assignee_id, ${actor.id}, ${actor.name}, status, result_text, evidence_links, checklist, due_at, completed_at FROM updated RETURNING task_id`;
+      WHERE id = ${body.id} AND (${data.channel_id ?? null}::uuid IS NULL OR channel_id=${data.channel_id ?? null}::uuid OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true)) RETURNING *)
+      INSERT INTO app_task_reports (id, task_id, task_title, assignee_id, actor_id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, channel_name)
+      SELECT ${randomUUID()}, id, title, assignee_id, ${actor.id}, ${actor.name}, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, (SELECT name FROM app_social_channels WHERE id=updated.channel_id) FROM updated RETURNING task_id`;
     if (!tasks.length)
       throw new RequestError(
-        "Không tìm thấy công việc hoặc người thực hiện không còn hoạt động.",
+        "Không tìm thấy công việc, hoặc người thực hiện/kênh không còn hoạt động.",
         404,
       );
     return NextResponse.json({ ok: true });

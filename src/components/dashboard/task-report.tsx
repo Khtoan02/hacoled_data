@@ -7,6 +7,7 @@ import {
   type Task,
   type TaskReport,
 } from "../../lib/tasks";
+import type { SocialChannel } from "../../lib/social";
 import { Notice, StatusBadge } from "./ui";
 function timestamp(value: string) {
   return new Date(value).toLocaleString("vi-VN", {
@@ -60,13 +61,16 @@ export function TaskResult({
   onSaved,
   onBusy,
   onDirty,
+  channels,
 }: {
   task: Task;
+  channels: SocialChannel[];
   canReport: boolean;
   onSaved: (task: Task) => void;
   onBusy: (busy: boolean) => void;
   onDirty: (dirty: boolean) => void;
 }) {
+  const [channelId, setChannelId] = useState(task.channel_id ?? "");
   const [status, setStatus] = useState(task.status),
     [result, setResult] = useState(task.result_text),
     [links, setLinks] = useState(task.evidence_links);
@@ -81,7 +85,8 @@ export function TaskResult({
     [historyError, setHistoryError] = useState("");
   const dirty =
     canReport &&
-    (status !== task.status ||
+    (channelId !== (task.channel_id ?? "") ||
+      status !== task.status ||
       result !== task.result_text ||
       JSON.stringify(links) !== JSON.stringify(task.evidence_links) ||
       JSON.stringify(checklist) !== JSON.stringify(task.checklist) ||
@@ -156,6 +161,7 @@ export function TaskResult({
         d = await r.json();
       if (!r.ok) throw new Error(d.error);
       const latest: Task = d.tasks[0];
+      setChannelId(latest.channel_id ?? "");
       setStatus(latest.status);
       setResult(latest.result_text);
       setLinks(latest.evidence_links);
@@ -189,6 +195,7 @@ export function TaskResult({
           body: JSON.stringify({
             id: task.id,
             version: task.report_version,
+            channel_id: channelId || null,
             status,
             result_text: result,
             evidence_links: links,
@@ -238,6 +245,24 @@ export function TaskResult({
       {message && <Notice tone="success">{message}</Notice>}
       <form className="account-form result-form" onSubmit={submit}>
         <fieldset disabled={!canReport || busy}>
+          <label>
+            Kênh thực hiện
+            <select
+              aria-label="Kênh báo cáo"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+            >
+              <option value="">Chưa gắn kênh</option>
+              {channels
+                .filter((c) => c.active || c.id === channelId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.active ? "" : " (lưu trữ)"}
+                  </option>
+                ))}
+            </select>
+          </label>
           <label>
             Tiến độ công việc
             <select
@@ -303,6 +328,16 @@ export function TaskResult({
             />
           </label>
         </fieldset>
+        {task.channel_url && (
+          <a
+            className="task-channel-link"
+            href={task.channel_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Mở kênh {task.channel_name}
+          </a>
+        )}
         {!canReport && !result && (
           <p className="result-hint">Chưa có kết quả được báo cáo.</p>
         )}
@@ -425,6 +460,9 @@ export function TaskResult({
                   </time>
                 </div>
                 <StatusBadge status={entry.status} />
+                {entry.channel_name && (
+                  <p className="task-channel-label">{entry.channel_name}</p>
+                )}
                 <details>
                   <summary>Xem kết quả tại thời điểm này</summary>
                   <p className="history-text">

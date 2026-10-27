@@ -51,6 +51,13 @@ export const workspaceItems = [
     group: "",
   },
   {
+    id: "channels",
+    label: "Kênh social",
+    icon: FileText,
+    href: "/admin/channels",
+    group: "",
+  },
+  {
     id: "content_channels",
     label: "Nội dung & Kênh",
     icon: FileText,
@@ -192,7 +199,7 @@ export function DashboardShell({
   }, [mobileOpen]);
   const allowed = (id: string) => {
     if (id === "profile") return true;
-    if (id === "tasks") return policy.taskScope !== "none";
+    if (id === "tasks" || id === "channels") return policy.taskScope !== "none";
     return isFullAccess(member.role);
   };
   function go(id: string, href?: string) {
@@ -380,9 +387,11 @@ export function DashboardShell({
                       ? "Công việc"
                       : pathname.includes("profile")
                         ? "Hồ sơ"
-                        : pathname.includes("components")
-                          ? "Giao diện"
-                          : "Dashboard"}
+                        : pathname.includes("channels")
+                          ? "Kênh social"
+                          : pathname.includes("components")
+                            ? "Giao diện"
+                            : "Dashboard"}
               </span>
             </div>
           </div>

@@ -27,6 +27,7 @@ import {
   ROLE_POLICIES,
   TASK_SCOPE_LABELS,
 } from "../../lib/security/rbac";
+import type { SocialChannel } from "../../lib/social";
 import type { Member } from "../../lib/auth/types";
 import {
   dateInputValue,
@@ -52,6 +53,7 @@ import {
 } from "./ui";
 const pageSize = 10;
 type Draft = {
+  channel_id: string;
   title: string;
   description: string;
   assignee_id: string;
@@ -83,6 +85,7 @@ export function TasksPage() {
   const [opened, setOpened] = useState<Task | "new" | null>(null),
     [dragged, setDragged] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({
+    channel_id: "",
     title: "",
     description: "",
     assignee_id: member.id,
@@ -91,6 +94,8 @@ export function TasksPage() {
     priority: "normal",
     checklist: [],
   });
+  const [channels, setChannels] = useState<SocialChannel[]>([]);
+  const [channelFilter, setChannelFilter] = useState("all");
   const [reportDirty, setReportDirty] = useState(false);
   const [detailTab, setDetailTab] = useState<"details" | "result">("details");
   const [newItem, setNewItem] = useState("");
@@ -103,6 +108,10 @@ export function TasksPage() {
           d = await r.json();
         if (!r.ok) throw new Error(d.error);
         setTasks(d.tasks);
+        const cr = await fetch("/api/social-channels", { cache: "no-store" }),
+          cd = await cr.json();
+        if (!cr.ok) throw new Error(cd.error);
+        setChannels(cd.channels);
         if (full) {
           const m = await fetch("/api/members", { cache: "no-store" }),
             md = await m.json();
@@ -176,6 +185,7 @@ export function TasksPage() {
     setDraft(
       task === "new"
         ? {
+            channel_id: "",
             title: "",
             description: "",
             assignee_id: member.id,
@@ -185,6 +195,7 @@ export function TasksPage() {
             checklist: [],
           }
         : {
+            channel_id: task.channel_id ?? "",
             title: task.title,
             description: task.description,
             assignee_id: task.assignee_id,
@@ -251,6 +262,10 @@ export function TasksPage() {
   }
   const filtered = tasks.filter(
     (t) =>
+      (channelFilter === "all" ||
+        (channelFilter === "none"
+          ? !t.channel_id
+          : t.channel_id === channelFilter)) &&
       `${t.title} ${t.description} ${t.assignee_name}`
         .toLocaleLowerCase("vi")
         .includes(search.toLocaleLowerCase("vi")) &&
@@ -300,6 +315,7 @@ export function TasksPage() {
   }
   function resetFilters() {
     setSearch("");
+    setChannelFilter("all");
     setStatusFilter("all");
     setPriorityFilter("all");
     setAssigneeFilter("all");
@@ -328,6 +344,9 @@ export function TasksPage() {
         <button className="task-card-title" onClick={() => open(task)}>
           {task.title}
         </button>
+        {task.channel_name && (
+          <p className="task-channel-label">{task.channel_name}</p>
+        )}
         {task.description && (
           <p className="task-card-description">{task.description}</p>
         )}
@@ -433,6 +452,20 @@ export function TasksPage() {
           </span>
         </div>
         <div className="advanced-toolbar">
+          <select
+            aria-label="Lọc kênh công việc"
+            value={channelFilter}
+            onChange={(e) => changeFilter(setChannelFilter, e.target.value)}
+          >
+            <option value="all">Mọi kênh</option>
+            <option value="none">Chưa gắn kênh</option>
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.active ? "" : " (lưu trữ)"}
+              </option>
+            ))}
+          </select>
           <label className="table-search">
             <Search size={17} />
             <input
@@ -658,6 +691,11 @@ export function TasksPage() {
                             ? "Xem kết quả"
                             : "Kết quả & tiến độ"}
                         </button>
+                        {t.channel_name && (
+                          <small className="task-channel-label">
+                            {t.channel_name}
+                          </small>
+                        )}
                         {t.checklist.length > 0 && (
                           <small className="table-task-checklist">
                             <ListChecks size={13} />
@@ -763,6 +801,7 @@ export function TasksPage() {
                 (opened.assignee_id === member.id &&
                   ROLE_POLICIES[member.role].taskScope !== "none")
               }
+              channels={channels}
               onDirty={setReportDirty}
               onBusy={setBusy}
               onSaved={(updated) => {
@@ -772,6 +811,7 @@ export function TasksPage() {
                 );
                 setDraft((current) => ({
                   ...current,
+                  channel_id: updated.channel_id ?? "",
                   status: updated.status,
                   checklist: updated.checklist,
                 }));
@@ -786,6 +826,7 @@ export function TasksPage() {
                   {
                     ...draft,
                     id: opened === "new" ? undefined : opened.id,
+                    channel_id: draft.channel_id || null,
                     due_at: draft.due_at
                       ? new Date(`${draft.due_at}T17:00:00+07:00`).toISOString()
                       : null,
@@ -818,6 +859,26 @@ export function TasksPage() {
                   }
                   placeholder="Mục tiêu, yêu cầu và kết quả cần bàn giao…"
                 />
+              </label>
+              <label>
+                Kênh thực hiện
+                <select
+                  aria-label="Kênh thực hiện"
+                  value={draft.channel_id}
+                  onChange={(e) =>
+                    setDraft({ ...draft, channel_id: e.target.value })
+                  }
+                >
+                  <option value="">Chưa gắn kênh</option>
+                  {channels
+                    .filter((c) => c.active || c.id === draft.channel_id)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.active ? "" : " (lưu trữ)"}
+                      </option>
+                    ))}
+                </select>
               </label>
               <label>
                 Người thực hiện
@@ -1009,6 +1070,20 @@ export function TasksPage() {
                   {opened.description || "Chưa có mô tả."}
                 </p>
                 <dl>
+                  <dt>Kênh thực hiện</dt>
+                  <dd>
+                    {opened.channel_url ? (
+                      <a
+                        href={opened.channel_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {opened.channel_name}
+                      </a>
+                    ) : (
+                      "Chưa gắn kênh"
+                    )}
+                  </dd>
                   <dt>Người thực hiện</dt>
                   <dd>{opened.assignee_name}</dd>
                   <dt>Hạn hoàn thành</dt>

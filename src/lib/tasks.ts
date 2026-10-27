@@ -21,6 +21,10 @@ export interface Task {
   id: string;
   title: string;
   description: string;
+  channel_id: string | null;
+  channel_name: string | null;
+  channel_url: string | null;
+  channel_platform: string | null;
   assignee_id: string;
   assignee_name: string;
   assignee_role: MemberRoleId;
@@ -77,6 +81,8 @@ export function validEvidenceUrl(value: string) {
   }
 }
 export interface TaskReport {
+  channel_id: string | null;
+  channel_name: string | null;
   id: string;
   actor_name: string;
   status: TaskStatus;

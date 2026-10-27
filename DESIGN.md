@@ -130,3 +130,7 @@ The user-supplied `free-nextjs-admin-dashboard-main.zip` informed panel, table, 
 ## Task result workflow
 
 Existing task drawers offer Information and Results/Progress sections. Owners land on reporting; administrators retain the assignment editor and have direct result links in each table row. Results include progress, existing checklist completion, narrative and up to ten evidence links. Pasted direct image URLs create inline previews; images expand in place and broken sources have a clear fallback. History discloses snapshots progressively. Unsaved report dismissal requires confirmation; stale versions show a recoverable conflict rather than overwriting another report. All controls preserve the existing light red/gold system and responsive drawer.
+
+## Social channels
+
+`/admin/channels` uses the same white panels, branded primary actions, search, platform filter and card/table density. Channel cards distinguish metadata (platform, public URL, handle, notes, active/archive state) from credential access. An editor groups channel details, explicit credential replacement/clear, and member grants. Credentials open only in a separate drawer after a deliberate reveal, with a masked password, immediate-hide control and timed/visibility-based clearing. Metadata notes explicitly exclude passwords. Task assignment and result forms share the channel selector; the task table and cards show channel names and provide a channel filter. Archived channels remain identifiable on existing work.

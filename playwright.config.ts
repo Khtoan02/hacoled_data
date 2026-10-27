@@ -24,6 +24,7 @@ export default defineConfig({
       env: {
         DATABASE_URL: "postgresql://test:test@ep-hacoled-test.neon.tech/test",
         ADMIN_SETUP_TOKEN: "isolated-test-setup-token",
+        SOCIAL_CREDENTIALS_KEY: "11".repeat(32),
       },
       timeout: 90000,
     },

@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "node scripts/migrate.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "credentials:key": "node scripts/create-social-key.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
