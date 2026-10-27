@@ -25,3 +25,6 @@ Existing business definitions in README.md and src/lib/store/database.ts. TailAd
 - Use named accounts and server-side permissions.
 - Keep standard PostgreSQL schemas portable.
 - Make frequent internal tasks easy to scan and complete.
+
+## Member Roles and Task Access
+Six member roles: Kinh doanh (pending business permissions), Giám đốc and Leader Marketing (full administration), Trưởng phòng Marketing (own tasks plus Marketing staff/intern tasks), Nhân viên Marketing and Thực tập Marketing (identical own-task visibility). Account and task permissions are enforced on the server. Task approval configuration is a separate future workflow, not a fixed role-matrix column.

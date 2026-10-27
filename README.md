@@ -14,7 +14,7 @@ Hệ thống thiết kế và vận hành **HacoLED Marketing Base v1.0** phục
 - **83 Chỉ số (`05_CHI_SO`):** `M001` đến `M083` kèm công thức, đơn vị phân tích (grain), nguồn chuẩn và quy tắc chống diễn giải sai (mẫu số `0` hoặc thiếu dữ liệu xử lý là `N/A`, không tự điền `0`).
 - **20 Sự kiện (`06_SU_KIEN`):** `EV01` đến `EV20` (GA4 recommended + Base nội bộ; không gửi PII vào analytics).
 - **18 Quy tắc Lead (`07_QUY_TAC_LEAD`):** `LR01` đến `LR18` (tách mới với Base và mới với HacoLED; giữ `unknown` cho cuộc gọi hotline không rõ nguồn).
-- **8 Báo cáo quyết định (`08_BAO_CAO`) & 8 Vai trò phân quyền (`09_PHAN_QUYEN`).**
+- **8 Báo cáo quyết định (`08_BAO_CAO`) & 6 vai trò vận hành (Kinh doanh, Giám đốc, Leader Marketing, Trưởng phòng Marketing, Nhân viên Marketing, Thực tập Marketing).**
 - **24 Ca kiểm thử nghiệm thu bắt buộc (`10_KIEM_THU`):** `QA01` đến `QA24`.
 - **12 Quyết định (`11_QUYET_DINH`), 22 Nguồn đối chiếu (`12_NGUON`), Ví dụ Brief (`13_VI_DU_BRIEF` - `DEMO-BRIEF-01`) & Bảng tính kiểm thử công thức (`14_VI_DU_CONG_THUC`).**
 
@@ -42,3 +42,5 @@ npm run test:e2e
 ```
 
 Thiết lập `DATABASE_URL` và `ADMIN_SETUP_TOKEN` theo `.env.example`. Dữ liệu nghiệp vụ trình duyệt và khảo sát Blob cũ chưa được chuyển sang PostgreSQL trong thay đổi này.
+
+Danh sách công việc tại `/admin/tasks` lưu trên PostgreSQL và lọc quyền tại server. Leader/Giám đốc toàn quyền; Trưởng phòng xem việc của mình cùng nhân viên/thực tập; nhân viên và thực tập chỉ xem việc được giao. Quyền Kinh doanh chờ thiết lập.

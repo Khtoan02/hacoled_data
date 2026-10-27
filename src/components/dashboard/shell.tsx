@@ -19,10 +19,17 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { ROLE_POLICIES } from "../../lib/security/rbac";
+import { ROLE_POLICIES, isFullAccess } from "../../lib/security/rbac";
 import { useMember } from "./session";
 
 export const workspaceItems = [
+  {
+    id: "tasks",
+    label: "Công việc",
+    icon: ClipboardList,
+    href: "/admin/tasks",
+    group: "CÔNG VIỆC",
+  },
   {
     id: "executive",
     label: "Tổng quan",
@@ -153,16 +160,8 @@ export function DashboardShell({
     };
   }, [mobileOpen]);
   const allowed = (id: string) => {
-    if (id === "members") return policy.canManagePermissions;
-    if (id === "team_survey" || id === "team_cost")
-      return policy.canViewSalaryAndHrPrivate;
-    if (id === "crm_pipeline")
-      return policy.canConfirmCustomerStatus || policy.canViewRawPii;
-    if (id === "strategy_lab")
-      return policy.canApproveClaimsAndInsights || member.role === "executive";
-    if (id === "security_qa")
-      return policy.canManagePermissions || member.role === "executive";
-    return true;
+    if (id === "tasks") return policy.taskScope !== "none";
+    return isFullAccess(member.role);
   };
   function go(id: string, href?: string) {
     setMobileOpen(false);

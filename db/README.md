@@ -6,7 +6,7 @@ This change adds account storage in standard PostgreSQL. It does not import surv
 
 1. In Vercel project settings, confirm `DATABASE_URL` is present for Production (the Neon integration usually adds it). Use the pooled URL for application requests.
 2. Set `ADMIN_SETUP_TOKEN` to a long randomly generated secret. Generate one locally with `openssl rand -hex 32`; do not commit it or paste it into chat.
-3. Production deployments on Vercel automatically run `npm run db:migrate` through the `prebuild` lifecycle before compiling the application. A missing/invalid connection stops the deployment. Preview and local builds skip this step. For local setup, put `DATABASE_URL` in ignored `.env.local` and run `npm run db:migrate` manually. Do not overwrite Blob variables. The migration is transactional, rerunnable, and only creates the account tables and indexes.
+3. Production deployments on Vercel automatically run `npm run db:migrate` through the `prebuild` lifecycle before compiling the application. A missing/invalid connection stops the deployment. Preview and local builds skip this step. For local setup, put `DATABASE_URL` in ignored `.env.local` and run `npm run db:migrate` manually. Do not overwrite Blob variables. Migrations are transactional and rerunnable. They create account/task tables and migrate legacy role IDs as documented below.
 4. Deploy the reviewed code. Open `/`, enter name, email, a password of 12–128 characters, and the setup token to create the first administrator. This endpoint can create only one first account, serialized by a PostgreSQL transaction lock.
 5. Remove `ADMIN_SETUP_TOKEN` from the deployment environment and redeploy after setup. Existing logins do not depend on it.
 6. Go to `/admin/members` to create named accounts, assign roles, reset passwords and lock/unlock accounts. Passwords are not recoverable; only resets are supported.
@@ -15,16 +15,33 @@ There is no default administrator password. The previous shared password and ses
 
 ## Password-only sign-in
 
-Members enter only their individually assigned password. Email remains a contact/profile field in member management, not a login requirement. Existing salted password hashes and roles remain unchanged; no new migration or environment variable is required.
+Members enter only their individually assigned password. Email remains a contact/profile field in member management, not a login requirement. Salted password hashes remain unchanged; password-only sign-in requires no additional environment variable. Role changes are handled by the role migration below.
 
-Creation and password reset reject reuse of any other account's password, including inactive accounts. Existing duplicate active passwords are rejected at login rather than selecting an arbitrary identity; a manager must assign separate passwords. Writes check a credential snapshot under the account transaction lock to prevent concurrent duplicates. Session creation uses the same lock and verifies the current password hash so reset/revocation cannot race with login.
+Creation and password reset reject reuse of any other account's password, including inactive accounts. Existing duplicate active passwords are rejected at login rather than selecting an arbitrary identity; a Leader Marketing or Giám đốc must assign separate passwords. Writes check a credential snapshot under the account transaction lock to prevent concurrent duplicates. Session creation uses the same lock and verifies the current password hash so reset/revocation cannot race with login.
 
 This deliberately targets a small internal team. Verification scans active salted scrypt hashes sequentially, so cost grows with account count. No plaintext passwords or fast deterministic password fingerprints are stored.
 
+## Six member roles and task scope
+
+| Role | Task visibility | Account administration |
+| --- | --- | --- |
+| Kinh doanh | Pending configuration; no business access yet | No |
+| Giám đốc | All tasks | Full |
+| Leader Marketing | All tasks | Full |
+| Trưởng phòng Marketing | Own tasks plus those assigned to Marketing staff/interns | No |
+| Nhân viên Marketing | Own assigned tasks | No |
+| Thực tập Marketing | Own assigned tasks (same permissions as staff) | No |
+
+`002-member-roles.sql` preserves member IDs, passwords and audit references. Legacy `fulltime_coord` maps conservatively to `marketing_staff`; an administrator can explicitly promote members to Trưởng phòng. SEO/video intern roles merge into `marketing_intern`. Previous AI member accounts become inactive staff records because AI is no longer an assignable human role. Migrated legacy-role sessions are revoked. Leader and Director IDs remain unchanged.
+
+`003-tasks.sql` adds tasks referencing real member UUIDs. `/api/tasks` applies scope in SQL before returning rows, including requests by task ID; client-side filters do not determine access. Full administrators create tasks and update progress. Manager/staff/intern access is read-only at this stage. Approval rules are not represented in the role matrix and have not yet been implemented in task management.
+
+Task lists start empty; old browser-local demonstration tasks are not imported or guessed onto real accounts. Non-admin Marketing accounts land on `/admin/tasks`. Business/financial dashboards and summary APIs require full administration; Kinh doanh lands on a pending-permissions page.
+
 ## Boundaries
 
-- Lead Marketing manages members. Other roles cannot call member APIs. Survey results require the role's HR-private-data permission.
-- Account changes revoke existing sessions. The last active Lead Marketing account cannot be disabled or demoted. Member changes are audited without passwords.
+- Leader Marketing and Giám đốc manage members. Other roles cannot call member APIs. Survey results require the role's HR-private-data permission.
+- Account changes revoke existing sessions. The last active full administrator (Leader Marketing or Giám đốc) cannot be disabled or demoted. Member changes are audited without passwords.
 - Session cookies are HTTP-only, SameSite=Lax, Secure in production, with seven-day expiry. Each request checks the active account and current role in PostgreSQL.
 - Passwords use salted scrypt. Mutations require same-origin requests. Failed login attempts are limited per client IP (10 per 15 minutes). Vercel provides the trusted x-real-ip header; other hosting must configure a trusted reverse proxy to overwrite that header. Successful logins remove only their own counted attempt.
 - Existing Marketing OS modules still use demonstration/browser-local data. They explicitly display this limitation. Their client-side UI permissions are not a substitute for a future server-backed operational API.

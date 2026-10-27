@@ -1,11 +1,14 @@
 // Local PostgreSQL-compatible test fixture. Never connects to Neon or production data.
 import { PGlite } from "@electric-sql/pglite";
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 const db = new PGlite();
-await db.exec(
-  readFileSync(new URL("../../db/001-auth.sql", import.meta.url), "utf8"),
-);
+const migrations = new URL("../../db/", import.meta.url);
+for (const name of readdirSync(migrations)
+  .filter((name) => /^\d+.*\.sql$/.test(name))
+  .sort()) {
+  await db.exec(readFileSync(new URL(name, migrations), "utf8"));
+}
 function raw(result) {
   return {
     fields: result.fields,

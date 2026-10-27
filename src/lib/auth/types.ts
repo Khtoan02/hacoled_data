@@ -1,10 +1,10 @@
-import type { SystemRoleId } from "../security/rbac";
+import type { MemberRoleId } from "../security/rbac";
 
 export interface Member {
   id: string;
   name: string;
   email: string;
-  role: SystemRoleId;
+  role: MemberRoleId;
   active: boolean;
   created_at: string;
 }

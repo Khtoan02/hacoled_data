@@ -7,20 +7,24 @@
  * - QA22 (Revoking an employee's active flag blocks all permissions while preserving company assets)
  */
 
-export type SystemRoleId =
-  | "lead_marketing"
-  | "fulltime_coord"
-  | "intern_seo"
-  | "intern_video_long"
-  | "intern_video_short"
-  | "sales_hotline"
-  | "executive"
-  | "ai_assistant";
+export const MEMBER_ROLE_IDS = [
+  "sales_hotline",
+  "executive",
+  "lead_marketing",
+  "marketing_manager",
+  "marketing_staff",
+  "marketing_intern",
+] as const;
+export type MemberRoleId = (typeof MEMBER_ROLE_IDS)[number];
+// The AI sandbox remains internal to the legacy QA engine, never an assignable member role.
+export type SystemRoleId = MemberRoleId | "ai_assistant";
+export type TaskScope = "all" | "marketing_team" | "own" | "none";
 
 export interface RolePolicy {
   roleId: SystemRoleId;
   label: string;
   badgeCode: string;
+  taskScope: TaskScope;
   canViewRawPii: boolean;
   canViewSalaryAndHrPrivate: boolean;
   canApproveClaimsAndInsights: boolean;
@@ -34,141 +38,134 @@ export interface RolePolicy {
   guardrail: string;
 }
 
+const restricted = {
+  canViewRawPii: false,
+  canViewSalaryAndHrPrivate: false,
+  canApproveClaimsAndInsights: false,
+  canApproveTechnicalAssets: false,
+  canPublishContent: false,
+  canEditRawMetrics: false,
+  canConfirmCustomerStatus: false,
+  canExportFullPii: false,
+  canManagePermissions: false,
+};
+const full = Object.fromEntries(
+  Object.keys(restricted).map((key) => [key, true]),
+) as typeof restricted;
+const personal = { ...restricted, taskScope: "own" as const };
 export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
-  lead_marketing: {
-    roleId: "lead_marketing",
-    label: "Lead Marketing (Remote)",
-    badgeCode: "LEAD",
-    canViewRawPii: true,
-    canViewSalaryAndHrPrivate: true,
-    canApproveClaimsAndInsights: true,
-    canApproveTechnicalAssets: true,
-    canPublishContent: true,
-    canEditRawMetrics: true,
-    canConfirmCustomerStatus: true,
-    canExportFullPii: true,
-    canManagePermissions: true,
-    summary: "Duyệt target, định nghĩa KPI, insight, nội dung nhạy cảm, hợp nhất dữ liệu.",
-    guardrail: "Không tự gọi dữ liệu chưa xác minh là thật; chi phí mới phải xin duyệt Lãnh đạo.",
-  },
-  fulltime_coord: {
-    roleId: "fulltime_coord",
-    label: "Full-time / Điều phối",
-    badgeCode: "COORD",
-    canViewRawPii: false, // Chỉ xem lead chi tiết khi được giao tiếp nhận riêng
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: true,
-    canPublishContent: true,
-    canEditRawMetrics: true,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Giao việc chi tiết, kiểm nội dung theo checklist, quản lý Facebook & tổng hợp số.",
-    guardrail: "Không mặc định xem lương, hồ sơ khảo sát riêng tư hoặc toàn bộ danh bạ PII.",
-  },
-  intern_seo: {
-    roleId: "intern_seo",
-    label: "Thực tập sinh SEO",
-    badgeCode: "SEO",
-    canViewRawPii: false,
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: true,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Sản xuất bài SEO theo brief đã duyệt; nhập chỉ số GSC/Web được giao.",
-    guardrail: "Không truy cập danh bạ khách hàng (QA18); không tự đổi thông số/giá/target.",
-  },
-  intern_video_long: {
-    roleId: "intern_video_long",
-    label: "Thực tập sinh Video dài",
-    badgeCode: "VID-L",
-    canViewRawPii: false,
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: true,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Sản xuất video ngang (YouTube/FB) theo brief; nhập số liệu video được giao.",
-    guardrail: "Không giả ảnh/video AI thành dự án thật; không truy cập danh bạ PII (QA18).",
-  },
-  intern_video_short: {
-    roleId: "intern_video_short",
-    label: "Thực tập sinh Video ngắn",
-    badgeCode: "VID-S",
-    canViewRawPii: false,
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: true,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Sản xuất video dọc (TikTok/Reels/Shorts) theo brief; nhập số liệu được giao.",
-    guardrail: "Không tự công bố hình ảnh học sinh/khách khi chưa có quyền (QA23); chặn PII.",
-  },
   sales_hotline: {
+    ...restricted,
     roleId: "sales_hotline",
-    label: "Đầu mối Sales / Hotline",
+    label: "Kinh doanh",
     badgeCode: "SALES",
-    canViewRawPii: true,
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: false,
-    canConfirmCustomerStatus: true,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Tiếp nhận hotline/inbox, xác nhận khách mới/cũ, phản hồi chất lượng lead & cơ hội.",
-    guardrail: "Nguồn không biết giữ unknown; không bắt hỏi nguồn mọi cuộc gọi.",
+    taskScope: "none",
+    summary: "Chờ thiết lập quyền kinh doanh.",
+    guardrail: "Chưa cấp quyền nghiệp vụ khi chưa có yêu cầu cụ thể.",
   },
   executive: {
+    ...full,
     roleId: "executive",
-    label: "Ban Lãnh đạo",
-    badgeCode: "EXEC",
-    canViewRawPii: true,
-    canViewSalaryAndHrPrivate: true,
-    canApproveClaimsAndInsights: true,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: false,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: true,
-    canManagePermissions: false,
-    summary: "Xem báo cáo quyết định (D01–D08), hiệu quả đầu tư, rủi ro dữ liệu & phê duyệt ngân sách.",
-    guardrail: "Chế độ đọc chiến lược (Read-only trên dữ liệu gốc để tránh lệch log vận hành).",
+    label: "Giám đốc",
+    badgeCode: "DIRECTOR",
+    taskScope: "all",
+    summary: "Toàn quyền hệ thống, tài khoản và công việc.",
+    guardrail: "Thao tác tài khoản được ghi nhật ký.",
+  },
+  lead_marketing: {
+    ...full,
+    roleId: "lead_marketing",
+    label: "Leader Marketing",
+    badgeCode: "LEADER",
+    taskScope: "all",
+    summary: "Toàn quyền hệ thống, tài khoản và công việc.",
+    guardrail: "Thao tác tài khoản được ghi nhật ký.",
+  },
+  marketing_manager: {
+    ...restricted,
+    roleId: "marketing_manager",
+    label: "Trưởng phòng Marketing",
+    badgeCode: "MANAGER",
+    taskScope: "marketing_team",
+    summary: "Xem công việc của mình, nhân viên và thực tập Marketing.",
+    guardrail:
+      "Không mặc định xem việc của trưởng phòng khác, Leader, Giám đốc hoặc dữ liệu nhân sự riêng tư.",
+  },
+  marketing_staff: {
+    ...personal,
+    roleId: "marketing_staff",
+    label: "Nhân viên Marketing",
+    badgeCode: "STAFF",
+    summary: "Xem công việc được giao cho mình.",
+    guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
+  },
+  marketing_intern: {
+    ...personal,
+    roleId: "marketing_intern",
+    label: "Thực tập Marketing",
+    badgeCode: "INTERN",
+    summary:
+      "Xem công việc được giao cho mình; quyền giống nhân viên Marketing.",
+    guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
   },
   ai_assistant: {
+    ...restricted,
     roleId: "ai_assistant",
-    label: "AI Hỗ trợ (Sandbox)",
+    label: "AI nội bộ (kiểm thử)",
     badgeCode: "AI",
-    canViewRawPii: false,
-    canViewSalaryAndHrPrivate: false,
-    canApproveClaimsAndInsights: false,
-    canApproveTechnicalAssets: false,
-    canPublishContent: false,
-    canEditRawMetrics: false,
-    canConfirmCustomerStatus: false,
-    canExportFullPii: false,
-    canManagePermissions: false,
-    summary: "Gợi ý phân loại, tóm tắt phản hồi ẩn danh, soạn nháp nội dung, phát hiện bất thường.",
-    guardrail: "Cấm tự xác nhận insight (QA20), cấm quyết định nhân sự, xuất bản hoặc duyệt chi.",
+    taskScope: "none",
+    summary: "Chỉ phục vụ mô phỏng nội bộ.",
+    guardrail: "Không được gán cho tài khoản thành viên.",
   },
 };
+export const MEMBER_ROLES = MEMBER_ROLE_IDS.map((role) => ROLE_POLICIES[role]);
+export function isMemberRole(value: unknown): value is MemberRoleId {
+  return (
+    typeof value === "string" && MEMBER_ROLE_IDS.includes(value as MemberRoleId)
+  );
+}
+export function isFullAccess(role: SystemRoleId) {
+  return role === "lead_marketing" || role === "executive";
+}
+export const TASK_SCOPE_LABELS: Record<TaskScope, string> = {
+  all: "Tất cả công việc",
+  marketing_team: "Của mình + nhân viên + thực tập",
+  own: "Chỉ công việc của mình",
+  none: "Chờ thiết lập",
+};
+export function canViewTask(
+  viewer: { id: string; role: SystemRoleId },
+  task: { assignee_id: string; assignee_role: SystemRoleId },
+) {
+  const scope = ROLE_POLICIES[viewer.role].taskScope;
+  if (scope === "none") return false;
+  return (
+    scope === "all" ||
+    task.assignee_id === viewer.id ||
+    (scope === "marketing_team" &&
+      ["marketing_staff", "marketing_intern"].includes(task.assignee_role))
+  );
+}
+export function normalizeLegacyRole(role: string): SystemRoleId {
+  const legacy: Record<string, SystemRoleId> = {
+    fulltime_coord: "marketing_staff",
+    intern_seo: "marketing_intern",
+    intern_video_long: "marketing_intern",
+    intern_video_short: "marketing_intern",
+  };
+  return (
+    legacy[role] ||
+    (isMemberRole(role) || role === "ai_assistant" ? role : "marketing_staff")
+  );
+}
 
 /**
  * Mask phone number for non-privileged roles (e.g., 0912345889 -> 0912***889)
  */
-export function maskPhone(phone: string | null | undefined, roleId: SystemRoleId): string {
+export function maskPhone(
+  phone: string | null | undefined,
+  roleId: SystemRoleId,
+): string {
   if (!phone || phone === "unknown") return "unknown";
   if (ROLE_POLICIES[roleId].canViewRawPii) return phone;
   const clean = phone.replace(/\D/g, "");
@@ -179,7 +176,10 @@ export function maskPhone(phone: string | null | undefined, roleId: SystemRoleId
 /**
  * Mask email for non-privileged roles (e.g., minh.quan@school.edu.vn -> mi***@school.edu.vn)
  */
-export function maskEmail(email: string | null | undefined, roleId: SystemRoleId): string {
+export function maskEmail(
+  email: string | null | undefined,
+  roleId: SystemRoleId,
+): string {
   if (!email || email === "unknown") return "unknown";
   if (ROLE_POLICIES[roleId].canViewRawPii) return email;
   const parts = email.split("@");
@@ -191,7 +191,10 @@ export function maskEmail(email: string | null | undefined, roleId: SystemRoleId
 /**
  * Mask display name of contact for non-privileged roles (QA18)
  */
-export function maskContactName(name: string | null | undefined, roleId: SystemRoleId): string {
+export function maskContactName(
+  name: string | null | undefined,
+  roleId: SystemRoleId,
+): string {
   if (!name || name === "unknown") return "Chưa rõ tên";
   if (ROLE_POLICIES[roleId].canViewRawPii) return name;
   const words = name.trim().split(/\s+/);
@@ -205,7 +208,15 @@ export interface AuditLogEntry {
   actor_role: SystemRoleId;
   entity_type: string;
   entity_id: string;
-  action: "create" | "update" | "merge" | "delete" | "export" | "permission_denied" | "revoke_access" | "restore_backup";
+  action:
+    | "create"
+    | "update"
+    | "merge"
+    | "delete"
+    | "export"
+    | "permission_denied"
+    | "revoke_access"
+    | "restore_backup";
   changed_at: string;
   changed_fields: string;
   reason: string;
@@ -233,11 +244,18 @@ export function authorizeAction(params: {
   denialReason?: string;
   auditEntry?: AuditLogEntry;
 } {
-  const { roleId, employeeActive = true, actionType, entityType, entityId } = params;
+  const {
+    roleId,
+    employeeActive = true,
+    actionType,
+    entityType,
+    entityId,
+  } = params;
 
   // QA22: Thu hồi quyền nhân sự rời nhóm
   if (!employeeActive) {
-    const reason = "Tài khoản nhân sự đã ngừng hoạt động (active=false - Quy tắc QA22). Từ chối mọi quyền truy cập.";
+    const reason =
+      "Tài khoản nhân sự đã ngừng hoạt động (active=false - Quy tắc QA22). Từ chối mọi quyền truy cập.";
     return {
       allowed: false,
       denialReason: reason,

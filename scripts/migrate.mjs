@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import nextEnv from "@next/env";
 
@@ -9,14 +9,20 @@ if (!process.env.DATABASE_URL) {
 }
 try {
   const sql = neon(process.env.DATABASE_URL);
-  const statements = readFileSync(
-    new URL("../db/001-auth.sql", import.meta.url),
-    "utf8",
-  )
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  await sql.transaction(statements.map((statement) => sql.query(statement)));
+  const directory = new URL("../db/", import.meta.url);
+  const statements = readdirSync(directory)
+    .filter((name) => /^\d+.*\.sql$/.test(name))
+    .sort()
+    .flatMap((name) =>
+      readFileSync(new URL(name, directory), "utf8")
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+  await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(724109)`,
+    ...statements.map((statement) => sql.query(statement)),
+  ]);
   console.log("Đã tạo schema tài khoản. Dữ liệu hiện có được giữ nguyên.");
 } catch {
   console.error(

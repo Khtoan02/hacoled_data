@@ -79,7 +79,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await page
     .getByLabel("Email liên hệ", { exact: true })
     .fill("intern@example.test");
-  await page.getByLabel("Vai trò", { exact: true }).selectOption("intern_seo");
+  await page.getByLabel("Vai trò", { exact: true }).selectOption("marketing_intern");
   await page
     .getByLabel("Mật khẩu ban đầu", { exact: true })
     .fill(internPassword);
@@ -127,7 +127,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
         data: {
           name: "Duplicate",
           email: "duplicate@example.test",
-          role: "intern_seo",
+          role: "marketing_intern",
           password,
         },
       })
@@ -157,7 +157,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
         data: {
           name: `Concurrent ${suffix}`,
           email: `concurrent-${suffix}@example.test`,
-          role: "intern_seo",
+          role: "marketing_intern",
           password: "Concurrent-only-password-2026!",
         },
       }),
@@ -201,7 +201,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   expect(
     (
       await staff.patch("/api/members", {
-        data: { id: owner.id, role: "intern_seo" },
+        data: { id: owner.id, role: "marketing_intern" },
       })
     ).status(),
   ).toBe(403);

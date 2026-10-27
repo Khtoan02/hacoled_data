@@ -471,13 +471,13 @@ export async function runFullAutomatedTestSuite(): Promise<{
     "Từ chối quyền xem PII gốc, tự động che SĐT/Tên trên UI và ghi Audit Log cảnh báo",
     () => {
       const auth = authorizeAction({
-        roleId: "intern_seo",
+        roleId: "marketing_intern",
         actionType: "VIEW_RAW_PII",
         entityType: "contacts",
         entityId: "CON-01",
       });
-      const maskedPhone = maskPhone("0912345101", "intern_seo");
-      const maskedName = maskContactName("Thầy Nguyễn Văn Minh", "intern_seo");
+      const maskedPhone = maskPhone("0912345101", "marketing_intern");
+      const maskedName = maskContactName("Thầy Nguyễn Văn Minh", "marketing_intern");
       return {
         passed:
           auth.allowed === false &&
@@ -577,7 +577,7 @@ export async function runFullAutomatedTestSuite(): Promise<{
     () => {
       const db = cloneDb();
       const revokedAuth = authorizeAction({
-        roleId: "intern_video_short",
+        roleId: "marketing_intern",
         employeeActive: false, // Revoked!
         actionType: "PUBLISH_CONTENT",
         entityType: "content_assets",

@@ -9,7 +9,7 @@ import {
 } from "../../../lib/auth/server";
 import { hashPassword, validPassword } from "../../../lib/auth/password";
 import { uniquePasswordSnapshot } from "../../../lib/auth/credentials";
-import { ROLE_POLICIES, type SystemRoleId } from "../../../lib/security/rbac";
+import { isMemberRole, type MemberRoleId } from "../../../lib/security/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       name.length > 100 ||
       email.length > 254 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-      !Object.hasOwn(ROLE_POLICIES, body.role) ||
+      !isMemberRole(body.role) ||
       !validPassword(body.password)
     ) {
       throw new RequestError(
@@ -78,9 +78,9 @@ export async function PATCH(req: NextRequest) {
       body = await req.json();
     if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.id))
       throw new RequestError("Thành viên không hợp lệ.");
-    const role = body.role as SystemRoleId | undefined;
+    const role = body.role as MemberRoleId | undefined;
     if (
-      (role !== undefined && !Object.hasOwn(ROLE_POLICIES, role)) ||
+      (role !== undefined && !isMemberRole(role)) ||
       (body.active !== undefined && typeof body.active !== "boolean") ||
       (body.password !== undefined && !validPassword(body.password)) ||
       (role === undefined &&
@@ -106,9 +106,9 @@ export async function PATCH(req: NextRequest) {
         WHERE id = ${body.id}
         AND (${snapshot}::jsonb IS NULL OR (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', id, 'password_hash', password_hash) ORDER BY id), '[]'::jsonb) FROM app_members) = ${snapshot}::jsonb)
         AND (
-          role <> 'lead_marketing' OR NOT active OR
-          (COALESCE(${role ?? null}, role) = 'lead_marketing' AND COALESCE(${body.active ?? null}, active)) OR
-          EXISTS(SELECT 1 FROM app_members other WHERE other.id <> ${body.id} AND other.active AND other.role = 'lead_marketing')
+          role NOT IN ('lead_marketing', 'executive') OR NOT active OR
+          (COALESCE(${role ?? null}, role) IN ('lead_marketing', 'executive') AND COALESCE(${body.active ?? null}, active)) OR
+          EXISTS(SELECT 1 FROM app_members other WHERE other.id <> ${body.id} AND other.active AND other.role IN ('lead_marketing', 'executive'))
         ) RETURNING id), revoked AS (
           DELETE FROM app_sessions WHERE member_id IN (SELECT id FROM updated)
         ), audited AS (

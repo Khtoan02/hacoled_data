@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getMember, apiError, RequestError } from "../../../lib/auth/server";
 import { INITIAL_HACOLED_DB } from "../../../lib/store/database";
 import { computeAllDecisionMetrics } from "../../../lib/engine/analytics-engine";
-import { ROLE_POLICIES } from "../../../lib/security/rbac";
+import { MEMBER_ROLES, isFullAccess } from "../../../lib/security/rbac";
 import {
   MODULES_12,
   TASKS_58,
@@ -19,10 +19,15 @@ import { FIELD_DICTIONARY } from "../../../lib/spec-fields";
 
 export async function GET() {
   try {
-    if (!await getMember()) throw new RequestError("Vui lòng đăng nhập.", 401);
-  } catch (error) { return apiError(error); }
+    const member = await getMember();
+    if (!member) throw new RequestError("Vui lòng đăng nhập.", 401);
+    if (!isFullAccess(member.role))
+      throw new RequestError("Bạn không có quyền xem báo cáo tổng hợp.", 403);
+  } catch (error) {
+    return apiError(error);
+  }
   const computedMetrics = computeAllDecisionMetrics(INITIAL_HACOLED_DB);
-  const roleCount = Object.keys(ROLE_POLICIES).length;
+  const roleCount = MEMBER_ROLES.length;
 
   return NextResponse.json({
     system: "HACOLED | MARKETING OS & DECISION INTELLIGENCE",

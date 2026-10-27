@@ -18,14 +18,19 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
-import { ROLE_POLICIES, type SystemRoleId } from "../../lib/security/rbac";
+import {
+  MEMBER_ROLES,
+  TASK_SCOPE_LABELS,
+  isFullAccess,
+  type MemberRoleId,
+} from "../../lib/security/rbac";
 import type { Member } from "../../lib/auth/types";
 
 const emptyForm = {
   name: "",
   email: "",
   password: "",
-  role: "fulltime_coord" as SystemRoleId,
+  role: "marketing_staff" as MemberRoleId,
 };
 export function MembersPage() {
   const self = useMember();
@@ -148,7 +153,7 @@ export function MembersPage() {
           </div>
           <div>
             <ShieldCheck size={19} />
-            <strong>{Object.keys(ROLE_POLICIES).length}</strong>
+            <strong>{MEMBER_ROLES.length}</strong>
             <span>Vai trò</span>
           </div>
         </div>
@@ -246,10 +251,10 @@ export function MembersPage() {
                     aria-label="Vai trò"
                     value={form.role}
                     onChange={(e) =>
-                      setForm({ ...form, role: e.target.value as SystemRoleId })
+                      setForm({ ...form, role: e.target.value as MemberRoleId })
                     }
                   >
-                    {Object.values(ROLE_POLICIES).map((p) => (
+                    {MEMBER_ROLES.map((p) => (
                       <option key={p.roleId} value={p.roleId}>
                         {p.label}
                       </option>
@@ -335,7 +340,7 @@ export function MembersPage() {
             onChange={(e) => setRoleFilter(e.target.value)}
           >
             <option value="all">Tất cả vai trò</option>
-            {Object.values(ROLE_POLICIES).map((p) => (
+            {MEMBER_ROLES.map((p) => (
               <option key={p.roleId} value={p.roleId}>
                 {p.label}
               </option>
@@ -367,7 +372,7 @@ export function MembersPage() {
                     <td>
                       <div className="member-identity">
                         <span
-                          className={`member-avatar ${m.role === "lead_marketing" ? "admin" : ""}`}
+                          className={`member-avatar ${isFullAccess(m.role) ? "admin" : ""}`}
                         >
                           {m.name.slice(0, 1).toUpperCase()}
                         </span>
@@ -400,7 +405,7 @@ export function MembersPage() {
                             );
                         }}
                       >
-                        {Object.values(ROLE_POLICIES).map((p) => (
+                        {MEMBER_ROLES.map((p) => (
                           <option value={p.roleId} key={p.roleId}>
                             {p.label}
                           </option>
@@ -474,7 +479,7 @@ export function MembersPage() {
         </div>
         <div className="table-footnote">
           Hiển thị {filtered.length} / {members.length} thành viên
-          <span>Chỉ Lead Marketing được quản lý tài khoản.</span>
+          <span>Leader Marketing và Giám đốc được quản lý tài khoản.</span>
         </div>
       </section>
       <section className="role-reference">
@@ -482,8 +487,8 @@ export function MembersPage() {
           <div>
             <h2>Quyền theo vai trò</h2>
             <p>
-              Vai trò quyết định các phân hệ và thao tác thành viên được sử
-              dụng.
+              Phạm vi xem công việc và dữ liệu theo vị trí. Quyền duyệt sẽ được
+              thiết lập trong quản lý công việc.
             </p>
           </div>
           <ShieldCheck size={22} />
@@ -493,23 +498,23 @@ export function MembersPage() {
             <thead>
               <tr>
                 <th>Vai trò</th>
+                <th>Phạm vi công việc</th>
                 <th>Khách hàng / PII</th>
                 <th>Nhân sự / Khảo sát</th>
-                <th>Duyệt nội dung</th>
                 <th>Quản lý tài khoản</th>
               </tr>
             </thead>
             <tbody>
-              {Object.values(ROLE_POLICIES).map((p) => (
+              {MEMBER_ROLES.map((p) => (
                 <tr key={p.roleId}>
                   <td>
                     <strong>{p.label}</strong>
                     <small>{p.summary}</small>
                   </td>
+                  <td>{TASK_SCOPE_LABELS[p.taskScope]}</td>
                   {[
                     p.canViewRawPii,
                     p.canViewSalaryAndHrPrivate,
-                    p.canApproveTechnicalAssets,
                     p.canManagePermissions,
                   ].map((yes, i) => (
                     <td key={i}>
