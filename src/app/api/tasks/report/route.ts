@@ -1,3 +1,4 @@
+import { outputFields } from "../../../../lib/kpi-fields";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
         404,
       );
     const reports =
-      await database()`SELECT id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at, created_at, channel_id, channel_name FROM app_task_reports WHERE task_id=${id} ORDER BY created_at DESC, id DESC LIMIT 50`;
+      await database()`SELECT id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at, created_at, channel_id, channel_name, kpi_id, output_type, planned_quantity, delivered_quantity, to_char(delivered_on,'YYYY-MM-DD') AS delivered_on FROM app_task_reports WHERE task_id=${id} ORDER BY created_at DESC, id DESC LIMIT 50`;
     return NextResponse.json(
       { reports },
       { headers: { "Cache-Control": "no-store" } },
@@ -55,6 +56,10 @@ export async function PATCH(req: NextRequest) {
         (k) =>
           ![
             "id",
+            "kpi_id",
+            "output_type",
+            "delivered_quantity",
+            "delivered_on",
             "channel_id",
             "version",
             "status",
@@ -94,19 +99,23 @@ export async function PATCH(req: NextRequest) {
       throw new RequestError("Checklist không hợp lệ.");
     if ("channel_id" in b && b.channel_id !== null && !isId(b.channel_id))
       throw new RequestError("Kênh không hợp lệ.");
+    const production = outputFields(b);
     const links = [...new Set<string>(b.evidence_links)],
       done = JSON.stringify(b.completed_items);
     const rows =
-      await database()`WITH updated AS (UPDATE app_tasks t SET channel_id=CASE WHEN ${"channel_id" in b} THEN ${b.channel_id ?? null}::uuid ELSE t.channel_id END, status=${b.status}, result_text=${b.result_text.trim()}, evidence_links=${JSON.stringify(links)}::jsonb,
+      await database()`WITH updated AS (UPDATE app_tasks t SET kpi_id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END,output_type=COALESCE(${production.output_type ?? null},t.output_type),delivered_quantity=COALESCE(${production.delivered_quantity ?? null}::int,t.delivered_quantity),
+      delivered_on=CASE WHEN ${"delivered_on" in production} THEN COALESCE(${production.delivered_on ?? null}::date,CASE WHEN ${b.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) ELSE COALESCE(t.delivered_on,CASE WHEN ${b.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) END,
+      channel_id=CASE WHEN ${"channel_id" in b} THEN ${b.channel_id ?? null}::uuid ELSE t.channel_id END, status=${b.status}, result_text=${b.result_text.trim()}, evidence_links=${JSON.stringify(links)}::jsonb,
       checklist=COALESCE((SELECT jsonb_agg(jsonb_set(item,'{done}',to_jsonb((item->>'id') IN (SELECT jsonb_array_elements_text(${done}::jsonb)))) ORDER BY ord) FROM jsonb_array_elements(t.checklist) WITH ORDINALITY AS e(item,ord)), '[]'::jsonb),
       completed_at=CASE WHEN ${b.status}='completed' THEN CASE WHEN t.status='completed' THEN t.completed_at ELSE now() END ELSE NULL END,
       updated_at=now(), report_version=t.report_version+1
       WHERE t.id=${b.id} AND (${isFullAccess(member.role)} OR t.assignee_id=${member.id}) AND t.report_version=${b.version}
       AND (${b.channel_id ?? null}::uuid IS NULL OR t.channel_id=${b.channel_id ?? null}::uuid OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${b.channel_id ?? null}::uuid AND active=true))
+      AND (CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END IS NULL OR EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END AND (k.active OR k.id=t.kpi_id) AND k.assignee_id=t.assignee_id AND k.channel_id=CASE WHEN ${"channel_id" in b} THEN ${b.channel_id ?? null}::uuid ELSE t.channel_id END AND k.output_type=COALESCE(${production.output_type ?? null},t.output_type)))
       AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(${done}::jsonb) d(id) WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(t.checklist) c WHERE c->>'id'=d.id)) RETURNING t.*),
-      logged AS (INSERT INTO app_task_reports (id,task_id,task_title,assignee_id,actor_id,actor_name,status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,channel_name)
-      SELECT ${randomUUID()},id,title,assignee_id,${member.id},${member.name},status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,(SELECT name FROM app_social_channels WHERE id=updated.channel_id) FROM updated RETURNING task_id)
-      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform FROM updated u JOIN logged l ON l.task_id=u.id LEFT JOIN app_social_channels c ON c.id=u.channel_id`;
+      logged AS (INSERT INTO app_task_reports (id,task_id,task_title,assignee_id,actor_id,actor_name,status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,channel_name,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on)
+      SELECT ${randomUUID()},id,title,assignee_id,${member.id},${member.name},status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,(SELECT name FROM app_social_channels WHERE id=updated.channel_id)  ,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on FROM updated RETURNING task_id)
+      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.kpi_id,u.output_type,u.planned_quantity,u.delivered_quantity,to_char(u.delivered_on,'YYYY-MM-DD') AS delivered_on,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform FROM updated u JOIN logged l ON l.task_id=u.id LEFT JOIN app_social_channels c ON c.id=u.channel_id`;
     if (!rows.length)
       throw new RequestError(
         "Công việc vừa thay đổi hoặc bạn không có quyền cập nhật. Tải lại chi tiết trước khi gửi lại.",

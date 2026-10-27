@@ -7,6 +7,14 @@ import {
   type Task,
   type TaskReport,
 } from "../../lib/tasks";
+import Link from "next/link";
+import {
+  OUTPUT_TYPES,
+  monthLabel,
+  kpiProgress,
+  type Kpi,
+  type OutputType,
+} from "../../lib/kpis";
 import type { SocialChannel } from "../../lib/social";
 import { Notice, StatusBadge } from "./ui";
 function timestamp(value: string) {
@@ -62,14 +70,27 @@ export function TaskResult({
   onBusy,
   onDirty,
   channels,
+  kpis,
 }: {
   task: Task;
   channels: SocialChannel[];
+  kpis: Kpi[];
   canReport: boolean;
   onSaved: (task: Task) => void;
   onBusy: (busy: boolean) => void;
   onDirty: (dirty: boolean) => void;
 }) {
+  const [kpiId, setKpiId] = useState(task.kpi_id ?? ""),
+    [outputType, setOutputType] = useState<OutputType>(task.output_type),
+    [quantity, setQuantity] = useState(task.delivered_quantity),
+    [deliveredOn, setDeliveredOn] = useState(task.delivered_on ?? "");
+  const selectedKpi = kpis.find((k) => k.id === kpiId);
+  const today = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const [channelId, setChannelId] = useState(task.channel_id ?? "");
   const [status, setStatus] = useState(task.status),
     [result, setResult] = useState(task.result_text),
@@ -85,7 +106,11 @@ export function TaskResult({
     [historyError, setHistoryError] = useState("");
   const dirty =
     canReport &&
-    (channelId !== (task.channel_id ?? "") ||
+    (kpiId !== (task.kpi_id ?? "") ||
+      outputType !== task.output_type ||
+      quantity !== task.delivered_quantity ||
+      deliveredOn !== (task.delivered_on ?? "") ||
+      channelId !== (task.channel_id ?? "") ||
       status !== task.status ||
       result !== task.result_text ||
       JSON.stringify(links) !== JSON.stringify(task.evidence_links) ||
@@ -161,6 +186,10 @@ export function TaskResult({
         d = await r.json();
       if (!r.ok) throw new Error(d.error);
       const latest: Task = d.tasks[0];
+      setKpiId(latest.kpi_id ?? "");
+      setOutputType(latest.output_type);
+      setQuantity(latest.delivered_quantity);
+      setDeliveredOn(latest.delivered_on ?? "");
       setChannelId(latest.channel_id ?? "");
       setStatus(latest.status);
       setResult(latest.result_text);
@@ -196,6 +225,10 @@ export function TaskResult({
             id: task.id,
             version: task.report_version,
             channel_id: channelId || null,
+            kpi_id: kpiId || null,
+            output_type: outputType,
+            delivered_quantity: quantity,
+            delivered_on: deliveredOn || null,
             status,
             result_text: result,
             evidence_links: links,
@@ -208,6 +241,10 @@ export function TaskResult({
         throw new Error(d.error);
       }
       setConflict(false);
+      setKpiId(d.task.kpi_id ?? "");
+      setOutputType(d.task.output_type);
+      setQuantity(d.task.delivered_quantity);
+      setDeliveredOn(d.task.delivered_on ?? "");
       setResult(d.task.result_text);
       onSaved({ ...task, ...d.task });
       setMessage("Đã lưu kết quả và tiến độ công việc.");
@@ -243,14 +280,121 @@ export function TaskResult({
         </button>
       )}
       {message && <Notice tone="success">{message}</Notice>}
+      {selectedKpi && (
+        <div className="task-kpi-progress">
+          <strong>
+            KPI tháng {monthLabel(selectedKpi.month)} ·{" "}
+            {selectedKpi.assignee_name}
+          </strong>
+          <span>
+            {selectedKpi.delivered}/{selectedKpi.target}{" "}
+            {OUTPUT_TYPES[selectedKpi.output_type].unit} ·{" "}
+            {kpiProgress(selectedKpi).percent}%
+          </span>
+          <Link href={`/admin/kpis?channel=${selectedKpi.channel_id}`}>
+            Xem hiệu suất theo tháng
+          </Link>
+        </div>
+      )}
+      {selectedKpi &&
+        status === "completed" &&
+        (deliveredOn || today).slice(0, 7) !== selectedKpi.month && (
+          <Notice tone="info">
+            Ngày sản lượng nằm ngoài tháng {monthLabel(selectedKpi.month)}. Kết
+            quả vẫn được lưu nhưng chưa cộng vào KPI của tháng này.
+          </Notice>
+        )}
       <form className="account-form result-form" onSubmit={submit}>
         <fieldset disabled={!canReport || busy}>
+          <section className="task-kpi-fields">
+            <h4>KPI & sản lượng thực tế</h4>
+            <label>
+              Chỉ tiêu liên quan
+              <select
+                aria-label="KPI báo cáo"
+                value={kpiId}
+                onChange={(e) => {
+                  const k = kpis.find((k) => k.id === e.target.value);
+                  setKpiId(e.target.value);
+                  if (k) {
+                    setChannelId(k.channel_id);
+                    setOutputType(k.output_type);
+                  }
+                }}
+              >
+                <option value="">Không gắn KPI · công việc làm thêm</option>
+                {kpis
+                  .filter(
+                    (k) =>
+                      k.assignee_id === task.assignee_id &&
+                      (k.active || k.id === kpiId),
+                  )
+                  .map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {OUTPUT_TYPES[k.output_type].label} · {k.channel_name} ·{" "}
+                      {monthLabel(k.month)} · {k.target}{" "}
+                      {OUTPUT_TYPES[k.output_type].unit}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div className="field-pair">
+              <label>
+                Loại sản phẩm
+                <select
+                  aria-label="Loại sản phẩm báo cáo"
+                  disabled={Boolean(kpiId) || !canReport || busy}
+                  value={outputType}
+                  onChange={(e) => setOutputType(e.target.value as OutputType)}
+                >
+                  {Object.entries(OUTPUT_TYPES).map(([id, v]) => (
+                    <option key={id} value={id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Sản lượng hoàn thành
+                <input
+                  aria-label="Sản lượng hoàn thành"
+                  type="number"
+                  required
+                  min={0}
+                  max={100000}
+                  step={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                />
+              </label>
+            </div>
+            <label>
+              Ngày sản lượng
+              <input
+                aria-label="Ngày sản lượng"
+                type="date"
+                min="2000-01-01"
+                max={today}
+                value={deliveredOn}
+                onChange={(e) => setDeliveredOn(e.target.value)}
+              />
+            </label>
+            <p className="result-hint">
+              Dự kiến {task.planned_quantity} {OUTPUT_TYPES[outputType].unit}.
+              Chỉ sản lượng của việc đã hoàn thành trong đúng tháng KPI mới được
+              cộng; 0 nghĩa là chưa ghi nhận sản lượng. Để trống ngày khi hoàn
+              thành sẽ lấy ngày hôm nay.
+            </p>
+          </section>
           <label>
             Kênh thực hiện
             <select
               aria-label="Kênh báo cáo"
               value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
+              onChange={(e) => {
+                setChannelId(e.target.value);
+                setKpiId("");
+              }}
             >
               <option value="">Chưa gắn kênh</option>
               {channels
@@ -263,6 +407,12 @@ export function TaskResult({
                 ))}
             </select>
           </label>
+          {kpiId && (
+            <p className="result-hint">
+              Đổi kênh sẽ gỡ liên kết KPI hiện tại. Chọn lại chỉ tiêu phù hợp
+              nếu cần.
+            </p>
+          )}
           <label>
             Tiến độ công việc
             <select
@@ -460,6 +610,14 @@ export function TaskResult({
                   </time>
                 </div>
                 <StatusBadge status={entry.status} />
+                <p className="task-channel-label">
+                  {entry.delivered_quantity}{" "}
+                  {OUTPUT_TYPES[entry.output_type].unit} ·{" "}
+                  {entry.kpi_id ? "Trong KPI" : "Ngoài KPI"}
+                  {entry.delivered_on
+                    ? ` · ${entry.delivered_on.split("-").reverse().join("/")}`
+                    : ""}
+                </p>
                 {entry.channel_name && (
                   <p className="task-channel-label">{entry.channel_name}</p>
                 )}

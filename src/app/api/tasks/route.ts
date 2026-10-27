@@ -1,3 +1,4 @@
+import { outputFields, type OutputFields } from "../../../lib/kpi-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import {
@@ -8,7 +9,7 @@ import {
   RequestError,
   requireManager,
 } from "../../../lib/auth/server";
-import { ROLE_POLICIES } from "../../../lib/security/rbac";
+import { ROLE_POLICIES, isFullAccess } from "../../../lib/security/rbac";
 import {
   TASK_STATUSES,
   TASK_PRIORITIES,
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
 const isId = (value: unknown): value is string =>
   typeof value === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-interface Fields {
+interface Fields extends OutputFields {
   channel_id?: string | null;
   title?: string;
   description?: string;
@@ -38,6 +39,11 @@ function fields(body: unknown, partial = false): Fields {
       (key) =>
         ![
           "id",
+          "kpi_id",
+          "output_type",
+          "planned_quantity",
+          "delivered_quantity",
+          "delivered_on",
           "channel_id",
           "title",
           "description",
@@ -125,6 +131,7 @@ function fields(body: unknown, partial = false): Fields {
     )
       throw new RequestError("Checklist chứa mã mục bị trùng.");
   }
+  Object.assign(output, outputFields(input));
   if (partial && !Object.keys(output).length)
     throw new RequestError("Chưa có thay đổi cần lưu.");
   return output;
@@ -139,7 +146,7 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id") || null;
     if (id && !isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
     const tasks =
-      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version, t.channel_id, c.name AS channel_name, c.url AS channel_url, c.platform AS channel_platform,
+      await database()`SELECT t.id, t.title, t.description, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version, t.kpi_id, t.output_type, t.planned_quantity, t.delivered_quantity, to_char(t.delivered_on,'YYYY-MM-DD') AS delivered_on, t.channel_id, c.name AS channel_name, c.url AS channel_url, c.platform AS channel_platform,
       m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id LEFT JOIN app_social_channels c ON c.id=t.channel_id
       WHERE (${scope} = 'all' OR t.assignee_id = ${member.id} OR (${scope} = 'marketing_team' AND m.role IN ('marketing_staff','marketing_intern')))
         AND (${id}::uuid IS NULL OR t.id = ${id}::uuid) ORDER BY t.created_at DESC, t.id`;
@@ -159,14 +166,23 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     checkOrigin(req);
-    const actor = await requireManager(),
-      data = fields(await req.json());
+    const actor = await getMember();
+    if (!actor) throw new RequestError("Vui lòng đăng nhập.", 401);
+    if (ROLE_POLICIES[actor.role].taskScope === "none")
+      throw new RequestError("Chưa được cấp quyền công việc.", 403);
+    const body = await req.json();
+    if (!isFullAccess(actor.role) && body?.assignee_id !== actor.id)
+      throw new RequestError("Bạn chỉ được tạo công việc cho chính mình.", 403);
+    const data = fields(body);
     const rows =
-      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist, completed_at, channel_id)
-      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb, CASE WHEN ${data.status ?? "pending"} = 'completed' THEN now() ELSE NULL END, ${data.channel_id ?? null}::uuid
-      FROM app_members WHERE (${data.channel_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND id = ${data.assignee_id!} AND active = true RETURNING id`;
+      await database()`INSERT INTO app_tasks (id, title, description, assignee_id, created_by, due_at, status, priority, checklist, completed_at, channel_id, kpi_id, output_type, planned_quantity, delivered_quantity, delivered_on)
+      SELECT ${randomUUID()}, ${data.title!}, ${data.description ?? ""}, id, ${actor.id}, ${data.due_at ?? null}, ${data.status ?? "pending"}, ${data.priority ?? "normal"}, ${JSON.stringify(data.checklist ?? [])}::jsonb, CASE WHEN ${data.status ?? "pending"} = 'completed' THEN now() ELSE NULL END, ${data.channel_id ?? null}::uuid, ${data.kpi_id ?? null}::uuid, ${data.output_type ?? "other"}, ${data.planned_quantity ?? 1}, ${data.delivered_quantity ?? 0}, COALESCE(${data.delivered_on ?? null}::date,CASE WHEN ${data.status ?? "pending"}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END)
+      FROM app_members WHERE (${data.channel_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND id = ${data.assignee_id!} AND active = true
+      AND (${data.kpi_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=${data.kpi_id ?? null}::uuid AND k.active=true AND k.assignee_id=${data.assignee_id!} AND k.channel_id=${data.channel_id ?? null}::uuid AND k.output_type=${data.output_type ?? "other"})) RETURNING id`;
     if (!rows.length)
-      throw new RequestError("Người thực hiện hoặc kênh không tồn tại, đã khóa hoặc đã lưu trữ.");
+      throw new RequestError(
+        "Nhân sự/kênh không hoạt động hoặc KPI không khớp người, kênh và loại sản phẩm.",
+      );
     return NextResponse.json({ ok: true, id: rows[0].id }, { status: 201 });
   } catch (error) {
     return apiError(error);
@@ -181,18 +197,22 @@ export async function PATCH(req: NextRequest) {
       throw new RequestError("Mã công việc không hợp lệ.");
     const data = fields(body, true);
     const tasks = await database()`WITH updated AS (UPDATE app_tasks SET
+      kpi_id=CASE WHEN ${"kpi_id" in data} THEN ${data.kpi_id ?? null}::uuid ELSE kpi_id END,
+      output_type=COALESCE(${data.output_type ?? null},output_type),planned_quantity=COALESCE(${data.planned_quantity ?? null}::int,planned_quantity),delivered_quantity=COALESCE(${data.delivered_quantity ?? null}::int,delivered_quantity),
+      delivered_on=CASE WHEN ${"delivered_on" in data} THEN COALESCE(${data.delivered_on ?? null}::date,CASE WHEN COALESCE(${data.status ?? null},status)='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) ELSE COALESCE(delivered_on,CASE WHEN COALESCE(${data.status ?? null},status)='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END) END,
       title = COALESCE(${data.title ?? null}, title), description = COALESCE(${data.description ?? null}, description), status = COALESCE(${data.status ?? null}, status),
       channel_id = CASE WHEN ${"channel_id" in data} THEN ${data.channel_id ?? null}::uuid ELSE channel_id END,
       priority = COALESCE(${data.priority ?? null}, priority), assignee_id = COALESCE(${data.assignee_id ?? null}::uuid, assignee_id),
       due_at = CASE WHEN ${"due_at" in data} THEN ${data.due_at ?? null}::timestamptz ELSE due_at END,
       checklist = COALESCE(${data.checklist === undefined ? null : JSON.stringify(data.checklist)}::jsonb, checklist), updated_at = now(), report_version = report_version + 1,
       completed_at = CASE WHEN COALESCE(${data.status ?? null}, status) = 'completed' THEN CASE WHEN status = 'completed' THEN completed_at ELSE now() END ELSE NULL END
-      WHERE id = ${body.id} AND (${data.channel_id ?? null}::uuid IS NULL OR channel_id=${data.channel_id ?? null}::uuid OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true)) RETURNING *)
-      INSERT INTO app_task_reports (id, task_id, task_title, assignee_id, actor_id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, channel_name)
-      SELECT ${randomUUID()}, id, title, assignee_id, ${actor.id}, ${actor.name}, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, (SELECT name FROM app_social_channels WHERE id=updated.channel_id) FROM updated RETURNING task_id`;
+      WHERE id = ${body.id} AND (${data.channel_id ?? null}::uuid IS NULL OR channel_id=${data.channel_id ?? null}::uuid OR EXISTS(SELECT 1 FROM app_social_channels WHERE id=${data.channel_id ?? null}::uuid AND active=true)) AND (${data.assignee_id ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM app_members WHERE id = ${data.assignee_id ?? null}::uuid AND active = true))
+      AND (CASE WHEN ${"kpi_id" in data} THEN ${data.kpi_id ?? null}::uuid ELSE kpi_id END IS NULL OR EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=CASE WHEN ${"kpi_id" in data} THEN ${data.kpi_id ?? null}::uuid ELSE app_tasks.kpi_id END AND (k.active OR k.id=app_tasks.kpi_id) AND k.assignee_id=COALESCE(${data.assignee_id ?? null}::uuid,app_tasks.assignee_id) AND k.channel_id=CASE WHEN ${"channel_id" in data} THEN ${data.channel_id ?? null}::uuid ELSE app_tasks.channel_id END AND k.output_type=COALESCE(${data.output_type ?? null},app_tasks.output_type))) RETURNING *)
+      INSERT INTO app_task_reports (id, task_id, task_title, assignee_id, actor_id, actor_name, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, channel_name, kpi_id, output_type, planned_quantity, delivered_quantity, delivered_on)
+      SELECT ${randomUUID()}, id, title, assignee_id, ${actor.id}, ${actor.name}, status, result_text, evidence_links, checklist, due_at, completed_at, channel_id, (SELECT name FROM app_social_channels WHERE id=updated.channel_id)  , kpi_id, output_type, planned_quantity, delivered_quantity, delivered_on FROM updated RETURNING task_id`;
     if (!tasks.length)
       throw new RequestError(
-        "Không tìm thấy công việc, hoặc người thực hiện/kênh không còn hoạt động.",
+        "Công việc không tồn tại hoặc KPI/nhân sự/kênh không khớp. Kiểm tra lại liên kết KPI.",
         404,
       );
     return NextResponse.json({ ok: true });

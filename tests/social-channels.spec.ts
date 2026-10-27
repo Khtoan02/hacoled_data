@@ -260,7 +260,15 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Làm mới", exact: true }).click();
-  await expect(page.locator(".social-card")).toHaveCount(2);
+  await expect(
+    page
+      .locator(".social-card")
+      .filter({
+        has: page.getByRole("heading", {
+          name: /^(HacoLED Việt Nam|HacoLED Video)$/,
+        }),
+      }),
+  ).toHaveCount(2);
   await page.screenshot({
     path: ".impeccable/review/social-channels-desktop.png",
     fullPage: true,

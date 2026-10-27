@@ -1,5 +1,12 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import {
+  OUTPUT_TYPES,
+  monthLabel,
+  type Kpi,
+  type OutputType,
+} from "../../lib/kpis";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
@@ -53,6 +60,9 @@ import {
 } from "./ui";
 const pageSize = 10;
 type Draft = {
+  kpi_id: string;
+  output_type: OutputType;
+  planned_quantity: number;
   channel_id: string;
   title: string;
   description: string;
@@ -85,6 +95,9 @@ export function TasksPage() {
   const [opened, setOpened] = useState<Task | "new" | null>(null),
     [dragged, setDragged] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({
+    kpi_id: "",
+    output_type: "other",
+    planned_quantity: 1,
     channel_id: "",
     title: "",
     description: "",
@@ -94,6 +107,9 @@ export function TasksPage() {
     priority: "normal",
     checklist: [],
   });
+  const [kpis, setKpis] = useState<Kpi[]>([]);
+  const [kpiFilter, setKpiFilter] = useState(params.get("kpi") || "all");
+  const consumed = useRef("");
   const [channels, setChannels] = useState<SocialChannel[]>([]);
   const [channelFilter, setChannelFilter] = useState("all");
   const [reportDirty, setReportDirty] = useState(false);
@@ -112,12 +128,16 @@ export function TasksPage() {
           cd = await cr.json();
         if (!cr.ok) throw new Error(cd.error);
         setChannels(cd.channels);
+        const kr = await fetch("/api/kpis?month=all", { cache: "no-store" }),
+          kd = await kr.json();
+        if (!kr.ok) throw new Error(kd.error);
+        setKpis(kd.kpis);
         if (full) {
           const m = await fetch("/api/members", { cache: "no-store" }),
             md = await m.json();
           if (!m.ok) throw new Error(md.error);
           setMembers(md.members.filter((person: Member) => person.active));
-        }
+        } else setMembers([member]);
         return true;
       } catch (e) {
         setError(
@@ -185,6 +205,9 @@ export function TasksPage() {
     setDraft(
       task === "new"
         ? {
+            kpi_id: "",
+            output_type: "other",
+            planned_quantity: 1,
             channel_id: "",
             title: "",
             description: "",
@@ -193,8 +216,24 @@ export function TasksPage() {
             status,
             priority: "normal",
             checklist: [],
+            ...(() => {
+              const k = kpis.find(
+                (k) => k.id === params.get("kpi") && k.active,
+              );
+              return k
+                ? {
+                    kpi_id: k.id,
+                    channel_id: k.channel_id,
+                    assignee_id: k.assignee_id,
+                    output_type: k.output_type,
+                  }
+                : {};
+            })(),
           }
         : {
+            kpi_id: task.kpi_id ?? "",
+            output_type: task.output_type,
+            planned_quantity: task.planned_quantity,
             channel_id: task.channel_id ?? "",
             title: task.title,
             description: task.description,
@@ -206,6 +245,21 @@ export function TasksPage() {
           },
     );
   }
+  useEffect(() => {
+    setKpiFilter(params.get("kpi") || "all");
+  }, [params]);
+  useEffect(() => {
+    if (loading) return;
+    const token = `${params.get("create")}|${params.get("task")}|${params.get("kpi")}`;
+    if (consumed.current === token) return;
+    consumed.current = token;
+    if (params.get("create") === "1") open("new");
+    else if (params.get("task")) {
+      const t = tasks.find((t) => t.id === params.get("task"));
+      if (t) open(t);
+      else setError("Không tìm thấy công việc trong phạm vi quyền của bạn.");
+    }
+  }, [loading, params, tasks, kpis]);
   function closeDetails() {
     if (busy) return;
     if (
@@ -230,7 +284,7 @@ export function TasksPage() {
   async function remove(task: Task) {
     if (
       !window.confirm(
-        `Xóa công việc “${task.title}”? Thao tác này không thể khôi phục.`,
+        `Xóa công việc “${task.title}”? Sản lượng của việc này sẽ bị loại khỏi KPI. Thao tác không thể khôi phục.`,
       )
     )
       return;
@@ -262,6 +316,8 @@ export function TasksPage() {
   }
   const filtered = tasks.filter(
     (t) =>
+      (kpiFilter === "all" ||
+        (kpiFilter === "none" ? !t.kpi_id : t.kpi_id === kpiFilter)) &&
       (channelFilter === "all" ||
         (channelFilter === "none"
           ? !t.channel_id
@@ -315,6 +371,7 @@ export function TasksPage() {
   }
   function resetFilters() {
     setSearch("");
+    setKpiFilter("all");
     setChannelFilter("all");
     setStatusFilter("all");
     setPriorityFilter("all");
@@ -382,12 +439,15 @@ export function TasksPage() {
       title="Công việc"
       description={`Phạm vi xem: ${TASK_SCOPE_LABELS[ROLE_POLICIES[member.role].taskScope]}.`}
       actions={
-        full && (
+        <div className="task-page-actions">
+          <Link className="secondary-button" href="/admin/kpis">
+            Theo dõi KPI
+          </Link>
           <button className="primary-button" onClick={() => open("new")}>
             <Plus size={17} />
             Tạo công việc
           </button>
-        )
+        </div>
       }
     >
       <div className="summary-grid">
@@ -435,7 +495,13 @@ export function TasksPage() {
                 aria-pressed={view === v.id}
                 className={view === v.id ? "active" : ""}
                 onClick={() =>
-                  router.replace(`/admin/tasks?view=${v.id}`, { scroll: false })
+                  (() => {
+                    const next = new URLSearchParams(params.toString());
+                    next.set("view", v.id);
+                    router.replace(`/admin/tasks?${next.toString()}`, {
+                      scroll: false,
+                    });
+                  })()
                 }
               >
                 <v.icon size={16} />
@@ -452,6 +518,20 @@ export function TasksPage() {
           </span>
         </div>
         <div className="advanced-toolbar">
+          <select
+            aria-label="Lọc KPI công việc"
+            value={kpiFilter}
+            onChange={(e) => changeFilter(setKpiFilter, e.target.value)}
+          >
+            <option value="all">Mọi chỉ tiêu</option>
+            <option value="none">Ngoài KPI</option>
+            {kpis.map((k) => (
+              <option key={k.id} value={k.id}>
+                {OUTPUT_TYPES[k.output_type].label} · {k.channel_name} ·{" "}
+                {monthLabel(k.month)} · {k.assignee_name}
+              </option>
+            ))}
+          </select>
           <select
             aria-label="Lọc kênh công việc"
             value={channelFilter}
@@ -546,12 +626,12 @@ export function TasksPage() {
                 <button className="secondary-button" onClick={resetFilters}>
                   Xóa bộ lọc
                 </button>
-              ) : full ? (
+              ) : (
                 <button className="primary-button" onClick={() => open("new")}>
                   <Plus size={16} />
                   Tạo công việc đầu tiên
                 </button>
-              ) : undefined
+              )
             }
           />
         ) : view === "board" ? (
@@ -691,6 +771,12 @@ export function TasksPage() {
                             ? "Xem kết quả"
                             : "Kết quả & tiến độ"}
                         </button>
+                        <small className="task-channel-label">
+                          {t.kpi_id ? "Trong KPI" : "Ngoài KPI"} ·{" "}
+                          {t.status === "completed" ? t.delivered_quantity : 0}/
+                          {t.planned_quantity}{" "}
+                          {OUTPUT_TYPES[t.output_type].unit}
+                        </small>
                         {t.channel_name && (
                           <small className="task-channel-label">
                             {t.channel_name}
@@ -802,22 +888,32 @@ export function TasksPage() {
                   ROLE_POLICIES[member.role].taskScope !== "none")
               }
               channels={channels}
+              kpis={kpis}
               onDirty={setReportDirty}
               onBusy={setBusy}
               onSaved={(updated) => {
+                void fetch("/api/kpis?month=all", { cache: "no-store" })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((d) => {
+                    if (d) setKpis(d.kpis);
+                  })
+                  .catch(() => {});
                 setOpened(updated);
                 setTasks((current) =>
                   current.map((t) => (t.id === updated.id ? updated : t)),
                 );
                 setDraft((current) => ({
                   ...current,
+                  kpi_id: updated.kpi_id ?? "",
+                  output_type: updated.output_type,
+                  planned_quantity: updated.planned_quantity,
                   channel_id: updated.channel_id ?? "",
                   status: updated.status,
                   checklist: updated.checklist,
                 }));
               }}
             />
-          ) : full ? (
+          ) : full || opened === "new" ? (
             <form
               className="account-form task-editor"
               onSubmit={(e) => {
@@ -826,6 +922,7 @@ export function TasksPage() {
                   {
                     ...draft,
                     id: opened === "new" ? undefined : opened.id,
+                    kpi_id: draft.kpi_id || null,
                     channel_id: draft.channel_id || null,
                     due_at: draft.due_at
                       ? new Date(`${draft.due_at}T17:00:00+07:00`).toISOString()
@@ -860,13 +957,101 @@ export function TasksPage() {
                   placeholder="Mục tiêu, yêu cầu và kết quả cần bàn giao…"
                 />
               </label>
+              <section className="task-kpi-fields">
+                <h3>Liên kết KPI & khối lượng</h3>
+                <label>
+                  Chỉ tiêu liên quan
+                  <select
+                    aria-label="KPI liên quan"
+                    value={draft.kpi_id}
+                    onChange={(e) => {
+                      const k = kpis.find((k) => k.id === e.target.value);
+                      setDraft({
+                        ...draft,
+                        kpi_id: e.target.value,
+                        ...(k
+                          ? {
+                              channel_id: k.channel_id,
+                              output_type: k.output_type,
+                            }
+                          : {}),
+                      });
+                    }}
+                  >
+                    <option value="">
+                      Không gắn KPI · công việc ngoài chỉ tiêu
+                    </option>
+                    {kpis
+                      .filter(
+                        (k) =>
+                          k.assignee_id === draft.assignee_id &&
+                          (k.active || k.id === draft.kpi_id),
+                      )
+                      .map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {OUTPUT_TYPES[k.output_type].label} · {k.channel_name}{" "}
+                          · {monthLabel(k.month)} · {k.target}{" "}
+                          {OUTPUT_TYPES[k.output_type].unit}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div className="field-pair">
+                  <label>
+                    Loại sản phẩm
+                    <select
+                      aria-label="Loại sản phẩm công việc"
+                      disabled={Boolean(draft.kpi_id)}
+                      value={draft.output_type}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          output_type: e.target.value as OutputType,
+                        })
+                      }
+                    >
+                      {Object.entries(OUTPUT_TYPES).map(([id, v]) => (
+                        <option key={id} value={id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Khối lượng dự kiến
+                    <input
+                      aria-label="Khối lượng dự kiến"
+                      required
+                      type="number"
+                      min={1}
+                      max={100000}
+                      step={1}
+                      value={draft.planned_quantity}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          planned_quantity: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <p className="result-hint">
+                  Khối lượng dự kiến chưa được tính vào KPI. Sản lượng thực tế
+                  được nhập khi báo cáo kết quả.
+                </p>
+              </section>
               <label>
                 Kênh thực hiện
                 <select
                   aria-label="Kênh thực hiện"
                   value={draft.channel_id}
                   onChange={(e) =>
-                    setDraft({ ...draft, channel_id: e.target.value })
+                    setDraft({
+                      ...draft,
+                      kpi_id: "",
+                      channel_id: e.target.value,
+                    })
                   }
                 >
                   <option value="">Chưa gắn kênh</option>
@@ -887,7 +1072,11 @@ export function TasksPage() {
                   aria-label="Người thực hiện"
                   value={draft.assignee_id}
                   onChange={(e) =>
-                    setDraft({ ...draft, assignee_id: e.target.value })
+                    setDraft({
+                      ...draft,
+                      kpi_id: "",
+                      assignee_id: e.target.value,
+                    })
                   }
                 >
                   {opened !== "new" &&
@@ -1059,61 +1248,65 @@ export function TasksPage() {
               </footer>
             </form>
           ) : (
-            opened !== "new" && (
-              <div className="task-readonly">
-                <div className="task-detail-badges">
-                  <StatusBadge status={opened.status} />
-                  <PriorityBadge priority={opened.priority} />
-                </div>
-                <h3>{opened.title}</h3>
-                <p className="detail-description">
-                  {opened.description || "Chưa có mô tả."}
-                </p>
-                <dl>
-                  <dt>Kênh thực hiện</dt>
-                  <dd>
-                    {opened.channel_url ? (
-                      <a
-                        href={opened.channel_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {opened.channel_name}
-                      </a>
-                    ) : (
-                      "Chưa gắn kênh"
-                    )}
-                  </dd>
-                  <dt>Người thực hiện</dt>
-                  <dd>{opened.assignee_name}</dd>
-                  <dt>Hạn hoàn thành</dt>
-                  <dd>{formatDate(opened.due_at)}</dd>
-                  <dt>Ngày tạo</dt>
-                  <dd>{formatDate(opened.created_at)}</dd>
-                </dl>
-                <h4>Checklist</h4>
-                {opened.checklist.length ? (
-                  opened.checklist.map((item) => (
-                    <div className="checklist-item" key={item.id}>
-                      <input
-                        type="checkbox"
-                        checked={item.done}
-                        disabled
-                        aria-label={item.title}
-                      />
-                      <span>{item.title}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p>Chưa có checklist.</p>
-                )}
-                <p className="readonly-note">
-                  <MessageSquareText size={16} />
-                  Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu đây
-                  là công việc được giao cho mình.
-                </p>
+            <div className="task-readonly">
+              <div className="task-detail-badges">
+                <StatusBadge status={opened.status} />
+                <PriorityBadge priority={opened.priority} />
               </div>
-            )
+              <h3>{opened.title}</h3>
+              <p className="detail-description">
+                {opened.description || "Chưa có mô tả."}
+              </p>
+              <dl>
+                <dt>Khối lượng</dt>
+                <dd>
+                  {opened.delivered_quantity}/{opened.planned_quantity}{" "}
+                  {OUTPUT_TYPES[opened.output_type].unit} ·{" "}
+                  {opened.kpi_id ? "Có gắn KPI" : "Ngoài KPI"}
+                </dd>
+                <dt>Kênh thực hiện</dt>
+                <dd>
+                  {opened.channel_url ? (
+                    <a
+                      href={opened.channel_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {opened.channel_name}
+                    </a>
+                  ) : (
+                    "Chưa gắn kênh"
+                  )}
+                </dd>
+                <dt>Người thực hiện</dt>
+                <dd>{opened.assignee_name}</dd>
+                <dt>Hạn hoàn thành</dt>
+                <dd>{formatDate(opened.due_at)}</dd>
+                <dt>Ngày tạo</dt>
+                <dd>{formatDate(opened.created_at)}</dd>
+              </dl>
+              <h4>Checklist</h4>
+              {opened.checklist.length ? (
+                opened.checklist.map((item) => (
+                  <div className="checklist-item" key={item.id}>
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      disabled
+                      aria-label={item.title}
+                    />
+                    <span>{item.title}</span>
+                  </div>
+                ))
+              ) : (
+                <p>Chưa có checklist.</p>
+              )}
+              <p className="readonly-note">
+                <MessageSquareText size={16} />
+                Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu đây
+                là công việc được giao cho mình.
+              </p>
+            </div>
           )}
         </Drawer>
       )}

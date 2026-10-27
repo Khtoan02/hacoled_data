@@ -1,3 +1,4 @@
+import type { OutputType } from "./kpis";
 import type { MemberRoleId } from "./security/rbac";
 export const TASK_STATUSES = {
   pending: "Chưa bắt đầu",
@@ -21,6 +22,11 @@ export interface Task {
   id: string;
   title: string;
   description: string;
+  kpi_id: string | null;
+  output_type: OutputType;
+  planned_quantity: number;
+  delivered_quantity: number;
+  delivered_on: string | null;
   channel_id: string | null;
   channel_name: string | null;
   channel_url: string | null;
@@ -81,6 +87,11 @@ export function validEvidenceUrl(value: string) {
   }
 }
 export interface TaskReport {
+  kpi_id: string | null;
+  output_type: OutputType;
+  planned_quantity: number;
+  delivered_quantity: number;
+  delivered_on: string | null;
   channel_id: string | null;
   channel_name: string | null;
   id: string;

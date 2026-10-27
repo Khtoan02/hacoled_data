@@ -33,6 +33,13 @@ export const workspaceItems = [
     group: "CÔNG VIỆC",
   },
   {
+    id: "kpis",
+    label: "KPI & hiệu suất",
+    icon: BarChart3,
+    href: "/admin/kpis",
+    group: "",
+  },
+  {
     id: "executive",
     label: "Tổng quan",
     icon: LayoutDashboard,
@@ -199,7 +206,8 @@ export function DashboardShell({
   }, [mobileOpen]);
   const allowed = (id: string) => {
     if (id === "profile") return true;
-    if (id === "tasks" || id === "channels") return policy.taskScope !== "none";
+    if (id === "tasks" || id === "channels" || id === "kpis")
+      return policy.taskScope !== "none";
     return isFullAccess(member.role);
   };
   function go(id: string, href?: string) {
@@ -387,11 +395,13 @@ export function DashboardShell({
                       ? "Công việc"
                       : pathname.includes("profile")
                         ? "Hồ sơ"
-                        : pathname.includes("channels")
-                          ? "Kênh social"
-                          : pathname.includes("components")
-                            ? "Giao diện"
-                            : "Dashboard"}
+                        : pathname.includes("kpis")
+                          ? "KPI & hiệu suất"
+                          : pathname.includes("channels")
+                            ? "Kênh social"
+                            : pathname.includes("components")
+                              ? "Giao diện"
+                              : "Dashboard"}
               </span>
             </div>
           </div>

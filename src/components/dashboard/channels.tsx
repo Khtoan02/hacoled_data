@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   ExternalLink,
@@ -367,6 +368,12 @@ export function ChannelsPage() {
                     : "Chưa lưu thông tin đăng nhập"}
                 </div>
                 <div className="social-card-actions">
+                  <Link
+                    className="secondary-button"
+                    href={`/admin/kpis?channel=${c.id}`}
+                  >
+                    KPI kênh
+                  </Link>
                   <button
                     className="secondary-button"
                     disabled={

@@ -34,7 +34,7 @@ This deliberately targets a small internal team. Verification scans active salte
 
 `002-member-roles.sql` preserves member IDs, passwords and audit references. Legacy `fulltime_coord` maps conservatively to `marketing_staff`; an administrator can explicitly promote members to Trưởng phòng. SEO/video intern roles merge into `marketing_intern`. Previous AI member accounts become inactive staff records because AI is no longer an assignable human role. Migrated legacy-role sessions are revoked. Leader and Director IDs remain unchanged.
 
-`003-tasks.sql` adds tasks referencing real member UUIDs. `/api/tasks` applies scope in SQL before returning rows, including requests by task ID; client-side filters do not determine access. Full administrators create tasks and update progress. Manager/staff/interns can report progress, checklist completion and results on their own assignments through `/api/tasks/report`. Other visible tasks remain read-only. They cannot edit assignment, title, due date, priority or checklist definitions. Approval rules are not represented in the role matrix and have not yet been implemented in task management.
+`003-tasks.sql` adds tasks referencing real member UUIDs. `/api/tasks` applies scope in SQL before returning rows, including requests by task ID; client-side filters do not determine access. Full administrators assign tasks and edit existing task definitions. Marketing members may also create work for themselves. Manager/staff/interns can report progress, checklist completion and results on their own assignments through `/api/tasks/report`. Other visible tasks remain read-only. They cannot edit assignment, title, due date, priority or checklist definitions. Approval rules are not represented in the role matrix and have not yet been implemented in task management.
 
 Task lists start empty; old browser-local demonstration tasks are not imported or guessed onto real accounts. Non-admin Marketing accounts land on `/admin/tasks`. Business/financial dashboards and summary APIs require full administration; Kinh doanh lands on a pending-permissions page.
 
@@ -64,7 +64,7 @@ Periodically delete expired rows from `app_sessions` and old rows in `app_auth_a
 
 ## Task details and profiles
 
-`004-task-details.sql` adds constrained priority, JSON checklist and update timestamps without replacing existing tasks. Full administrators can create/edit/delete tasks, update checklists and move status through table, Kanban or to-do views. Other Marketing roles retain scoped visibility and can report only their own assignments as described below. Charts and team completion figures derive from these real task records.
+`004-task-details.sql` adds constrained priority, JSON checklist and update timestamps without replacing existing tasks. Full administrators can assign/edit/delete tasks, update checklist definitions and move status through table, Kanban or to-do views. Members can create their own tasks. Other Marketing roles retain scoped visibility and can report only their own assignments as described below. Charts and team completion figures derive from these real task records.
 
 `/api/profile` returns only the signed-in member’s public account fields and accepts name/email updates for that same member. Role, active status, IDs and password changes cannot be submitted through this endpoint. Password resets remain in member administration.
 
@@ -78,7 +78,7 @@ Every report and administrator edit atomically appends an immutable snapshot to 
 
 URLs are loaded only by the browser with no referrer, never fetched/proxied by the application server. Only HTTP/HTTPS without embedded credentials are accepted. Image preview depends on the source's permissions and hotlink policy; ordinary Drive/share-page URLs may not render as images. Broken previews do not erase the saved URL. No image upload or image storage service is added.
 
-Completion is a self-reported progress state, not approval or a scored KPI. Target quantities, quality review, weighting, reporting periods and KPI dashboards still require business definitions. These timestamps and attribution snapshots provide source records for that later work.
+Completion is a self-reported progress state, not approval or a scored KPI. Monthly quantity targets and period reconciliation are implemented below. Quality review and weighted scoring remain separate future business workflows.
 
 ## Social channel catalog and credential access
 
@@ -91,3 +91,17 @@ Credentials are encrypted together using AES-256-GCM with a fresh 12-byte IV per
 Saving metadata without a credential replacement preserves the encrypted value. An explicit replacement stores exactly the supplied new username/password; an explicit clear removes it. Channel changes and reveal operations serialize under a dedicated database advisory lock. Optimistic channel versions prevent stale editors from restoring revoked grants. Audits record actor, action and channel, never secret values. Ordinary notes and names are shared metadata; credentials belong only in the dedicated fields.
 
 The isolated social-channel test exercises ciphertext at rest, metadata non-disclosure, scoped reveals, grant revocation, stale updates, archive/clear behavior, automatic hiding, task channel selection and report snapshots, plus desktop/mobile layouts. It uses synthetic credentials and a test-only encryption key, never production data.
+
+## Monthly KPI assignment and reconciliation
+
+`007-monthly-kpis.sql` adds one unique target per `(assignee_id, channel_id, month, output_type)`, positive integer quantity targets, versioned target edits, and append-only target-change audit. Leader/Director create and update targets. After creation, person/channel/month/type cannot be changed; targets can be paused/reactivated or adjusted with optimistic version checks. New targets require active Marketing members and active channels. Other roles have the same read scopes as task management; Kinh doanh remains denied.
+
+Tasks gain an optional KPI relation, output type, planned quantity (default 1), reported delivered quantity (default 0), and production date. Existing records do not receive invented delivered quantities or automatic KPI matches. An explicitly completed task without a production date defaults to the current date in Asia/Ho_Chi_Minh. Production dates can be reported historically, but cannot be future/invalid dates. Quantities are whole numbers, max 100,000 per task; delivered zero means no production units reported. Work may be complete with zero units, which contributes no units to KPI.
+
+The KPI API sums the **current task row**, not report-history entries: only completed tasks whose assignee, channel and output type match the linked target and whose production date is within that target month. Reporting the same quantity twice does not double-count. Reopening a task excludes it until completed again; deleting a task removes its current contribution and the UI warns about that. Outside-month completed quantities are shown separately and not credited to the selected period. Planned volume is informational, not attainment. The UI shows actual/target, percentage (uncapped, truncated to one decimal), remaining/excess units and task links. No cross-unit global percentage is invented.
+
+Members may POST their own tasks for KPI work or extra work; assigning another person and editing existing assignment definitions still require full administration. Owner reports can choose only a matching personal KPI/channel/type and cannot change the target or planned quantity. A paused KPI cannot receive new task links; existing links can still report and preserve history, and paused plans can be viewed explicitly. SQL enforces KPI/assignee/channel/type consistency on create/update/report. Reassignment or changing channel/type requires clearing the old KPI link or choosing a matching plan.
+
+`/api/kpis?month=YYYY-MM` returns scoped plans and completed extra tasks in that month. `month=all` supports scoped task selectors. Extra work is work without a KPI relation; the page counts tasks and lists each output unit separately. In-progress extra work is available through the task filter, not counted as completed. Historical completed tasks lacking a production date use their recorded completion timestamp for the extra-work period, if available. Report snapshots now retain KPI ID, output type, planned/delivered quantities and production date.
+
+The new KPI browser/API test covers assignment, duplicate/invalid targets, scope, quantities vs task counts, repeated reports, reopening, outside-month delivery, future dates, mismatched KPI binding, extra work, target version conflicts, personal task creation and desktop/mobile paths. Tests use the isolated fixture only. Quantity attainment is self-reported and is not content approval, automated publication verification, quality scoring, payroll or a weighted performance score.

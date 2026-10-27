@@ -110,9 +110,26 @@ test("six roles enforce task ownership, marketing team visibility and director a
       continue;
     }
     expect(response.status()).toBe(200);
-    const ids = (await response.json()).tasks
+    const visibleTasks = (await response.json()).tasks;
+    const ids = visibleTasks
+      .filter((t: { id: string }) => Object.values(taskByKey).includes(t.id))
       .map((t: { id: string }) => t.id)
       .sort();
+    if (d.role !== "executive") {
+      const current = members.find(
+        (m: { email: string }) => m.email === `${d.key}@roles.test`,
+      );
+      expect(
+        visibleTasks.every(
+          (t: { assignee_id: string; assignee_role: string }) =>
+            t.assignee_id === current.id ||
+            (d.role === "marketing_manager" &&
+              ["marketing_staff", "marketing_intern"].includes(
+                t.assignee_role,
+              )),
+        ),
+      ).toBe(true);
+    }
     const expectedKeys =
       d.role === "executive"
         ? Object.keys(taskByKey)
@@ -167,6 +184,9 @@ test("six roles enforce task ownership, marketing team visibility and director a
   await expect(
     page.getByRole("columnheader", { name: "Phạm vi công việc" }),
   ).toBeVisible();
+  await page
+    .getByLabel("Tìm tên hoặc email thành viên")
+    .fill("manager-a@roles.test");
   await expect(
     page.getByText("manager-a@roles.test", { exact: true }),
   ).toBeVisible();
