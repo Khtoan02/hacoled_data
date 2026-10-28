@@ -33,8 +33,9 @@ import {
   Waypoints,
   X,
 } from "lucide-react";
-import { ROLE_POLICIES, isFullAccess } from "../../lib/security/rbac";
+import { ROLE_POLICIES } from "../../lib/security/rbac";
 import { useMember } from "./session";
+import { canViewWorkspaceItem } from "../../lib/workspace-access";
 
 export const workspaceItems = [
   {
@@ -287,16 +288,8 @@ export function DashboardShell({
         menuTrigger.current?.focus();
     };
   }, [mobileOpen]);
-  const allowed = (id: string) => {
-    if (id === "profile" || id === "chat") return true;
-    if (
-      id === "tasks" ||
-      id === "channels" ||
-      id === "kpis"
-    )
-      return policy.taskScope !== "none";
-    return isFullAccess(member.role);
-  };
+  const allowed = (id: string) => canViewWorkspaceItem(member.role, id);
+  const visibleItems = workspaceItems.filter(item => allowed(item.id));
   function go(id: string, href?: string) {
     setMobileOpen(false);
     setSearch("");
@@ -314,7 +307,7 @@ export function DashboardShell({
       setLogoutError("Chưa đăng xuất được. Vui lòng thử lại.");
     }
   }
-  const searchResults = workspaceItems.filter((item) =>
+  const searchResults = visibleItems.filter((item) =>
     item.label.toLocaleLowerCase("vi").includes(search.toLocaleLowerCase("vi")),
   );
   return (
@@ -345,7 +338,7 @@ export function DashboardShell({
           </button>
         </div>
         <nav aria-label="Điều hướng chính" className="sidebar-nav">
-          {workspaceItems.map((item) => {
+          {visibleItems.map((item) => {
             const unavailable = item.available === false;
             const restricted = !unavailable && !allowed(item.id);
             const disabled = unavailable || restricted;

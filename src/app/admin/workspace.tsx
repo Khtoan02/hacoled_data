@@ -1,5 +1,6 @@
 "use client";
 
+import { canViewWorkspaceItem } from "../../lib/workspace-access";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { OperationalOverview } from "../../components/dashboard/overview";
 import { DashboardShell } from "../../components/dashboard/shell";
@@ -647,13 +648,8 @@ export default function HacoledMarketingOS() {
 
   const currentPageMeta = PAGE_META[activeTab];
 
-  const canAccessTab = (tab: string) => {
-    if (tab === "crm_pipeline") return currentRolePolicy.canConfirmCustomerStatus || currentRolePolicy.canViewRawPii;
-    if (tab === "strategy_lab") return currentRolePolicy.canApproveClaimsAndInsights || activeRole === "executive";
-    if (tab === "team_cost") return currentRolePolicy.canViewSalaryAndHrPrivate;
-    if (tab === "security_qa") return currentRolePolicy.canManagePermissions || activeRole === "executive";
-    return tab === "executive" || tab === "content_channels";
-  };
+  const canAccessTab = (tab: string) =>
+    Object.prototype.hasOwnProperty.call(PAGE_META, tab) && canViewWorkspaceItem(member.role, tab);
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -673,7 +669,7 @@ export default function HacoledMarketingOS() {
         {/* =================================================================
             WORKSPACE 1: EXECUTIVE DECISION HUB & FUNNEL INTELLIGENCE (D01-D08)
            ================================================================= */}
-        {activeTab === "executive" && (
+        {activeRole === "lead_marketing" && activeTab === "executive" && (
           <details className="legacy-details"><summary>Báo cáo marketing minh họa <span>Chỉ số, phễu chuyển đổi và mô hình tài chính mẫu</span></summary>
           <div className="demo-notice"><Info size={16} /><span>Dữ liệu bên dưới là dữ liệu minh họa, lưu tại trình duyệt; chưa kết nối dữ liệu marketing thực tế.</span></div>
           <div className="space-y-5">
