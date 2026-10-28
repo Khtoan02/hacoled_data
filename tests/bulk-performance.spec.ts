@@ -461,6 +461,30 @@ test("bulk KPI preview, atomic commit, conflict/retry, linked task import and sc
   await page
     .getByRole("button", { name: "Đóng chi tiết", exact: true })
     .click();
+  await page.goto(`${baseURL}/admin/tasks?create=1`);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("Tự động gắn KPI phù hợp",{exact:true})).toBeChecked();
+  await page.getByLabel("Người thực hiện",{exact:true}).selectOption(staff.id);
+  await page.getByLabel("Loại sản phẩm công việc").selectOption("post");
+  await page.getByLabel("Kênh thực hiện",{exact:true}).click();
+  await page.getByRole("listbox").getByRole("option").filter({hasText:"Kênh đối chiếu Facebook"}).click();
+  await page.getByLabel("Kênh thực hiện",{exact:true}).click();
+  await expect(page.getByLabel("KPI liên quan",{exact:true})).toHaveValue(goal.id);
+  await page.getByLabel("KPI liên quan",{exact:true}).selectOption("");
+  await expect(page.getByLabel("Tự động gắn KPI phù hợp",{exact:true})).not.toBeChecked();
+  await expect(page.getByLabel("KPI liên quan",{exact:true})).toHaveValue("");
+  await page.getByLabel("Tự động gắn KPI phù hợp",{exact:true}).check();
+  await page.getByLabel("Tháng tự động gắn KPI").fill("2000-01");
+  await expect(page.getByLabel("KPI liên quan",{exact:true})).toHaveValue("");
+  await page.getByLabel("Tháng tự động gắn KPI").fill(month);
+  await expect(page.getByLabel("KPI liên quan",{exact:true})).toHaveValue(goal.id);
+  await page.getByLabel("Tên công việc",{exact:true}).fill("Tạo việc tự gắn KPI");
+  await page.getByLabel(/^Tuyến nội dung/).fill("Giải pháp LED");
+  await page.getByLabel(/^Định dạng nội dung/).fill("Bài ảnh");
+  await page.getByRole("button",{name:"Giao công việc",exact:true}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const automaticTask = (await (await admin.get("/api/tasks")).json()).tasks.find((t:{title:string})=>t.title==="Tạo việc tự gắn KPI");
+  expect(automaticTask.kpi_id).toBe(goal.id);
   expect((await admin.delete(`/api/kpis?id=${goal.id}`)).status()).toBe(200);
   task = (await (await own.get(`/api/tasks?id=${task.id}`)).json()).tasks[0];
   expect(task.kpi_id).toBe(goal.id);

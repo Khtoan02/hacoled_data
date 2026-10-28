@@ -5,6 +5,7 @@ import {
   OUTPUT_TYPES,
   SELECTABLE_OUTPUT_TYPES,
   monthLabel,
+  currentMonth,
   type Kpi,
   type OutputType,
 } from "../../lib/kpis";
@@ -122,6 +123,8 @@ export function TasksPage() {
     priority: "normal",
     checklist: [],
   });
+  const [autoKpi, setAutoKpi] = useState(false);
+  const [kpiMonth, setKpiMonth] = useState(currentMonth());
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [kpiFilter, setKpiFilter] = useState(params.get("kpi") || "all");
   const consumed = useRef("");
@@ -217,6 +220,9 @@ export function TasksPage() {
     setError("");
     setNewItem("");
     setOpened(task);
+    const linked = kpis.find((k) => k.id === (task === "new" ? params.get("kpi") : task.kpi_id));
+    setAutoKpi(task === "new");
+    setKpiMonth(linked?.month ?? currentMonth());
     setDetailTab(task === "new" || full ? "details" : "result");
     setDraft(
       task === "new"
@@ -283,6 +289,19 @@ export function TasksPage() {
       else setError("Không tìm thấy công việc trong phạm vi quyền của bạn.");
     }
   }, [loading, params, tasks, kpis]);
+  const matchingKpis = kpis.filter((k) => k.active &&
+    k.assignee_id === draft.assignee_id && k.month === kpiMonth &&
+    k.output_type === draft.output_type && draft.channel_ids.includes(k.channel_id));
+  const autoKpiId = matchingKpis.length === 1 ? matchingKpis[0].id : "";
+  useEffect(() => {
+    if (!opened || !autoKpi) return;
+    const goal = kpis.find((k) => k.id === autoKpiId);
+    setDraft((d) => {
+      const ids = goal ? [goal.channel_id, ...d.channel_ids.filter((id) => id !== goal.channel_id)] : d.channel_ids;
+      if (d.kpi_id === autoKpiId && ids.every((id, i) => id === d.channel_ids[i])) return d;
+      return { ...d, kpi_id: autoKpiId, channel_ids: ids };
+    });
+  }, [opened, autoKpi, autoKpiId, kpis]);
   function closeDetails() {
     if (busy) return;
     if (
@@ -993,6 +1012,10 @@ export function TasksPage() {
               className="account-form task-editor"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (autoKpi && matchingKpis.length > 1) {
+                  setError("Có nhiều KPI phù hợp. Chọn chỉ tiêu cụ thể trước khi lưu.");
+                  return;
+                }
                 void save(
                   {
                     ...draft,
@@ -1034,6 +1057,23 @@ export function TasksPage() {
               </label>
               <section className="task-kpi-fields">
                 <h3>Liên kết KPI & khối lượng</h3>
+                <label className="social-checkbox">
+                  <input type="checkbox" checked={autoKpi} onChange={(e) => setAutoKpi(e.target.checked)} />
+                  Tự động gắn KPI phù hợp
+                </label>
+                {autoKpi && <>
+                  <label>Tháng KPI cần gắn
+                    <input aria-label="Tháng tự động gắn KPI" type="month" min="2000-01" max="2100-12" value={kpiMonth} onChange={(e) => { if(e.target.value) setKpiMonth(e.target.value); }} />
+                  </label>
+                  <p className="result-hint" role="status">
+                    {matchingKpis.length === 1
+                      ? `Đã tự gắn KPI ${monthLabel(kpiMonth)} · ${matchingKpis[0].channel_name}.`
+                      : matchingKpis.length > 1
+                        ? "Có nhiều KPI phù hợp với các kênh đã chọn. Chọn chỉ tiêu cụ thể bên dưới để tránh cộng nhầm."
+                        : "Chưa có KPI khớp nhân sự, kênh, loại sản phẩm và tháng đã chọn. Chọn đủ thông tin bên dưới hoặc tạo KPI trước; nếu lưu lúc này, việc sẽ nằm ngoài KPI."}
+                  </p>
+                </>}
+
                 <label>
                   Chỉ tiêu liên quan
                   <select
@@ -1041,6 +1081,7 @@ export function TasksPage() {
                     value={draft.kpi_id}
                     onChange={(e) => {
                       const k = kpis.find((k) => k.id === e.target.value);
+                      setAutoKpi(false);
                       setDraft({
                         ...draft,
                         kpi_id: e.target.value,
@@ -1081,7 +1122,7 @@ export function TasksPage() {
                     Loại sản phẩm
                     <select
                       aria-label="Loại sản phẩm công việc"
-                      disabled={Boolean(draft.kpi_id)}
+                      disabled={!autoKpi && Boolean(draft.kpi_id)}
                       value={draft.output_type}
                       onChange={(e) =>
                         setDraft({

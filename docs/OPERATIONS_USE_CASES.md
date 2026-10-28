@@ -187,3 +187,5 @@ Khi kết nối API, thêm thực thể publication có platform_post_id duy nh�
 - Bộ kiểm thử tài khoản, vai trò, task reporting, kênh và KPI tiếp tục bảo vệ các use-case hiện có.
 - `010-kpi-imports.sql` thêm bảng batch/audit import, không sửa sản lượng cũ.
 - Production chạy migration theo pipeline hiện tại. Kiểm thử local dùng PGlite/dummy Neon, không ghi database hoặc Blob production.
+
+Biểu mẫu tạo công việc mặc định bật **Tự động gắn KPI phù hợp**: đối chiếu nhân sự × kênh × loại sản phẩm × tháng KPI đang chọn (mặc định tháng hiện tại). Chỉ một KPI đang hoạt động khớp thì tự chọn và đưa kênh KPI lên kênh chính. Không khớp sẽ báo rõ việc ngoài KPI; nhiều KPI khớp phải chọn thủ công trước khi lưu. Chọn chỉ tiêu/ngoài KPI thủ công sẽ tắt tự động. Mở sửa việc cũ giữ liên kết hiện có, chỉ tự đối chiếu lại khi người dùng bật tùy chọn này; không tự sửa hàng loạt dữ liệu cũ.
