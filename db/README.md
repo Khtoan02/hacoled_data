@@ -125,3 +125,7 @@ Trưởng phòng Marketing được quản lý danh mục kênh, thêm/sửa/lư
 KPI sản lượng ghi nhận theo **tháng chỉ tiêu đã giao** (tự liên kết từ hạn hoàn thành), kể cả làm sớm/trễ; ngày sản lượng thực tế vẫn giữ để phân tích hoạt động theo thời gian. Hoàn thành nhanh mặc định ghi nhận khối lượng đã giao nếu chưa nhập sản lượng; số thực tế nhập rõ, kể cả 0, được ưu tiên. Không cộng dồn các lần gửi lại. Việc cũ đã hoàn thành nhưng sản lượng 0 có cảnh báo và nút bổ sung từ khối lượng giao, không tự sửa hàng loạt.
 
 Run `011-deletion-audit.sql` for Leader/Director deletion snapshots. KPI deletion transaction records the plan/history, unlinks existing work with report-version bumps, removes dependent target audit rows and then the plan. Task deletion records a snapshot before removing the task; prior task reports are retained. These endpoints require full administration and same-origin requests. Neither migration deletes existing records.
+
+## Team chat
+
+Migration `012-team-chat.sql` creates rooms, memberships with join/read sequence cursors and messages. Authenticated active members have chat access independent of business permissions. Every read/write is membership-scoped; full administrators have no implicit message access. Group owners manage rosters with optimistic versions; new joins see only newer sequences. Creates and sends use idempotency keys and serialized transactions. See `docs/TEAM_CHAT.md` for the complete contract and isolated tests.

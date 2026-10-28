@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  MessageCircle,
   Menu,
   PanelLeftClose,
   RotateCcw,
@@ -55,6 +56,7 @@ export const workspaceItems = [
     href: "/admin/kpis",
     group: "",
   },
+  { id: "chat", label: "Chat nội bộ", icon: MessageCircle, href: "/admin/chat", group: "" },
   {
     id: "solutions_proof",
     label: "Giải pháp & bằng chứng",
@@ -285,7 +287,7 @@ export function DashboardShell({
     };
   }, [mobileOpen]);
   const allowed = (id: string) => {
-    if (id === "profile") return true;
+    if (id === "profile" || id === "chat") return true;
     if (
       id === "tasks" ||
       id === "channels" ||
@@ -491,7 +493,7 @@ export function DashboardShell({
               {actions}
               <span className="workspace-breadcrumb">
                 HacoLED <ChevronRight size={13} />{" "}
-                {pathname.includes("members")
+                {pathname.includes("chat") ? "Chat nội bộ" : pathname.includes("members")
                   ? "Phân quyền"
                   : pathname.includes("survey")
                     ? "Kết quả khảo sát"
