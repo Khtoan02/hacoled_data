@@ -22,7 +22,6 @@ const headers = [
   "dinh_dang",
   "so_luong",
   "han_hoan_thanh",
-  "do_uu_tien",
   "trang_thai",
   "checklist",
   "tuyen_noi_dung",
@@ -34,7 +33,6 @@ const headers = [
   "link_tro_di",
   "dinh_huong_noi_dung",
   "ghi_chu_cong_viec",
-  "thang_kpi",
 ];
 const aliases: Record<string, string> = {
   bai_viet: "post",
@@ -45,12 +43,6 @@ const aliases: Record<string, string> = {
   thiet_ke_anh: "image",
   livestream: "livestream",
   khac: "other",
-};
-const priorityAliases: Record<string, string> = {
-  thap: "low",
-  binh_thuong: "normal",
-  cao: "high",
-  khan_cap: "urgent",
 };
 const statusAliases: Record<string, string> = {
   chua_bat_dau: "pending",
@@ -147,7 +139,7 @@ export async function GET() {
         "Ghi rõ việc cần làm và kết quả bàn giao",
       ],
     ];
-    samples.forEach((row) => row.push(""));
+    samples.forEach((row) => row.splice(7,1));
     const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
     const csv = `\uFEFF${headers.map(quote).join(",")}\r\n${samples.map((sample) => sample.map(quote).join(",")).join("\r\n")}\r\n`;
     return new NextResponse(csv, {
@@ -228,7 +220,7 @@ export async function POST(req: NextRequest) {
       const title = String(row.ten_cong_viec ?? "").trim();
       if(title.startsWith("MẪU -"))return;
       if(!title){if(Object.values(row).some(v=>String(v??"").trim()))errors.push(`Dòng ${line}: Tên công việc bắt buộc.`);return;}
-      if(Object.keys(row).some(k=>!headers.includes(k)&&k!=="mo_ta"))errors.push(`Dòng ${line}: Có cột chưa hỗ trợ, kiểm tra lại tên cột theo mẫu.`);
+      if(Object.keys(row).some(k=>!headers.includes(k)&&!["mo_ta","thang_kpi","do_uu_tien"].includes(k)))errors.push(`Dòng ${line}: Có cột chưa hỗ trợ, kiểm tra lại tên cột theo mẫu.`);
       const member = members.find(
         (m) => norm(m.email) === norm(row.email_nguoi_thuc_hien),
       );
@@ -246,7 +238,11 @@ export async function POST(req: NextRequest) {
           return matches.length === 1 ? matches[0] : undefined;
         })
         .filter(Boolean) as Array<{ id: string; platform: string }>;
-      const kpiMonth = String(row.thang_kpi ?? "").trim();
+      const due = String(row.han_hoan_thanh ?? "").trim();
+      const legacyMonth = String(row.thang_kpi ?? "").trim();
+      const kpiMonth = due ? due.slice(0,7) : legacyMonth;
+      if (due && legacyMonth && legacyMonth !== kpiMonth)
+        errors.push(`Dòng ${line}: Tháng KPI cũ khác tháng hạn hoàn thành; sửa hoặc bỏ cột thang_kpi.`);
       if (kpiMonth && !validMonth(kpiMonth))
         errors.push(`Dòng ${line}: Tháng KPI cần YYYY-MM.`);
       const outputType =
@@ -257,13 +253,9 @@ export async function POST(req: NextRequest) {
               k.assignee_id === member?.id &&
               k.month === kpiMonth &&
               k.output_type === outputType &&
-              selected.some((c) => c.id === k.channel_id),
+              selected[0]?.id === k.channel_id,
           )
         : [];
-      if (kpiMonth && matching.length !== 1)
-        errors.push(
-          `Dòng ${line}: Cần đúng một KPI khớp người, tháng, định dạng và kênh. Tách dòng nếu có nhiều KPI.`,
-        );
       const linked = matching.length === 1 ? matching[0] : null;
       const channelIds = Array.from(new Set(selected.map((c) => c.id)));
       if (linked) {
@@ -271,15 +263,11 @@ export async function POST(req: NextRequest) {
         channelIds.unshift(linked.channel_id);
       }
       const quantity = String(row.so_luong??"").trim()===""?1:Number(row.so_luong);
-      const priority =
-        priorityAliases[norm(row.do_uu_tien)] ||
-        norm(row.do_uu_tien) ||
-        "normal";
+      const priority = "normal";
       const status =
         statusAliases[norm(row.trang_thai)] ||
         norm(row.trang_thai) ||
         "pending";
-      const due = String(row.han_hoan_thanh ?? "").trim();
       const brief = {
         content_pillar: String(row.tuyen_noi_dung ?? "").trim(),
         content_format: String(row.dinh_dang_noi_dung ?? "").trim(),

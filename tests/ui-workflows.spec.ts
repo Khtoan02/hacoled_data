@@ -53,7 +53,7 @@ test("polished table, kanban, todo, team and profile share real data and preserv
   await dialog
     .getByLabel(/^Ghi chú công việc/)
     .fill("Kiểm tra thông điệp và bàn giao nội dung.");
-  await dialog.getByLabel("Độ ưu tiên công việc").selectOption("high");
+  await expect(dialog.getByLabel("Độ ưu tiên công việc")).toHaveCount(0);
   await dialog.getByLabel("Hạn hoàn thành", { exact: true }).fill("2020-01-15");
   await dialog.getByLabel("Thêm mục checklist").fill("Kiểm tra nội dung");
   await dialog.getByRole("button", { name: "Thêm", exact: true }).click();
@@ -71,7 +71,7 @@ test("polished table, kanban, todo, team and profile share real data and preserv
   const task = tasks.find(
     (t: { title: string }) => t.title === "Hoàn thiện nội dung HacoLED",
   );
-  expect(task.priority).toBe("high");
+  expect(task.priority).toBe("normal");
   expect(task.checklist[0].done).toBe(true);
   for (const data of [
     { id: task.id, priority: "invalid" },

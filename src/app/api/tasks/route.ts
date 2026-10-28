@@ -1,3 +1,4 @@
+import { resolveDeadlineKpi } from "../../../lib/task-kpi";
 import { outputFields, type OutputFields } from "../../../lib/kpi-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
@@ -200,7 +201,7 @@ export async function GET(req: NextRequest) {
       COALESCE((SELECT jsonb_agg(tc.channel_id ORDER BY CASE WHEN tc.channel_id=t.channel_id THEN 0 ELSE 1 END) FROM app_task_channels tc WHERE tc.task_id=t.id),'[]'::jsonb) AS channel_ids,
       m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id LEFT JOIN app_social_channels c ON c.id=t.channel_id
       WHERE (${scope} = 'all' OR t.assignee_id = ${member.id} OR (${scope} = 'marketing_team' AND m.role IN ('marketing_staff','marketing_intern')))
-        AND (${id}::uuid IS NULL OR t.id = ${id}::uuid) ORDER BY t.created_at DESC, t.id`;
+        AND (${id}::uuid IS NULL OR t.id = ${id}::uuid) ORDER BY t.due_at ASC NULLS LAST, t.id`;
     if (id && !tasks.length)
       throw new RequestError(
         "Không tìm thấy công việc trong phạm vi quyền của bạn.",
@@ -226,6 +227,7 @@ export async function POST(req: NextRequest) {
       throw new RequestError("Bạn chỉ được tạo công việc cho chính mình.", 403);
     const data = fields(body);
     await validateBrief(data);
+    if (data.due_at) data.kpi_id = await resolveDeadlineKpi({assignee_id:data.assignee_id!,channel_id:data.channel_id,output_type:data.output_type,due_at:data.due_at});
     const taskId = randomUUID(), channelIds = data.channel_ids ?? (data.channel_id ? [data.channel_id] : []);
     const rows = await database()`WITH input AS (SELECT ${JSON.stringify(channelIds)}::jsonb AS channel_ids),
       saved AS (INSERT INTO app_tasks (id, title, description, brief, assignee_id, created_by, due_at, status, priority, checklist, completed_at, channel_id, kpi_id, output_type, planned_quantity, delivered_quantity, delivered_on)
@@ -253,6 +255,12 @@ export async function PATCH(req: NextRequest) {
       throw new RequestError("Mã công việc không hợp lệ.");
     const data = fields(body, true);
     await validateBrief(data);
+    if (["due_at","assignee_id","channel_id","channel_ids","output_type"].some(k=>k in data)) {
+      const existing=await database()`SELECT assignee_id,channel_id,output_type,due_at,kpi_id FROM app_tasks WHERE id=${body.id}`;
+      if(!existing.length) throw new RequestError("Không tìm thấy công việc.",404);
+      const current={...existing[0],...data};
+      data.kpi_id=await resolveDeadlineKpi({...current,existing_kpi_id:existing[0].kpi_id} as {assignee_id:string;channel_id:string|null;output_type:string;due_at:string|null;existing_kpi_id:string|null});
+    }
     const channelJson = data.channel_ids === undefined ? null : JSON.stringify(data.channel_ids);
     const tasks = await database()`WITH input AS (SELECT ${channelJson}::jsonb AS channel_ids), updated AS (UPDATE app_tasks SET
       kpi_id=CASE WHEN ${"kpi_id" in data} THEN ${data.kpi_id ?? null}::uuid ELSE kpi_id END,

@@ -1,3 +1,4 @@
+import { resolveDeadlineKpi } from "../../../../lib/task-kpi";
 import { outputFields } from "../../../../lib/kpi-fields";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
@@ -106,6 +107,10 @@ export async function PATCH(req: NextRequest) {
       b.channel_id = b.channel_ids[0] ?? null;
     }
     const production = outputFields(b);
+    const current = await database()`SELECT assignee_id,channel_id,output_type,due_at,kpi_id FROM app_tasks WHERE id=${b.id} AND (${isFullAccess(member.role)} OR assignee_id=${member.id})`;
+    if(current[0]?.due_at) {
+      production.kpi_id = await resolveDeadlineKpi({assignee_id:current[0].assignee_id,channel_id:"channel_id" in b ? b.channel_id : current[0].channel_id,output_type:production.output_type ?? current[0].output_type,due_at:current[0].due_at,existing_kpi_id:current[0].kpi_id});
+    }
     const links = [...new Set<string>(b.evidence_links)],
       done = JSON.stringify(b.completed_items);
     const channelJson = "channel_ids" in b ? JSON.stringify(b.channel_ids) : null;

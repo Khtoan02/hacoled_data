@@ -1,4 +1,5 @@
 "use client";
+import { matchDeadlineKpi } from "../../lib/task-planning";
 import { useCallback, useEffect, useState } from "react";
 import { Check, ImagePlus, Plus, RefreshCw, X } from "lucide-react";
 import {
@@ -94,6 +95,9 @@ export function TaskResult({
     day: "2-digit",
   }).format(new Date());
   const [channelIds, setChannelIds] = useState(task.channel_ids?.length ? task.channel_ids : task.channel_id ? [task.channel_id] : []);
+  const automaticGoal = task.due_at ? matchDeadlineKpi(kpis,{assignee_id:task.assignee_id,channel_ids:channelIds,output_type:outputType,due_at:task.due_at},task.kpi_id) : null;
+  const automaticId = task.due_at ? automaticGoal?.id ?? "" : task.kpi_id ?? "";
+  useEffect(() => {setKpiId(automaticId);},[automaticId]);
   const [status, setStatus] = useState(task.status),
     [result, setResult] = useState(task.result_text),
     [links, setLinks] = useState(task.evidence_links);
@@ -316,40 +320,14 @@ export function TaskResult({
             <h4>KPI & sản lượng thực tế</h4>
             <label>
               Chỉ tiêu liên quan
-              <select
-                aria-label="KPI báo cáo"
-                value={kpiId}
-                onChange={(e) => {
-                  const k = kpis.find((k) => k.id === e.target.value);
-                  setKpiId(e.target.value);
-                  if (k) {
-                    setChannelIds((values) => [k.channel_id, ...values.filter((id) => id !== k.channel_id)]);
-                    setOutputType(k.output_type);
-                  }
-                }}
-              >
-                <option value="">Không gắn KPI · công việc làm thêm</option>
-                {kpis
-                  .filter(
-                    (k) =>
-                      k.assignee_id === task.assignee_id &&
-                      (k.active || k.id === kpiId),
-                  )
-                  .map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {OUTPUT_TYPES[k.output_type].label} · {k.channel_name} ·{" "}
-                      {monthLabel(k.month)} · {k.target}{" "}
-                      {OUTPUT_TYPES[k.output_type].unit}
-                    </option>
-                  ))}
-              </select>
+              <input aria-label="KPI báo cáo" readOnly value={selectedKpi ? `${OUTPUT_TYPES[selectedKpi.output_type].label} · ${selectedKpi.channel_name} · ${monthLabel(selectedKpi.month)}` : "Không gắn KPI · công việc ngoài chỉ tiêu"} />
             </label>
             <div className="field-pair">
               <label>
                 Loại sản phẩm
                 <select
                   aria-label="Loại sản phẩm báo cáo"
-                  disabled={Boolean(kpiId) || !canReport || busy}
+                  disabled={!canReport || busy}
                   value={outputType}
                   onChange={(e) => setOutputType(e.target.value as OutputType)}
                 >
@@ -408,7 +386,7 @@ export function TaskResult({
           </label>
           {kpiId && (
             <p className="result-hint">
-              Kênh của KPI phải nằm trong danh sách đã chọn. Bỏ kênh đó sẽ gỡ liên kết KPI hiện tại.
+              KPI tự đối chiếu theo kênh chính, loại sản phẩm và tháng hạn hoàn thành.
             </p>
           )}
           <label>

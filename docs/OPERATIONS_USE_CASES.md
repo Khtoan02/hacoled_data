@@ -92,12 +92,12 @@ Từ thẻ KPI, mở danh sách hoặc lập việc. Chỉ tiêu được mang t
 ### UC07 — Import kế hoạch công việc gắn KPI
 
 1. Import KPI trước.
-2. Dùng mẫu kế hoạch công việc và cột `thang_kpi` theo YYYY-MM.
-3. Đối chiếu đúng một KPI theo email nhân sự, tháng, loại và kênh.
+2. Dùng mẫu kế hoạch công việc, điền `han_hoan_thanh` theo YYYY-MM-DD.
+3. Tự đối chiếu KPI theo email nhân sự, tháng hạn hoàn thành, loại sản phẩm và kênh đầu tiên (kênh chính).
 4. Xem trước: mỗi việc báo đã gắn chỉ tiêu hoặc ngoài KPI.
 5. Xác nhận sau khi hết lỗi.
 
-**Nghiệm thu:** nhiều kênh nhưng chỉ một KPI phù hợp được chọn làm kênh chính. Nếu có nhiều KPI phù hợp phải tách dòng; không chọn ngẫu nhiên. Bỏ trống tháng là chủ động tạo việc ngoài KPI. Deadline ngày trong CSV thống nhất 17:00 Asia/Ho_Chi_Minh như biểu mẫu. Retry cùng batch không nhân công việc. Những dòng mẫu được bỏ qua; dòng dữ liệu lỗi không được cắt/ngầm sửa để nhập.
+**Nghiệm thu:** nhiều kênh chỉ tính KPI của kênh đầu tiên, không nhân sản lượng. Nếu chưa có hạn hoặc không có KPI phù hợp, ghi việc ngoài KPI và thông báo trong bản xem trước. File cũ có `thang_kpi` phải khớp tháng hạn hoàn thành; cột cũ chỉ dùng dự phòng khi chưa có hạn. Deadline ngày trong CSV thống nhất 17:00 Asia/Ho_Chi_Minh như biểu mẫu. Retry cùng batch không nhân công việc. Những dòng mẫu được bỏ qua; dòng dữ liệu lỗi không được cắt/ngầm sửa để nhập.
 
 ### UC08 — Brief theo loại nội dung
 
@@ -188,4 +188,5 @@ Khi kết nối API, thêm thực thể publication có platform_post_id duy nh�
 - `010-kpi-imports.sql` thêm bảng batch/audit import, không sửa sản lượng cũ.
 - Production chạy migration theo pipeline hiện tại. Kiểm thử local dùng PGlite/dummy Neon, không ghi database hoặc Blob production.
 
-Biểu mẫu tạo công việc mặc định bật **Tự động gắn KPI phù hợp**: đối chiếu nhân sự × kênh × loại sản phẩm × tháng KPI đang chọn (mặc định tháng hiện tại). Chỉ một KPI đang hoạt động khớp thì tự chọn và đưa kênh KPI lên kênh chính. Không khớp sẽ báo rõ việc ngoài KPI; nhiều KPI khớp phải chọn thủ công trước khi lưu. Chọn chỉ tiêu/ngoài KPI thủ công sẽ tắt tự động. Mở sửa việc cũ giữ liên kết hiện có, chỉ tự đối chiếu lại khi người dùng bật tùy chọn này; không tự sửa hàng loạt dữ liệu cũ.
+
+Cập nhật luồng công việc: KPI được tự đối chiếu theo người × kênh chính (kênh đầu tiên) × loại sản phẩm × tháng của hạn hoàn thành, theo múi giờ Việt Nam. Biểu mẫu hiển thị chỉ tiêu chỉ đọc, không cần tích hoặc chọn tháng. Tạo/sửa công việc có hạn được server đối chiếu lại; không tự cập nhật hàng loạt việc cũ nếu chưa lưu sửa. Nếu chưa có hạn hoặc chỉ tiêu phù hợp, biểu mẫu ghi rõ ngoài KPI. Mẫu CSV mới bỏ `thang_kpi` và `do_uu_tien`; file cũ vẫn nhận, nhưng tháng KPI cũ khác hạn hoàn thành sẽ báo lỗi. Độ ưu tiên được bỏ khỏi giao diện công việc; dữ liệu cũ vẫn giữ. Bảng, Kanban và to-do đều xếp hạn tăng dần, việc chưa có hạn xuống cuối trong từng nhóm trạng thái.

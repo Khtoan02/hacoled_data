@@ -5,7 +5,6 @@ import {
   OUTPUT_TYPES,
   SELECTABLE_OUTPUT_TYPES,
   monthLabel,
-  currentMonth,
   type Kpi,
   type OutputType,
 } from "../../lib/kpis";
@@ -30,6 +29,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { deadlineMonth, matchDeadlineKpi, compareTaskDeadline } from "../../lib/task-planning";
 import { TaskResult } from "./task-report";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
@@ -44,7 +44,6 @@ import {
   dateInputValue,
   formatDate,
   isOverdue,
-  TASK_PRIORITIES,
   TASK_STATUSES,
   type Task,
   type TaskStatus,
@@ -60,7 +59,6 @@ import {
   Notice,
   Pagination,
   Panel,
-  PriorityBadge,
   StatusBadge,
 } from "./ui";
 import {
@@ -104,7 +102,6 @@ export function TasksPage() {
     [assigneeFilter, setAssigneeFilter] = useState(
       params.get("assignee") || "all",
     ),
-    [priorityFilter, setPriorityFilter] = useState("all"),
     [dueFilter, setDueFilter] = useState("all"),
     [page, setPage] = useState(1);
   const [opened, setOpened] = useState<Task | "new" | null>(null),
@@ -123,8 +120,6 @@ export function TasksPage() {
     priority: "normal",
     checklist: [],
   });
-  const [autoKpi, setAutoKpi] = useState(false);
-  const [kpiMonth, setKpiMonth] = useState(currentMonth());
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [kpiFilter, setKpiFilter] = useState(params.get("kpi") || "all");
   const consumed = useRef("");
@@ -220,9 +215,6 @@ export function TasksPage() {
     setError("");
     setNewItem("");
     setOpened(task);
-    const linked = kpis.find((k) => k.id === (task === "new" ? params.get("kpi") : task.kpi_id));
-    setAutoKpi(task === "new");
-    setKpiMonth(linked?.month ?? currentMonth());
     setDetailTab(task === "new" || full ? "details" : "result");
     setDraft(
       task === "new"
@@ -246,6 +238,7 @@ export function TasksPage() {
               return k
                 ? {
                     kpi_id: k.id,
+                    due_at: new Date(Date.UTC(Number(k.month.slice(0,4)),Number(k.month.slice(5,7)),0)).toISOString().slice(0,10),
                     channel_ids: [k.channel_id],
                     assignee_id: k.assignee_id,
                     output_type: k.output_type,
@@ -289,19 +282,13 @@ export function TasksPage() {
       else setError("Không tìm thấy công việc trong phạm vi quyền của bạn.");
     }
   }, [loading, params, tasks, kpis]);
-  const matchingKpis = kpis.filter((k) => k.active &&
-    k.assignee_id === draft.assignee_id && k.month === kpiMonth &&
-    k.output_type === draft.output_type && draft.channel_ids.includes(k.channel_id));
-  const autoKpiId = matchingKpis.length === 1 ? matchingKpis[0].id : "";
+  const kpiMonth = deadlineMonth(draft.due_at);
+  const matchedKpi = matchDeadlineKpi(kpis, draft, opened && opened !== "new" ? opened.kpi_id : null);
+  const autoKpiId = matchedKpi?.id ?? "";
   useEffect(() => {
-    if (!opened || !autoKpi) return;
-    const goal = kpis.find((k) => k.id === autoKpiId);
-    setDraft((d) => {
-      const ids = goal ? [goal.channel_id, ...d.channel_ids.filter((id) => id !== goal.channel_id)] : d.channel_ids;
-      if (d.kpi_id === autoKpiId && ids.every((id, i) => id === d.channel_ids[i])) return d;
-      return { ...d, kpi_id: autoKpiId, channel_ids: ids };
-    });
-  }, [opened, autoKpi, autoKpiId, kpis]);
+    if (!opened) return;
+    setDraft((d) => d.kpi_id === autoKpiId ? d : {...d,kpi_id:autoKpiId});
+  }, [opened, autoKpiId]);
   function closeDetails() {
     if (busy) return;
     if (
@@ -368,10 +355,9 @@ export function TasksPage() {
         .toLocaleLowerCase("vi")
         .includes(search.toLocaleLowerCase("vi")) &&
       (statusFilter === "all" || t.status === statusFilter) &&
-      (priorityFilter === "all" || t.priority === priorityFilter) &&
       (assigneeFilter === "all" || t.assignee_id === assigneeFilter) &&
       (dueFilter === "all" || isOverdue(t)),
-  );
+  ).sort(compareTaskDeadline);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)),
     currentPage = Math.min(page, totalPages),
     visible = filtered.slice(
@@ -416,7 +402,6 @@ export function TasksPage() {
     setKpiFilter("all");
     setChannelFilter("all");
     setStatusFilter("all");
-    setPriorityFilter("all");
     setAssigneeFilter("all");
     setDueFilter("all");
     setPage(1);
@@ -441,7 +426,6 @@ export function TasksPage() {
         onDragEnd={() => setDragged(null)}
       >
         <div className="kanban-card-top">
-          <PriorityBadge priority={task.priority} />
           {full && (
             <GripVertical size={16} className="drag-grip" aria-hidden="true" />
           )}
@@ -539,7 +523,7 @@ export function TasksPage() {
       {notice && <Notice tone="success">{notice}</Notice>}
       <Panel
         title="Danh sách công việc"
-        description={`${filtered.length} công việc trong phạm vi quyền của bạn.`}
+        description={`${filtered.length} công việc trong phạm vi quyền của bạn. Hạn gần nhất xếp trước; chưa có hạn ở cuối.`}
         action={
           <button
             className="secondary-button"
@@ -644,18 +628,6 @@ export function TasksPage() {
             {assignees.map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Lọc độ ưu tiên"
-            value={priorityFilter}
-            onChange={(e) => changeFilter(setPriorityFilter, e.target.value)}
-          >
-            <option value="all">Mọi độ ưu tiên</option>
-            {Object.entries(TASK_PRIORITIES).map(([k, v]) => (
-              <option value={k} key={k}>
-                {v}
               </option>
             ))}
           </select>
@@ -789,7 +761,6 @@ export function TasksPage() {
                         {t.title}
                         <small>{t.assignee_name}</small>
                       </button>
-                      <PriorityBadge priority={t.priority} />
                       <span
                         className={`todo-date ${isOverdue(t) ? "overdue" : ""}`}
                       >
@@ -810,7 +781,6 @@ export function TasksPage() {
                   <tr>
                     <th>Công việc</th>
                     <th>Người thực hiện</th>
-                    <th>Độ ưu tiên</th>
                     <th>Hạn hoàn thành</th>
                     <th>Trạng thái</th>
                     <th aria-label="Chi tiết" />
@@ -878,9 +848,6 @@ export function TasksPage() {
                             </small>
                           </span>
                         </div>
-                      </td>
-                      <td>
-                        <PriorityBadge priority={t.priority} />
                       </td>
                       <td className={isOverdue(t) ? "overdue" : ""}>
                         {formatDate(t.due_at)}
@@ -1012,10 +979,6 @@ export function TasksPage() {
               className="account-form task-editor"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (autoKpi && matchingKpis.length > 1) {
-                  setError("Có nhiều KPI phù hợp. Chọn chỉ tiêu cụ thể trước khi lưu.");
-                  return;
-                }
                 void save(
                   {
                     ...draft,
@@ -1057,72 +1020,19 @@ export function TasksPage() {
               </label>
               <section className="task-kpi-fields">
                 <h3>Liên kết KPI & khối lượng</h3>
-                <label className="social-checkbox">
-                  <input type="checkbox" checked={autoKpi} onChange={(e) => setAutoKpi(e.target.checked)} />
-                  Tự động gắn KPI phù hợp
-                </label>
-                {autoKpi && <>
-                  <label>Tháng KPI cần gắn
-                    <input aria-label="Tháng tự động gắn KPI" type="month" min="2000-01" max="2100-12" value={kpiMonth} onChange={(e) => { if(e.target.value) setKpiMonth(e.target.value); }} />
-                  </label>
-                  <p className="result-hint" role="status">
-                    {matchingKpis.length === 1
-                      ? `Đã tự gắn KPI ${monthLabel(kpiMonth)} · ${matchingKpis[0].channel_name}.`
-                      : matchingKpis.length > 1
-                        ? "Có nhiều KPI phù hợp với các kênh đã chọn. Chọn chỉ tiêu cụ thể bên dưới để tránh cộng nhầm."
-                        : "Chưa có KPI khớp nhân sự, kênh, loại sản phẩm và tháng đã chọn. Chọn đủ thông tin bên dưới hoặc tạo KPI trước; nếu lưu lúc này, việc sẽ nằm ngoài KPI."}
-                  </p>
-                </>}
-
-                <label>
-                  Chỉ tiêu liên quan
-                  <select
-                    aria-label="KPI liên quan"
-                    value={draft.kpi_id}
-                    onChange={(e) => {
-                      const k = kpis.find((k) => k.id === e.target.value);
-                      setAutoKpi(false);
-                      setDraft({
-                        ...draft,
-                        kpi_id: e.target.value,
-                        ...(k
-                          ? {
-                              channel_ids: [
-                                k.channel_id,
-                                ...draft.channel_ids.filter(
-                                  (id) => id !== k.channel_id,
-                                ),
-                              ],
-                              output_type: k.output_type,
-                            }
-                          : {}),
-                      });
-                    }}
-                  >
-                    <option value="">
-                      Không gắn KPI · công việc ngoài chỉ tiêu
-                    </option>
-                    {kpis
-                      .filter(
-                        (k) =>
-                          k.assignee_id === draft.assignee_id &&
-                          (k.active || k.id === draft.kpi_id),
-                      )
-                      .map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {OUTPUT_TYPES[k.output_type].label} · {k.channel_name}{" "}
-                          · {monthLabel(k.month)} · {k.target}{" "}
-                          {OUTPUT_TYPES[k.output_type].unit}
-                        </option>
-                      ))}
-                  </select>
+                <p className="result-hint" role="status">
+                  {!draft.due_at ? "Chọn hạn hoàn thành để hệ thống xác định tháng KPI."
+                    : matchedKpi ? `Đã tự gắn KPI ${monthLabel(matchedKpi.month)} · ${matchedKpi.channel_name}.`
+                    : `Chưa có KPI đang hoạt động khớp nhân sự, kênh chính và loại sản phẩm trong ${monthLabel(kpiMonth!)}. Công việc hiện nằm ngoài KPI.`}
+                </p>
+                <label>Chỉ tiêu liên quan
+                  <input aria-label="KPI liên quan" readOnly value={matchedKpi ? `${OUTPUT_TYPES[matchedKpi.output_type].label} · ${matchedKpi.channel_name} · ${monthLabel(matchedKpi.month)}` : "Không gắn KPI · công việc ngoài chỉ tiêu"} />
                 </label>
                 <div className="field-pair">
                   <label>
                     Loại sản phẩm
                     <select
                       aria-label="Loại sản phẩm công việc"
-                      disabled={!autoKpi && Boolean(draft.kpi_id)}
                       value={draft.output_type}
                       onChange={(e) =>
                         setDraft({
@@ -1235,25 +1145,6 @@ export function TasksPage() {
                     }
                   >
                     {Object.entries(TASK_STATUSES).map(([k, v]) => (
-                      <option value={k} key={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Độ ưu tiên
-                  <select
-                    aria-label="Độ ưu tiên công việc"
-                    value={draft.priority}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        priority: e.target.value as TaskPriority,
-                      })
-                    }
-                  >
-                    {Object.entries(TASK_PRIORITIES).map(([k, v]) => (
                       <option value={k} key={k}>
                         {v}
                       </option>
@@ -1380,7 +1271,6 @@ export function TasksPage() {
             <div className="task-readonly">
               <div className="task-detail-badges">
                 <StatusBadge status={opened.status} />
-                <PriorityBadge priority={opened.priority} />
               </div>
               <h3>{opened.title}</h3>
               <p className="detail-description">

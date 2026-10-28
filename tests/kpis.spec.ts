@@ -228,7 +228,8 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
         data: { id: taskId, assignee_id: intern.id },
       })
     ).status(),
-  ).toBe(404);
+  ).toBe(200);
+  expect((await admin.patch("/api/tasks", {data:{id:taskId,assignee_id:staff.id,due_at:`${month}-01T10:00:00Z`}})).status()).toBe(200);
   expect(
     (
       await staffClient.post("/api/tasks", {
@@ -393,7 +394,7 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
     .getByRole("link", { name: "Lập công việc", exact: true })
     .click();
   await expect(staffPage.getByRole("dialog")).toBeVisible();
-  await expect(staffPage.getByLabel("KPI liên quan")).toHaveValue(first.id);
+  await expect(staffPage.getByLabel("KPI liên quan")).toHaveValue(/HacoLED KPI Facebook/);
   await staffPage
     .getByLabel("Tên công việc", { exact: true })
     .fill("Bài bổ sung sau khi vượt KPI");

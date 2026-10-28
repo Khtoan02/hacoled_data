@@ -78,7 +78,7 @@ export function TaskImport({
   return (
     <Drawer
       title="Import kế hoạch công việc"
-      description="Import KPI trước, rồi dùng cột thang_kpi để nối kế hoạch công việc với đúng chỉ tiêu."
+      description="Import KPI trước; hệ thống tự nối công việc theo tháng hạn hoàn thành."
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -89,10 +89,7 @@ export function TaskImport({
           Tải mẫu CSV kế hoạch
         </a>
         <p className="result-hint">
-          Mỗi dòng là một công việc. Cột thang_kpi (YYYY-MM) sẽ tìm đúng KPI của
-          người, kênh và loại sản phẩm; bỏ trống để tạo việc ngoài KPI. Nhiều
-          kênh phân cách bằng |; chỉ kênh chính được cộng chỉ tiêu. Các dòng mẫu
-          MẪU - sẽ được bỏ qua.
+          Mỗi dòng là một công việc. Hệ thống tự gắn KPI theo người, kênh chính, loại sản phẩm và tháng hạn hoàn thành. Chưa có hạn hoặc chưa có KPI phù hợp thì ghi việc ngoài KPI. Nhiều kênh phân cách bằng |; kênh đầu tiên là kênh chính. Các dòng MẪU - được bỏ qua.
         </p>
         <label className="import-file">
           Chọn file CSV
