@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NotificationBell } from "./notifications";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -460,6 +461,7 @@ export function DashboardShell({
             )}
           </div>
           <div className="topbar-account">
+            <NotificationBell />
             <Link
               href="/admin/profile"
               className="account-profile-link"

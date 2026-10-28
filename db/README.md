@@ -129,3 +129,5 @@ Run `011-deletion-audit.sql` for Leader/Director deletion snapshots. KPI deletio
 ## Team chat
 
 Migration `012-team-chat.sql` creates rooms, memberships with join/read sequence cursors and messages. Authenticated active members have chat access independent of business permissions. Every read/write is membership-scoped; full administrators have no implicit message access. Group owners manage rosters with optimistic versions; new joins see only newer sequences. Creates and sends use idempotency keys and serialized transactions. See `docs/TEAM_CHAT.md` for the complete contract and isolated tests.
+
+`013-notifications.sql`: hộp thông báo theo thành viên, trigger giao việc/hoàn thành và khóa chống trùng; xóa công việc/KPI sẽ cascade thông báo tương ứng. Không backfill thông báo lịch sử.

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import nextEnv from "@next/env";
+import { sqlStatements } from "./sql-statements.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.DATABASE_URL) {
@@ -14,10 +15,7 @@ try {
     .filter((name) => /^\d+.*\.sql$/.test(name))
     .sort()
     .flatMap((name) =>
-      readFileSync(new URL(name, directory), "utf8")
-        .split(";")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      sqlStatements(readFileSync(new URL(name, directory), "utf8")),
     );
   await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(724109)`,

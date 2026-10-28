@@ -55,3 +55,5 @@ KPI sản lượng ghi nhận theo **tháng chỉ tiêu đã giao** (tự liên 
 Leader/Giám đốc có nút xóa KPI và công việc tạo lỗi, kèm xác nhận. Xóa KPI giữ công việc và chuyển thành ngoài KPI; xóa việc loại sản lượng khỏi KPI. Snapshot và lịch sử được giữ để đối chiếu; chưa có khôi phục từ giao diện. Migration `011-deletion-audit.sql` cần có trước khi dùng (Vercel Production tự chạy khi build). Tạm dừng KPI vẫn dùng phần chỉnh sửa trạng thái.
 
 Chat nội bộ tại `/admin/chat`: nhắn riêng, tạo nhóm tối đa 50 người, quản lý thành viên/trưởng nhóm, tin chưa đọc và lịch sử. Mọi tài khoản hoạt động có thể chat; chỉ người tham gia đọc được nội dung. Thành viên mới xem tin từ lúc được thêm. Cập nhật khoảng 5 giây khi trang hiển thị; dùng PostgreSQL hiện có qua migration `012-team-chat.sql`. Xem `docs/TEAM_CHAT.md` cho quyền, use-case và giới hạn bản đầu.
+
+Thông báo trong ứng dụng: công việc mới đến người thực hiện/cấp quản lý có quyền; hoàn thành báo quản lý; KPI chậm tiến độ nhắc tối đa một lần/ngày/chỉ tiêu. Chuông lưu trạng thái đã đọc và cập nhật khi mở ứng dụng. Chi tiết: docs/NOTIFICATIONS.md.
