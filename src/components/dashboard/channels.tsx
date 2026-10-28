@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
-import { isFullAccess, ROLE_POLICIES } from "../../lib/security/rbac";
+import { canManageChannels, ROLE_POLICIES } from "../../lib/security/rbac";
 import {
   SOCIAL_PLATFORMS,
   type SocialChannel,
@@ -60,7 +60,7 @@ const fresh = (): Draft => ({
 
 export function ChannelsPage() {
   const member = useMember(),
-    full = isFullAccess(member.role);
+    full = canManageChannels(member.role);
   const [channels, setChannels] = useState<SocialChannel[]>([]),
     [members, setMembers] = useState<Member[]>([]),
     [configured, setConfigured] = useState(false);
@@ -92,17 +92,7 @@ export function ChannelsPage() {
       setChannels(d.channels);
       setConfigured(d.credentials_configured === true);
       if (full) {
-        const m = await fetch("/api/members", { cache: "no-store" }),
-          md = await m.json();
-        if (!m.ok) throw new Error(md.error);
-        setMembers(
-          md.members.filter(
-            (m: Member) =>
-              m.active &&
-              ROLE_POLICIES[m.role].taskScope !== "none" &&
-              !isFullAccess(m.role),
-          ),
-        );
+        setMembers(d.members ?? []);
       }
     } catch (e) {
       setError(
@@ -617,7 +607,7 @@ export function ChannelsPage() {
               <section className="social-editor-section">
                 <h3>Ai được xem thông tin đăng nhập?</h3>
                 <p className="result-hint">
-                  Leader Marketing và Giám đốc luôn có quyền. Chọn thêm thành
+                  Leader Marketing, Giám đốc và Trưởng phòng Marketing luôn có quyền. Chọn thêm thành
                   viên theo từng kênh. Quyền này không cấp quyền sửa thông tin
                   kênh.
                 </p>

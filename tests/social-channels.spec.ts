@@ -39,6 +39,7 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
     ["channel-staff", "marketing_staff"],
     ["channel-other", "marketing_intern"],
     ["channel-sales", "sales_hotline"],
+    ["channel-manager", "marketing_manager"],
   ]) {
     expect(
       (
@@ -432,6 +433,33 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
   expect(
     audit.rows.some((r: string[]) => r[0] === "credentials_viewed"),
   ).toBeTruthy();
+  // Channel management is independent of system-wide account/KPI administration.
+  const manager = actors["channel-manager"];
+  expect((await manager.get("/api/members")).status()).toBe(403);
+  expect((await manager.post("/api/kpis", {data:{}})).status()).toBe(403);
+  const createdByManager = await manager.post("/api/social-channels", {
+    data: {...base,name:"Kênh do trưởng phòng quản lý",access:[],credentials:{username:"manager-channel",password:"Synthetic-manager-channel!"}},
+  });
+  expect(createdByManager.status()).toBe(201);
+  const managedId = (await createdByManager.json()).id;
+  const detail = await (await manager.get(`/api/social-channels?id=${managedId}`)).json();
+  expect(detail.channels[0].can_view_credentials).toBe(true);
+  expect(detail.access).toEqual([]);
+  expect(detail.members.some((m:{id:string})=>m.id===staff.id)).toBe(true);
+  expect(JSON.stringify(detail)).not.toContain("Synthetic-manager-channel!");
+  expect((await manager.post("/api/social-channels/credentials",{data:{id:managedId}})).status()).toBe(200);
+  expect((await manager.patch("/api/social-channels",{data:{...base,id:managedId,version:0,access:[staff.id]}})).status()).toBe(200);
+  expect((await actors["channel-staff"].post("/api/social-channels/credentials",{data:{id:managedId}})).status()).toBe(200);
+  const managerUI = await browser.newContext({storageState:await manager.storageState()});
+  const managerPage = await managerUI.newPage();
+  await managerPage.goto(`${baseURL}/admin/channels`);
+  await managerPage.getByRole("button",{name:"Thêm kênh",exact:true}).click();
+  await expect(managerPage.getByLabel("Tên kênh",{exact:true})).toBeVisible();
+  await expect(managerPage.getByLabel("Cấp quyền xem đăng nhập cho Minh Hà",{exact:true})).toBeVisible();
+  await managerPage.getByRole("button",{name:"Đóng chi tiết",exact:true}).click();
+  expect((await manager.patch("/api/social-channels",{data:{...base,id:managedId,version:1,active:false,access:[]}})).status()).toBe(200);
+  expect((await manager.post("/api/social-channels/credentials",{data:{id:managedId}})).status()).toBe(403);
+  await managerUI.close();
   await ui.close();
   await staffUI.close();
   for (const c of Object.values(actors)) await c.dispose();

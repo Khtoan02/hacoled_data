@@ -6,9 +6,8 @@ import {
   database,
   getMember,
   RequestError,
-  requireManager,
 } from "../../../lib/auth/server";
-import { isFullAccess, ROLE_POLICIES } from "../../../lib/security/rbac";
+import { canManageChannels, ROLE_POLICIES } from "../../../lib/security/rbac";
 import { SOCIAL_PLATFORMS, isUuid } from "../../../lib/social";
 import { validEvidenceUrl } from "../../../lib/tasks";
 import { sealCredentials } from "../../../lib/social/credentials";
@@ -19,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (!member) throw new RequestError("Vui lòng đăng nhập.", 401);
     if (ROLE_POLICIES[member.role].taskScope === "none")
       throw new RequestError("Chưa được cấp quyền kênh social.", 403);
-    const full = isFullAccess(member.role),
+    const full = canManageChannels(member.role),
       id = req.nextUrl.searchParams.get("id");
     if (id && !isUuid(id)) throw new RequestError("Mã kênh không hợp lệ.");
     const channels =
@@ -32,9 +31,13 @@ export async function GET(req: NextRequest) {
     if (full && id)
       access =
         await database()`SELECT a.member_id FROM app_social_channel_access a WHERE channel_id=${id}`;
+    const members = full
+      ? await database()`SELECT id,name,role,active FROM app_members WHERE active=true AND role IN ('marketing_staff','marketing_intern') ORDER BY name,id`
+      : undefined;
     return NextResponse.json(
       {
         channels,
+        ...(full ? { members } : {}),
         ...(full
           ? {
               credentials_configured: /^[0-9a-f]{64}$/i.test(
@@ -53,8 +56,11 @@ export async function GET(req: NextRequest) {
 async function save(req: NextRequest, create: boolean) {
   try {
     checkOrigin(req);
-    const actor = await requireManager(),
-      b = await req.json();
+    const actor = await getMember();
+    if (!actor) throw new RequestError("Vui lòng đăng nhập.", 401);
+    if (!canManageChannels(actor.role))
+      throw new RequestError("Bạn không có quyền quản lý kênh.", 403);
+    const b = await req.json();
     if (
       !b ||
       typeof b !== "object" ||

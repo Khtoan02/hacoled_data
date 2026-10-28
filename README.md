@@ -49,7 +49,7 @@ Giao diện gồm tổng quan biểu đồ công việc thật, bảng/Kanban/to
 
 Người được giao việc có thể mở **Kết quả & tiến độ**, nhập kết quả, cập nhật checklist/trạng thái và dán link ảnh để preview/phóng to ngay trong công việc. Mỗi lần cập nhật lưu lịch sử, người báo cáo và thời điểm hoàn thành để đối chiếu KPI về sau. Trạng thái hoàn thành chưa thay thế bước duyệt chất lượng hoặc chấm KPI.
 
-Quản lý kênh tại `/admin/channels`: nền tảng, tên kênh, link, định danh và ghi chú; Leader/Giám đốc lưu tài khoản đăng nhập được mã hóa, cấp quyền xem theo từng kênh và lưu trữ kênh cũ. Người được giao việc có thể chọn kênh khi báo cáo; danh sách công việc lọc được theo kênh. Xem phần Social channel trong `db/README.md` để cấu hình `SOCIAL_CREDENTIALS_KEY` trên Vercel trước khi dùng tính năng lưu mật khẩu.
+Quản lý kênh tại `/admin/channels`: nền tảng, tên kênh, link, định danh và ghi chú; Leader/Giám đốc/Trưởng phòng Marketing lưu tài khoản đăng nhập được mã hóa, cấp quyền xem theo từng kênh và lưu trữ kênh cũ. Người được giao việc có thể chọn kênh khi báo cáo; danh sách công việc lọc được theo kênh. Xem phần Social channel trong `db/README.md` để cấu hình `SOCIAL_CREDENTIALS_KEY` trên Vercel trước khi dùng tính năng lưu mật khẩu.
 
 Trang `/admin/kpis` quản lý **KPI sản lượng theo người × kênh × loại sản phẩm × tháng**. Leader/Giám đốc giao chỉ tiêu; thành viên lập việc cho mình, chọn KPI và báo cáo số lượng/ngày sản lượng thực tế. Tiến độ cộng từ việc đã hoàn thành, không cộng trùng khi gửi lại báo cáo; hiển thị số còn thiếu, đạt/vượt và sản lượng ngoài tháng. Công việc ngoài KPI được theo dõi riêng. Đây là đánh giá số lượng tự báo cáo; chưa thay thế duyệt chất lượng hoặc chấm hiệu suất có trọng số.
 
@@ -62,3 +62,5 @@ Giai đoạn hiện tại tập trung **sản lượng nội dung**; lead, doanh
 - Tổng quan và `/admin/performance`: chọn tháng, theo dõi việc đến hạn/hoàn thành/đúng hạn/quá hạn, KPI đạt/vượt, việc phát sinh, so sánh sản lượng từng loại với tháng trước, xu hướng 6 tháng và chi tiết theo người/tuyến nội dung/định dạng/từ khóa. Thiếu mẫu số hiển thị chưa đủ dữ liệu.
 
 Chạy migration `010-kpi-imports.sql` bằng `npm run db:migrate` trước khi dùng import (Vercel Production prebuild tự chạy các migration). Tạm dừng KPI giữ liên kết công việc và lịch sử. Báo cáo tháng tính từ trạng thái hiện tại, còn thay đổi nếu sửa/mở lại/xóa việc; chưa phải kỳ đã khóa hay chấm năng lực/chất lượng.
+
+Trưởng phòng Marketing được quản lý danh mục kênh, thêm/sửa/lưu trữ kênh, cập nhật thông tin đăng nhập và cấp/thu hồi quyền xem đăng nhập cho thành viên. Giám đốc, Leader và Trưởng phòng có quyền xem đăng nhập kênh đang hoạt động; quyền tài khoản hệ thống và giao/import KPI vẫn theo phân quyền riêng. Danh sách cấp quyền kênh dùng API danh mục tối thiểu, không mở quyền quản trị thành viên.

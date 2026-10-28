@@ -88,7 +88,7 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     badgeCode: "MANAGER",
     taskScope: "marketing_team",
     summary:
-      "Theo dõi việc của mình, nhân viên và thực tập; báo cáo kết quả việc được giao cho mình.",
+      "Quản lý kênh social; theo dõi việc của mình, nhân viên và thực tập; báo cáo kết quả việc được giao cho mình.",
     guardrail:
       "Không mặc định xem việc của trưởng phòng khác, Leader, Giám đốc hoặc dữ liệu nhân sự riêng tư.",
   },
@@ -128,6 +128,9 @@ export function isMemberRole(value: unknown): value is MemberRoleId {
 }
 export function isFullAccess(role: SystemRoleId) {
   return role === "lead_marketing" || role === "executive";
+}
+export function canManageChannels(role: SystemRoleId) {
+  return isFullAccess(role) || role === "marketing_manager";
 }
 export const TASK_SCOPE_LABELS: Record<TaskScope, string> = {
   all: "Tất cả công việc",

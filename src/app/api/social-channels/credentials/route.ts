@@ -7,7 +7,7 @@ import {
   getMember,
   RequestError,
 } from "../../../../lib/auth/server";
-import { isFullAccess, ROLE_POLICIES } from "../../../../lib/security/rbac";
+import { canManageChannels, ROLE_POLICIES } from "../../../../lib/security/rbac";
 import { isUuid } from "../../../../lib/social";
 import { openCredentials } from "../../../../lib/social/credentials";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       results = await sql.transaction([
         sql`SELECT pg_advisory_xact_lock(724110)`,
         sql`WITH allowed AS (SELECT c.id,c.credentials_cipher FROM app_social_channels c WHERE c.id=${b.id} AND c.active=true AND c.credentials_cipher IS NOT NULL AND
-     (${isFullAccess(member.role)} OR EXISTS(SELECT 1 FROM app_social_channel_access a WHERE a.channel_id=c.id AND a.member_id=${member.id}))),
+     (${canManageChannels(member.role)} OR EXISTS(SELECT 1 FROM app_social_channel_access a WHERE a.channel_id=c.id AND a.member_id=${member.id}))),
      logged AS (INSERT INTO app_social_channel_audit(id,channel_id,actor_id,action) SELECT ${randomUUID()},id,${member.id},'credentials_viewed' FROM allowed RETURNING channel_id)
      SELECT a.credentials_cipher FROM allowed a JOIN logged l ON l.channel_id=a.id`,
       ]);

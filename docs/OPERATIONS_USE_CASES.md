@@ -28,7 +28,7 @@ flowchart LR
 | Vị trí | Xem chỉ tiêu/báo cáo | Tạo việc | Giao/sửa/import KPI | Xem mật khẩu kênh |
 |---|---|---|---|---|
 | Giám đốc, Leader Marketing | Toàn bộ | Cho mọi người | Có | Theo quyền quản trị hiện có |
-| Trưởng phòng Marketing | Mình + nhân viên + thực tập | Cho mình | Không | Chỉ khi được cấp theo kênh |
+| Trưởng phòng Marketing | Mình + nhân viên + thực tập | Cho mình | Không | Có, cùng quyền quản lý kênh |
 | Nhân viên, thực tập | Của mình | Cho mình | Không | Chỉ khi được cấp theo kênh |
 | Kinh doanh | Chưa cấp | Chưa cấp | Không | Chưa cấp |
 
