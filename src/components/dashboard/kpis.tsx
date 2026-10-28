@@ -381,7 +381,7 @@ export function KpisPage() {
           <Panel
             className="kpi-target-panel"
             title={`Chỉ tiêu tháng ${monthLabel(month)}`}
-            description="Tiến độ = sản lượng của việc đã hoàn thành trong tháng / chỉ tiêu. Mỗi công việc chỉ được cộng một lần theo số hiện tại."
+            description="Tiến độ = sản lượng hoàn thành của các việc gắn chỉ tiêu / chỉ tiêu. Tính theo tháng KPI đã giao; làm sớm hoặc trễ vẫn giữ ngày thực tế. Mỗi việc chỉ cộng một lần."
             action={
               <label className="social-archived">
                 <input
@@ -474,10 +474,10 @@ export function KpisPage() {
                       {k.outside_month > 0 && (
                         <p className="kpi-note">
                           {k.outside_month} {OUTPUT_TYPES[k.output_type].unit}{" "}
-                          hoàn thành ngoài tháng, chưa cộng vào chỉ tiêu tháng
-                          này.
+                          hoàn thành ngoài tháng; đã tính vào KPI được giao.
                         </p>
                       )}
+                      {(k.zero_quantity_tasks ?? 0) > 0 && <p className="kpi-note" role="status">Có {k.zero_quantity_tasks} việc đã hoàn thành nhưng sản lượng bằng 0. Mở kết quả công việc để bổ sung số thực tế nếu còn thiếu.</p>}
                       {k.notes && <p className="kpi-note">{k.notes}</p>}
                       <div className="kpi-actions">
                         <Link

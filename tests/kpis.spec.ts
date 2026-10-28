@@ -215,7 +215,7 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
   expect((await update({ status: "in_progress" })).status()).toBe(200);
   expect((await goal()).delivered).toBe(0);
   expect((await update({ delivered_on: prior })).status()).toBe(200);
-  expect((await goal()).delivered).toBe(0);
+  expect((await goal()).delivered).toBe(22);
   expect((await goal()).outside_month).toBe(22);
   expect((await update({ delivered_quantity: -1 })).status()).toBe(400);
   expect((await update({ delivered_quantity: 1.5 })).status()).toBe(400);

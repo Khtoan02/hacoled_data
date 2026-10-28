@@ -441,7 +441,7 @@ export async function POST(req: NextRequest) {
       );
     const queries = prepared.flatMap((row) => [
       sql`INSERT INTO app_tasks(id,title,description,brief,assignee_id,created_by,due_at,status,priority,checklist,completed_at,channel_id,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on)
-          VALUES(${row.id},${row.title},${row.description},${JSON.stringify(row.brief)}::jsonb,${row.assignee_id},${actor.id},${row.due_at}::timestamptz,${row.status},${row.priority},${JSON.stringify(row.checklist)}::jsonb,CASE WHEN ${row.status}='completed' THEN now() ELSE NULL END,${(row.channel_ids as string[])[0] ?? null}::uuid,${row.kpi_id}::uuid,${row.output_type},${row.planned_quantity},0,CASE WHEN ${row.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END)`,
+          VALUES(${row.id},${row.title},${row.description},${JSON.stringify(row.brief)}::jsonb,${row.assignee_id},${actor.id},${row.due_at}::timestamptz,${row.status},${row.priority},${JSON.stringify(row.checklist)}::jsonb,CASE WHEN ${row.status}='completed' THEN now() ELSE NULL END,${(row.channel_ids as string[])[0] ?? null}::uuid,${row.kpi_id}::uuid,${row.output_type},${row.planned_quantity},CASE WHEN ${row.status}='completed' THEN ${row.planned_quantity}::int ELSE 0 END,CASE WHEN ${row.status}='completed' THEN (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date ELSE NULL END)`,
       sql`INSERT INTO app_task_channels(task_id,channel_id) SELECT ${row.id},x::uuid FROM jsonb_array_elements_text(${JSON.stringify(row.channel_ids)}::jsonb) x`,
     ]);
     await sql.transaction(

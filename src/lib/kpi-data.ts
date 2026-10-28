@@ -9,8 +9,9 @@ export async function scopedKpiData(actor: Member, month: string) {
   const kpis =
     await database()`SELECT k.id,k.assignee_id,m.name AS assignee_name,k.channel_id,c.name AS channel_name,to_char(k.month,'YYYY-MM') AS month,k.output_type,k.target,k.notes,k.active,k.version,
     COUNT(t.id)::int AS task_count,COALESCE(SUM(t.planned_quantity),0)::int AS planned,
-    COUNT(t.id) FILTER(WHERE t.status='completed' AND t.delivered_on>=k.month AND t.delivered_on<k.month+interval '1 month')::int AS completed_tasks,
-    COALESCE(SUM(t.delivered_quantity) FILTER(WHERE t.status='completed' AND t.delivered_on>=k.month AND t.delivered_on<k.month+interval '1 month'),0)::int AS delivered,
+    COUNT(t.id) FILTER(WHERE t.status='completed')::int AS completed_tasks,
+    COUNT(t.id) FILTER(WHERE t.status='completed' AND t.delivered_quantity=0)::int AS zero_quantity_tasks,
+    COALESCE(SUM(t.delivered_quantity) FILTER(WHERE t.status='completed'),0)::int AS delivered,
     COALESCE(SUM(t.delivered_quantity) FILTER(WHERE t.status='completed' AND (t.delivered_on<k.month OR t.delivered_on>=k.month+interval '1 month')),0)::int AS outside_month
     FROM app_kpis k JOIN app_members m ON m.id=k.assignee_id JOIN app_social_channels c ON c.id=k.channel_id
     LEFT JOIN app_tasks t ON t.kpi_id=k.id AND t.assignee_id=k.assignee_id AND t.channel_id=k.channel_id AND t.output_type=k.output_type

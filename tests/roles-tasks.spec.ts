@@ -213,6 +213,8 @@ test("six roles enforce task ownership, marketing team visibility and director a
   await page
     .getByRole("button", { name: "Giao công việc", exact: true })
     .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("Tìm công việc",{exact:true}).fill("Kế hoạch marketing tuần");
   await expect(
     page.getByText("Kế hoạch marketing tuần", { exact: true }),
   ).toBeVisible();

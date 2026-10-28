@@ -1,6 +1,6 @@
 "use client";
 import { matchDeadlineKpi } from "../../lib/task-planning";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Check, ImagePlus, Plus, RefreshCw, X } from "lucide-react";
 import {
   TASK_STATUSES,
@@ -83,6 +83,11 @@ export function TaskResult({
   onBusy: (busy: boolean) => void;
   onDirty: (dirty: boolean) => void;
 }) {
+  const quantityEdited = useRef(false);
+  function changeStatus(next: Task["status"]) {
+    if(next === "completed" && status !== "completed" && quantity === 0 && !quantityEdited.current) setQuantity(task.planned_quantity);
+    setStatus(next);
+  }
   const [kpiId, setKpiId] = useState(task.kpi_id ?? ""),
     [outputType, setOutputType] = useState<OutputType>(task.output_type),
     [quantity, setQuantity] = useState(task.delivered_quantity),
@@ -195,6 +200,7 @@ export function TaskResult({
       setKpiId(latest.kpi_id ?? "");
       setOutputType(latest.output_type);
       setQuantity(latest.delivered_quantity);
+      quantityEdited.current = false;
       setDeliveredOn(latest.delivered_on ?? "");
       setChannelIds(latest.channel_ids?.length ? latest.channel_ids : latest.channel_id ? [latest.channel_id] : []);
       setStatus(latest.status);
@@ -250,6 +256,7 @@ export function TaskResult({
       setKpiId(d.task.kpi_id ?? "");
       setOutputType(d.task.output_type);
       setQuantity(d.task.delivered_quantity);
+      quantityEdited.current = false;
       setDeliveredOn(d.task.delivered_on ?? "");
       setResult(d.task.result_text);
       setChannelIds(d.task.channel_ids?.length ? d.task.channel_ids : d.task.channel_id ? [d.task.channel_id] : []);
@@ -310,12 +317,15 @@ export function TaskResult({
         status === "completed" &&
         (deliveredOn || today).slice(0, 7) !== selectedKpi.month && (
           <Notice tone="info">
-            Ngày sản lượng nằm ngoài tháng {monthLabel(selectedKpi.month)}. Kết
-            quả vẫn được lưu nhưng chưa cộng vào KPI của tháng này.
+            Ngày sản lượng nằm ngoài tháng {monthLabel(selectedKpi.month)}. Sản lượng vẫn tính cho KPI đã giao; ngày thực tế được giữ riêng để đối chiếu tiến độ.
           </Notice>
         )}
       <form className="account-form result-form" onSubmit={submit}>
         <fieldset disabled={!canReport || busy}>
+          {status === "completed" && quantity === 0 && <Notice tone="info">
+            Công việc đã hoàn thành nhưng sản lượng bằng 0, nên chưa đóng góp vào KPI. Nếu đã bàn giao đủ khối lượng, bạn có thể dùng số đã giao rồi lưu kết quả.
+            <button type="button" className="secondary-button" onClick={()=>{quantityEdited.current=true;setQuantity(task.planned_quantity);}}>Dùng khối lượng đã giao: {task.planned_quantity} {OUTPUT_TYPES[outputType].unit}</button>
+          </Notice>}
           <section className="task-kpi-fields">
             <h4>KPI & sản lượng thực tế</h4>
             <label>
@@ -348,7 +358,7 @@ export function TaskResult({
                   max={100000}
                   step={1}
                   value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  onChange={(e) => {quantityEdited.current = true; setQuantity(Number(e.target.value));}}
                 />
               </label>
             </div>
@@ -365,8 +375,7 @@ export function TaskResult({
             </label>
             <p className="result-hint">
               Dự kiến {task.planned_quantity} {OUTPUT_TYPES[outputType].unit}.
-              Chỉ sản lượng của việc đã hoàn thành trong đúng tháng KPI mới được
-              cộng; 0 nghĩa là chưa ghi nhận sản lượng. Để trống ngày khi hoàn
+              Sản lượng của việc đã hoàn thành được cộng vào tháng KPI đã gắn theo hạn. 0 nghĩa là không ghi nhận sản lượng. Tích hoàn thành mặc định lấy khối lượng dự kiến nếu bạn chưa nhập số thực tế. Để trống ngày khi hoàn
               thành sẽ lấy ngày hôm nay.
             </p>
           </section>
@@ -394,7 +403,7 @@ export function TaskResult({
             <select
               aria-label="Tiến độ báo cáo"
               value={status}
-              onChange={(e) => setStatus(e.target.value as Task["status"])}
+              onChange={(e) => changeStatus(e.target.value as Task["status"])}
             >
               {Object.entries(TASK_STATUSES).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -408,7 +417,7 @@ export function TaskResult({
               type="checkbox"
               checked={status === "completed"}
               onChange={(e) =>
-                setStatus(e.target.checked ? "completed" : "in_progress")
+                changeStatus(e.target.checked ? "completed" : "in_progress")
               }
             />
             Đã hoàn thành công việc

@@ -30,6 +30,7 @@ export interface Kpi {
   planned: number;
   task_count: number;
   completed_tasks: number;
+  zero_quantity_tasks?: number;
   outside_month: number;
 }
 export function currentMonth() {

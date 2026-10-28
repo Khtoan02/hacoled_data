@@ -46,7 +46,7 @@ Quyền được kiểm tra tại API. Chọn kênh hoặc liên kết KPI khôn
 | Nhật ký | actor, thời điểm, ảnh chụp giá trị | Giữ lịch sử chỉ tiêu và kết quả; tạm dừng không gỡ việc cũ khỏi KPI |
 | Lần import | UUID lần nhập, người nhập, hash nội dung, số dòng | Xác nhận lại cùng lần không tạo thêm dữ liệu; cùng UUID với nội dung khác bị từ chối |
 
-Không nhập sản lượng thực tế từ khối lượng dự kiến. Không cộng nhiều lần chỉ vì một người gửi lại báo cáo. Không cộng chung bài viết, video, ảnh thành một tỷ lệ hiệu suất tổng hợp chưa có trọng số được duyệt.
+Chưa hoàn thành thì khối lượng dự kiến không đóng góp KPI. Khi xác nhận hoàn thành nhanh mà chưa nhập sản lượng, mặc định ghi nhận khối lượng đã giao; số thực tế được nhập rõ (kể cả 0) được ưu tiên. Không cộng nhiều lần chỉ vì một người gửi lại báo cáo. Không cộng chung bài viết, video, ảnh thành một tỷ lệ hiệu suất tổng hợp chưa có trọng số được duyệt.
 
 ## 4. Use-case và tiêu chí nghiệm thu
 
@@ -122,7 +122,7 @@ Gửi lại số thực tế cập nhật một hàng hiện tại và thêm nh�
 
 ### UC12 — Đạt, vượt và lệch kỳ
 
-Ví dụ 22/20 bài = 110%, vượt 2 bài. Sản lượng ngoài tháng KPI hiện riêng, không cộng vào tháng được giao. **Nghiệm thu:** phần trăm không bị cắt ở 100%; thanh tiến độ có thể dừng ở 100% nhưng số vượt vẫn rõ. Đổi trạng thái chưa hoàn thành không làm tăng kết quả.
+Ví dụ 22/20 bài = 110%, vượt 2 bài. Sản lượng làm sớm/trễ hiện riêng và vẫn cộng vào tháng KPI đã giao; ngày sản lượng thực tế được giữ nguyên. **Nghiệm thu:** phần trăm không bị cắt ở 100%; thanh tiến độ có thể dừng ở 100% nhưng số vượt vẫn rõ. Đổi trạng thái chưa hoàn thành không làm tăng kết quả.
 
 ### UC13 — Công việc ngoài KPI
 
@@ -160,7 +160,7 @@ Mỗi con số có đường về KPI/công việc/kỳ. Dữ liệu hiện tạ
 
 | Chỉ số | Tử số / tập dữ liệu | Mẫu số / giới hạn |
 |---|---|---|
-| Sản lượng KPI tháng | SUM delivered_quantity của việc hiện tại đã completed, khớp KPI/người/kênh chính/loại, delivered_on trong tháng KPI | target nguyên dương; không SUM bảng lịch sử |
+| Sản lượng KPI tháng | SUM delivered_quantity của việc hiện tại đã completed, khớp KPI/người/kênh chính/loại; kỳ ghi nhận là tháng KPI được giao, không lọc theo delivered_on | target nguyên dương; không SUM bảng lịch sử |
 | % đạt KPI | sản lượng KPI / target × 100 | không cộng các đơn vị khác loại; không cắt phần vượt |
 | Công việc đến hạn | due_at theo ngày Việt Nam trong tháng chọn | không đồng nhất với việc được tạo hoặc hoàn thành trong tháng |
 | Tỷ lệ hoàn thành nhóm đến hạn | số việc trong nhóm đến hạn có trạng thái completed hiện tại | tổng việc trong nhóm đến hạn; không có nhóm trả N/A |
@@ -190,3 +190,12 @@ Khi kết nối API, thêm thực thể publication có platform_post_id duy nh�
 
 
 Cập nhật luồng công việc: KPI được tự đối chiếu theo người × kênh chính (kênh đầu tiên) × loại sản phẩm × tháng của hạn hoàn thành, theo múi giờ Việt Nam. Biểu mẫu hiển thị chỉ tiêu chỉ đọc, không cần tích hoặc chọn tháng. Tạo/sửa công việc có hạn được server đối chiếu lại; không tự cập nhật hàng loạt việc cũ nếu chưa lưu sửa. Nếu chưa có hạn hoặc chỉ tiêu phù hợp, biểu mẫu ghi rõ ngoài KPI. Mẫu CSV mới bỏ `thang_kpi` và `do_uu_tien`; file cũ vẫn nhận, nhưng tháng KPI cũ khác hạn hoàn thành sẽ báo lỗi. Độ ưu tiên được bỏ khỏi giao diện công việc; dữ liệu cũ vẫn giữ. Bảng, Kanban và to-do đều xếp hạn tăng dần, việc chưa có hạn xuống cuối trong từng nhóm trạng thái.
+
+### Nghiệm thu hoàn thành và ghi nhận KPI
+
+- Tích hoàn thành từ to-do, chuyển Kanban, sửa trạng thái, tạo/import việc đã hoàn thành: nếu không nhập sản lượng riêng, lấy khối lượng đã giao. Đã có số thực tế dương thì giữ số đó; không tự tăng khi gửi lại.
+- Báo cáo chi tiết tự điền khối lượng khi chuyển sang hoàn thành nếu người dùng chưa sửa số. Nhập rõ 0 nghĩa là không có sản lượng; cập nhật lại việc đã hoàn thành không tự đổi 0 thành số dự kiến.
+- Mở lại việc loại sản lượng khỏi KPI; hoàn thành lại lấy số hiện tại, không cộng dồn lịch sử. Sửa báo cáo thay số cũ.
+- Giao KPI tháng 11, hoàn thành thực tế tháng 10 hoặc tháng 12: đều tính vào mục tiêu tháng 11 đã giao. Báo cáo sản lượng thực tế tháng 10/12 vẫn dùng ngày thực tế; các tập dữ liệu có mục đích khác nhau.
+- Việc cũ hoàn thành với số 0 được cảnh báo trên thẻ KPI và biểu mẫu kết quả. Nút dùng khối lượng đã giao cần người dùng xác nhận bằng thao tác lưu; không sửa hàng loạt số liệu cũ.
+- Kiểm thử `completion-kpi.spec.ts` tái hiện UI to-do, UI báo cáo nhân viên, API tạo/sửa, import/retry, sửa sản lượng, 0 tường minh, mở lại và hoàn thành sớm khác tháng.
