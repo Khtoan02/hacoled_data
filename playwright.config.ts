@@ -23,6 +23,7 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         DATABASE_URL: "postgresql://test:test@ep-hacoled-test.neon.tech/test",
+        LOCAL_AUTH_BYPASS: "false",
         ADMIN_SETUP_TOKEN: "isolated-test-setup-token",
         SOCIAL_CREDENTIALS_KEY: "11".repeat(32),
       },

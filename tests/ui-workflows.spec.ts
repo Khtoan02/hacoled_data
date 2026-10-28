@@ -48,8 +48,11 @@ test("polished table, kanban, todo, team and profile share real data and preserv
     .getByLabel("Tên công việc", { exact: true })
     .fill("Hoàn thiện nội dung HacoLED");
   await dialog
-    .getByLabel("Mô tả", { exact: true })
+    .getByLabel("Mô tả chung (nếu cần)", { exact: true })
     .fill("Kiểm tra thông điệp, thiết kế và bàn giao nội dung cho chiến dịch.");
+  await dialog
+    .getByLabel(/^Ghi chú công việc/)
+    .fill("Kiểm tra thông điệp và bàn giao nội dung.");
   await dialog.getByLabel("Độ ưu tiên công việc").selectOption("high");
   await dialog.getByLabel("Hạn hoàn thành", { exact: true }).fill("2020-01-15");
   await dialog.getByLabel("Thêm mục checklist").fill("Kiểm tra nội dung");
@@ -158,7 +161,7 @@ test("polished table, kanban, todo, team and profile share real data and preserv
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page
-    .getByRole("button", { name: "Thành viên & Phân quyền", exact: true })
+    .getByRole("button", { name: "Thành viên & quyền truy cập", exact: true })
     .click();
   await expect(
     page.getByText("Đang tải thành viên…", { exact: true }),
@@ -228,7 +231,10 @@ test("polished table, kanban, todo, team and profile share real data and preserv
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Hiệu quả vận hành", exact: true }),
+    page.getByRole("heading", {
+      name: "Đánh giá vận hành theo tháng",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator(".bar-chart .recharts-wrapper")).toBeVisible();
   await expect(

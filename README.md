@@ -52,3 +52,13 @@ Người được giao việc có thể mở **Kết quả & tiến độ**, nh�
 Quản lý kênh tại `/admin/channels`: nền tảng, tên kênh, link, định danh và ghi chú; Leader/Giám đốc lưu tài khoản đăng nhập được mã hóa, cấp quyền xem theo từng kênh và lưu trữ kênh cũ. Người được giao việc có thể chọn kênh khi báo cáo; danh sách công việc lọc được theo kênh. Xem phần Social channel trong `db/README.md` để cấu hình `SOCIAL_CREDENTIALS_KEY` trên Vercel trước khi dùng tính năng lưu mật khẩu.
 
 Trang `/admin/kpis` quản lý **KPI sản lượng theo người × kênh × loại sản phẩm × tháng**. Leader/Giám đốc giao chỉ tiêu; thành viên lập việc cho mình, chọn KPI và báo cáo số lượng/ngày sản lượng thực tế. Tiến độ cộng từ việc đã hoàn thành, không cộng trùng khi gửi lại báo cáo; hiển thị số còn thiếu, đạt/vượt và sản lượng ngoài tháng. Công việc ngoài KPI được theo dõi riêng. Đây là đánh giá số lượng tự báo cáo; chưa thay thế duyệt chất lượng hoặc chấm hiệu suất có trọng số.
+
+## Import kế hoạch và đánh giá vận hành theo tháng
+
+Giai đoạn hiện tại tập trung **sản lượng nội dung**; lead, doanh thu và số liệu API social để giai đoạn sau. Xem [20 use-case, mô hình dữ liệu và công thức đánh giá](docs/OPERATIONS_USE_CASES.md).
+
+- `/admin/kpis` → **Import KPI**: tải mẫu CSV và danh mục nhân sự/kênh để đưa cho AI; tải CSV/TSV/JSON hoặc dán bảng, xem trước từng dòng rồi xác nhận. Tối đa 500 dòng/lần, đối chiếu email, kênh, tháng và loại sản phẩm. Chế độ cập nhật chỉ tiêu hiện có là lựa chọn riêng; dòng lỗi không được lưu một phần. Excel cần xuất CSV hoặc sao chép bảng TSV, chưa nhận trực tiếp XLSX.
+- `/admin/tasks` → import kế hoạch: cột `thang_kpi` nối đúng chỉ tiêu của người/kênh/loại sản phẩm; bỏ trống là việc ngoài KPI. Xem trước trước khi lưu; gửi lại cùng mã import không tạo thêm việc. Nhiều kênh vẫn chỉ ghi sản lượng một lần vào KPI của kênh chính.
+- Tổng quan và `/admin/performance`: chọn tháng, theo dõi việc đến hạn/hoàn thành/đúng hạn/quá hạn, KPI đạt/vượt, việc phát sinh, so sánh sản lượng từng loại với tháng trước, xu hướng 6 tháng và chi tiết theo người/tuyến nội dung/định dạng/từ khóa. Thiếu mẫu số hiển thị chưa đủ dữ liệu.
+
+Chạy migration `010-kpi-imports.sql` bằng `npm run db:migrate` trước khi dùng import (Vercel Production prebuild tự chạy các migration). Tạm dừng KPI giữ liên kết công việc và lịch sử. Báo cáo tháng tính từ trạng thái hiện tại, còn thay đổi nếu sửa/mở lại/xóa việc; chưa phải kỳ đã khóa hay chấm năng lực/chất lượng.

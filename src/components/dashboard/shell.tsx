@@ -56,6 +56,13 @@ export const workspaceItems = [
     group: "",
   },
   {
+    id: "performance",
+    label: "Đánh giá theo tháng",
+    icon: BarChart3,
+    href: "/admin/performance",
+    group: "",
+  },
+  {
     id: "solutions_proof",
     label: "Giải pháp & bằng chứng",
     icon: BookOpen,
@@ -286,7 +293,12 @@ export function DashboardShell({
   }, [mobileOpen]);
   const allowed = (id: string) => {
     if (id === "profile") return true;
-    if (id === "tasks" || id === "channels" || id === "kpis")
+    if (
+      id === "tasks" ||
+      id === "channels" ||
+      id === "kpis" ||
+      id === "performance"
+    )
       return policy.taskScope !== "none";
     return isFullAccess(member.role);
   };
@@ -307,11 +319,8 @@ export function DashboardShell({
       setLogoutError("Chưa đăng xuất được. Vui lòng thử lại.");
     }
   }
-  const searchResults = workspaceItems.filter(
-    (item) =>
-      item.label
-        .toLocaleLowerCase("vi")
-        .includes(search.toLocaleLowerCase("vi")),
+  const searchResults = workspaceItems.filter((item) =>
+    item.label.toLocaleLowerCase("vi").includes(search.toLocaleLowerCase("vi")),
   );
   return (
     <div className={`dashboard-app ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -432,9 +441,7 @@ export function DashboardShell({
                         allowed(item.id) &&
                         go(item.id, item.href)
                       }
-                      disabled={
-                        item.available === false || !allowed(item.id)
-                      }
+                      disabled={item.available === false || !allowed(item.id)}
                       className={
                         item.available === false || !allowed(item.id)
                           ? "is-disabled"

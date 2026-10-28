@@ -117,9 +117,11 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
   await page
     .getByLabel("Nhân sự nhận KPI", { exact: true })
     .selectOption(staff.id);
+  await page.getByLabel("Kênh được giao KPI", { exact: true }).click();
   await page
-    .getByLabel("Kênh được giao KPI", { exact: true })
-    .selectOption(channelId);
+    .getByRole("option")
+    .filter({ hasText: "HacoLED KPI Facebook" })
+    .click();
   await page.getByLabel("Chỉ tiêu KPI", { exact: true }).fill("20");
   await page
     .getByLabel("Ghi chú KPI", { exact: true })
@@ -349,7 +351,8 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
   ).reports;
   expect(reportHistory[0].kpi_id).toBe(first.id);
   expect(reportHistory[0].delivered_quantity).toBe(22);
-  await page.getByLabel("Lọc kênh KPI").selectOption("all");
+  await page.getByLabel("Lọc kênh KPI").click();
+  await page.getByRole("option", { name: "Mọi kênh", exact: true }).click();
   await page.getByRole("button", { name: "Làm mới", exact: true }).click();
   await expect(page.getByText("110%", { exact: true })).toBeVisible();
   await expect(page.getByText("100%", { exact: true })).toBeVisible();
@@ -382,7 +385,7 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
   ).toHaveCount(0);
   const firstCard = staffPage.locator(".kpi-card").filter({
     has: staffPage.getByRole("heading", {
-      name: "Bài viết · HacoLED KPI Facebook",
+      name: "Bài viết",
       exact: true,
     }),
   });
@@ -395,6 +398,8 @@ test("monthly KPIs reconcile quantities once, enforce scope and show extra work"
     .getByLabel("Tên công việc", { exact: true })
     .fill("Bài bổ sung sau khi vượt KPI");
   await staffPage.getByLabel("Khối lượng dự kiến").fill("2");
+  await staffPage.getByLabel(/^Tuyến nội dung/).fill("Dự án LED");
+  await staffPage.getByLabel(/^Định dạng nội dung/).fill("Bài ảnh");
   await staffPage
     .getByRole("button", { name: "Giao công việc", exact: true })
     .click();

@@ -33,6 +33,7 @@ import {
   Pagination,
   Panel,
 } from "./ui";
+import { KpiImport } from "./kpi-import";
 import { ChannelIdentity, ChannelSelect } from "./channel-picker";
 type Extra = {
   id: string;
@@ -73,6 +74,7 @@ export function KpisPage() {
     [channel, setChannel] = useState(params.get("channel") || "all"),
     [includePaused, setIncludePaused] = useState(false),
     [page, setPage] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null),
     [baseline, setBaseline] = useState("");
   const load = useCallback(async () => {
@@ -186,17 +188,25 @@ export function KpisPage() {
     }
   }
   async function remove(kpi: Kpi) {
-    if (busy || !window.confirm(`Xóa KPI ${OUTPUT_TYPES[kpi.output_type].label} của ${kpi.assignee_name}? Các công việc liên quan sẽ chuyển thành ngoài KPI.`)) return;
+    if (
+      busy ||
+      !window.confirm(
+        `Tạm dừng KPI ${OUTPUT_TYPES[kpi.output_type].label} của ${kpi.assignee_name}? Giữ nguyên công việc, sản lượng và lịch sử để đối chiếu.`,
+      )
+    )
+      return;
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(`/api/kpis?id=${encodeURIComponent(kpi.id)}`, { method: "DELETE" });
+      const r = await fetch(`/api/kpis?id=${encodeURIComponent(kpi.id)}`, {
+        method: "DELETE",
+      });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       await load();
-      setMessage("Đã xóa KPI. Công việc cũ được giữ lại và chuyển thành ngoài KPI.");
+      setMessage("Đã tạm dừng KPI. Công việc và lịch sử vẫn được giữ nguyên.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chưa xóa được KPI.");
+      setError(e instanceof Error ? e.message : "Chưa tạm dừng được KPI.");
     } finally {
       setBusy(false);
     }
@@ -228,14 +238,23 @@ export function KpisPage() {
       description="Theo dõi chỉ tiêu, sản lượng hoàn thành và công việc ngoài KPI theo từng tháng."
       actions={
         full ? (
-          <button
-            className="primary-button"
-            disabled={loading}
-            onClick={() => edit()}
-          >
-            <Plus size={17} />
-            Giao KPI
-          </button>
+          <div className="task-page-actions">
+            <button
+              className="secondary-button"
+              disabled={loading}
+              onClick={() => setImportOpen(true)}
+            >
+              Import KPI
+            </button>
+            <button
+              className="primary-button"
+              disabled={loading}
+              onClick={() => edit()}
+            >
+              <Plus size={17} />
+              Giao KPI
+            </button>
+          </div>
         ) : (
           <Link className="primary-button" href="/admin/tasks?create=1">
             <Plus size={17} />
@@ -382,9 +401,7 @@ export function KpisPage() {
                     <article key={k.id} className="kpi-card">
                       <div className="kpi-card-head">
                         <div>
-                          <h3>
-                            {OUTPUT_TYPES[k.output_type].label}
-                          </h3>
+                          <h3>{OUTPUT_TYPES[k.output_type].label}</h3>
                           {channelEntry ? (
                             <ChannelIdentity channel={channelEntry} compact />
                           ) : (
@@ -459,10 +476,19 @@ export function KpisPage() {
                         )}
                         {full && (
                           <>
-                            <button className="icon-button" aria-label={`Sửa KPI ${k.channel_name} ${k.assignee_name}`} onClick={() => edit(k)}>
+                            <button
+                              className="icon-button"
+                              aria-label={`Sửa KPI ${k.channel_name} ${k.assignee_name}`}
+                              onClick={() => edit(k)}
+                            >
                               <Target size={16} />
                             </button>
-                            <button className="icon-button danger" aria-label={`Xóa KPI ${k.channel_name} ${k.assignee_name}`} disabled={busy} onClick={() => void remove(k)}>
+                            <button
+                              className="icon-button danger"
+                              aria-label={`Tạm dừng KPI ${k.channel_name} ${k.assignee_name}`}
+                              disabled={busy}
+                              onClick={() => void remove(k)}
+                            >
                               <Trash2 size={16} />
                             </button>
                           </>
@@ -554,6 +580,18 @@ export function KpisPage() {
             lượng hoàn thành.
           </p>
         </>
+      )}
+      {importOpen && (
+        <KpiImport
+          members={members}
+          channels={channels}
+          onClose={() => setImportOpen(false)}
+          onDone={(text) => {
+            setImportOpen(false);
+            void load();
+            setMessage(text);
+          }}
+        />
       )}
       {draft && (
         <Drawer

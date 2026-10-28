@@ -62,30 +62,14 @@ import {
   PriorityBadge,
   StatusBadge,
 } from "./ui";
-import { ChannelIdentity, ChannelMultiSelect, ChannelSelect } from "./channel-picker";
+import {
+  ChannelIdentity,
+  ChannelMultiSelect,
+  ChannelSelect,
+} from "./channel-picker";
+import { TaskImport } from "./task-import";
 import { TaskBriefFields, TaskBriefSummary } from "./task-brief";
 const pageSize = 10;
-function parseCsv(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [], cell = "", quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (char === '"') {
-      if (quoted && text[i + 1] === '"') { cell += '"'; i++; }
-      else quoted = !quoted;
-    } else if (char === "," && !quoted) { row.push(cell.trim()); cell = ""; }
-    else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && text[i + 1] === "\n") i++;
-      row.push(cell.trim()); cell = "";
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-    } else cell += char;
-  }
-  if (cell || row.length) { row.push(cell.trim()); rows.push(row); }
-  if (!rows.length) return [];
-  const headers = rows[0].map((value) => value.replace(/^\uFEFF/, ""));
-  return rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
-}
 type Draft = {
   kpi_id: string;
   output_type: OutputType;
@@ -116,7 +100,9 @@ export function TasksPage() {
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"),
-    [assigneeFilter, setAssigneeFilter] = useState("all"),
+    [assigneeFilter, setAssigneeFilter] = useState(
+      params.get("assignee") || "all",
+    ),
     [priorityFilter, setPriorityFilter] = useState("all"),
     [dueFilter, setDueFilter] = useState("all"),
     [page, setPage] = useState(1);
@@ -139,7 +125,7 @@ export function TasksPage() {
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [kpiFilter, setKpiFilter] = useState(params.get("kpi") || "all");
   const consumed = useRef("");
-  const importInput = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [channels, setChannels] = useState<SocialChannel[]>([]);
   const [channelFilter, setChannelFilter] = useState("all");
   const [reportDirty, setReportDirty] = useState(false);
@@ -227,19 +213,6 @@ export function TasksPage() {
       setBusy(false);
     }
   }
-  async function importPlan(file: File) {
-    if (busy) return;
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const rows = parseCsv(await file.text());
-      const r = await fetch("/api/tasks/import", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ rows }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(Array.isArray(d.errors) ? d.errors.join("\n") : d.error);
-      await load(true);
-      setNotice(`Đã nhập ${d.imported} công việc từ file kế hoạch.`);
-    } catch (e) { setError(e instanceof Error ? e.message : "Chưa nhập được file kế hoạch."); }
-    finally { setBusy(false); if (importInput.current) importInput.current.value = ""; }
-  }
   function open(task: Task | "new", status: TaskStatus = "pending") {
     setError("");
     setNewItem("");
@@ -278,7 +251,11 @@ export function TasksPage() {
             kpi_id: task.kpi_id ?? "",
             output_type: task.output_type,
             planned_quantity: task.planned_quantity,
-            channel_ids: task.channel_ids?.length ? task.channel_ids : task.channel_id ? [task.channel_id] : [],
+            channel_ids: task.channel_ids?.length
+              ? task.channel_ids
+              : task.channel_id
+                ? [task.channel_id]
+                : [],
             title: task.title,
             description: task.description,
             brief: task.brief || {},
@@ -292,6 +269,7 @@ export function TasksPage() {
   }
   useEffect(() => {
     setKpiFilter(params.get("kpi") || "all");
+    setAssigneeFilter(params.get("assignee") || "all");
   }, [params]);
   useEffect(() => {
     if (loading) return;
@@ -428,7 +406,10 @@ export function TasksPage() {
     const done = task.checklist.filter((item) => item.done).length;
     const taskChannels = task.channels?.length
       ? task.channels
-      : channels.filter((item) => task.channel_ids?.includes(item.id) || item.id === task.channel_id);
+      : channels.filter(
+          (item) =>
+            task.channel_ids?.includes(item.id) || item.id === task.channel_id,
+        );
     return (
       <article
         key={task.id}
@@ -451,7 +432,9 @@ export function TasksPage() {
         </button>
         {taskChannels.length ? (
           <div className="task-channel-stack">
-            {taskChannels.map((channel) => <ChannelIdentity key={channel.id} channel={channel} compact />)}
+            {taskChannels.map((channel) => (
+              <ChannelIdentity key={channel.id} channel={channel} compact />
+            ))}
           </div>
         ) : task.channel_name ? (
           <p className="task-channel-label">{task.channel_name}</p>
@@ -495,11 +478,24 @@ export function TasksPage() {
           <Link className="secondary-button" href="/admin/kpis">
             Theo dõi KPI
           </Link>
-          {full && <a className="secondary-button" href="/api/tasks/import"><Download size={16}/>Tải file mẫu</a>}
-          {full && <>
-            <input ref={importInput} type="file" accept=".csv,text/csv" hidden onChange={(e) => { const file=e.target.files?.[0]; if (file) void importPlan(file); }} />
-            <button className="secondary-button" disabled={busy} onClick={() => importInput.current?.click()}><Upload size={16}/>Import kế hoạch</button>
-          </>}
+          {full && (
+            <a className="secondary-button" href="/api/tasks/import">
+              <Download size={16} />
+              Tải file mẫu
+            </a>
+          )}
+          {full && (
+            <>
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload size={16} />
+                Import kế hoạch
+              </button>
+            </>
+          )}
           <button className="primary-button" onClick={() => open("new")}>
             <Plus size={17} />
             Tạo công việc
@@ -832,7 +828,13 @@ export function TasksPage() {
                         </small>
                         {t.channels?.length ? (
                           <div className="task-channel-stack">
-                            {t.channels.map((channel) => <ChannelIdentity key={channel.id} channel={channel} compact />)}
+                            {t.channels.map((channel) => (
+                              <ChannelIdentity
+                                key={channel.id}
+                                channel={channel}
+                                compact
+                              />
+                            ))}
                           </div>
                         ) : t.channel_name ? (
                           <small className="task-channel-label">
@@ -890,6 +892,18 @@ export function TasksPage() {
           </>
         )}
       </Panel>
+      {importOpen && (
+        <TaskImport
+          onClose={() => setImportOpen(false)}
+          onDone={(count) => {
+            setImportOpen(false);
+            void load();
+            setNotice(
+              `Đã nhập ${count} công việc. KPI liên quan được giữ liên kết.`,
+            );
+          }}
+        />
+      )}
       {opened && (
         <Drawer
           title={
@@ -964,7 +978,11 @@ export function TasksPage() {
                   kpi_id: updated.kpi_id ?? "",
                   output_type: updated.output_type,
                   planned_quantity: updated.planned_quantity,
-                  channel_ids: updated.channel_ids?.length ? updated.channel_ids : updated.channel_id ? [updated.channel_id] : [],
+                  channel_ids: updated.channel_ids?.length
+                    ? updated.channel_ids
+                    : updated.channel_id
+                      ? [updated.channel_id]
+                      : [],
                   status: updated.status,
                   checklist: updated.checklist,
                 }));
@@ -1028,7 +1046,12 @@ export function TasksPage() {
                         kpi_id: e.target.value,
                         ...(k
                           ? {
-                              channel_ids: [k.channel_id, ...draft.channel_ids.filter((id) => id !== k.channel_id)],
+                              channel_ids: [
+                                k.channel_id,
+                                ...draft.channel_ids.filter(
+                                  (id) => id !== k.channel_id,
+                                ),
+                              ],
                               output_type: k.output_type,
                             }
                           : {}),
@@ -1109,7 +1132,14 @@ export function TasksPage() {
                   onChange={(values) =>
                     setDraft({
                       ...draft,
-                      kpi_id: draft.kpi_id && !values.includes(kpis.find((k) => k.id === draft.kpi_id)?.channel_id || "") ? "" : draft.kpi_id,
+                      kpi_id:
+                        draft.kpi_id &&
+                        !values.includes(
+                          kpis.find((k) => k.id === draft.kpi_id)?.channel_id ||
+                            "",
+                        )
+                          ? ""
+                          : draft.kpi_id,
                       channel_ids: values,
                     })
                   }
@@ -1118,7 +1148,9 @@ export function TasksPage() {
               <TaskBriefFields
                 brief={draft.brief}
                 outputType={draft.output_type}
-                selectedChannels={channels.filter((channel) => draft.channel_ids.includes(channel.id))}
+                selectedChannels={channels.filter((channel) =>
+                  draft.channel_ids.includes(channel.id),
+                )}
                 onChange={(brief) => setDraft({ ...draft, brief })}
               />
               <label>
@@ -1327,7 +1359,12 @@ export function TasksPage() {
                   {opened.channels?.length ? (
                     <div className="task-channel-stack">
                       {opened.channels.map((channel) => (
-                        <a key={channel.id} href={channel.url} target="_blank" rel="noopener noreferrer">
+                        <a
+                          key={channel.id}
+                          href={channel.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           <ChannelIdentity channel={channel} compact />
                         </a>
                       ))}

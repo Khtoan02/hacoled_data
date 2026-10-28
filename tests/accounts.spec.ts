@@ -47,7 +47,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     .click();
   await expect(page).toHaveURL(/\/admin/, { timeout: 20000 });
   await expect(
-    page.getByRole("heading", { name: "Tổng quan Marketing" }),
+    page.getByRole("heading", { name: "Tổng quan vận hành" }),
   ).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await page.mouse.move(1000, 40);
@@ -67,10 +67,13 @@ test("accounts, server permissions, session revocation and responsive dashboard"
     true,
   );
   await page
-    .getByRole("button", { name: "Thành viên & Phân quyền", exact: true })
+    .getByRole("button", { name: "Thành viên & quyền truy cập", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Thành viên & Phân quyền", exact: true }),
+    page.getByRole("heading", {
+      name: "Thành viên & quyền truy cập",
+      exact: true,
+    }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Thêm thành viên", exact: true })
@@ -107,7 +110,7 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await visitor.getByLabel("Mật khẩu", { exact: true }).fill(password);
   await visitor.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(
-    visitor.getByRole("heading", { name: "Tổng quan Marketing" }),
+    visitor.getByRole("heading", { name: "Tổng quan vận hành" }),
   ).toBeVisible();
   await visitorContext.close();
   const api = page.request;
@@ -269,7 +272,10 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Thành viên & Phân quyền", exact: true }),
+    page.getByRole("heading", {
+      name: "Thành viên & quyền truy cập",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -291,9 +297,9 @@ test("accounts, server permissions, session revocation and responsive dashboard"
   await page.keyboard.press("Escape");
   await expect(menu).toBeFocused();
   await menu.click();
-  await page.getByRole("button", { name: "Tổng quan", exact: true }).click();
+  await page.getByRole("button", { name: "Tổng quan vận hành", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Tổng quan Marketing" }),
+    page.getByRole("heading", { name: "Tổng quan vận hành" }),
   ).toBeVisible();
   await page.screenshot({
     path: ".impeccable/review/mobile.png",

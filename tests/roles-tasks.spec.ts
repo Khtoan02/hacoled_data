@@ -208,6 +208,9 @@ test("six roles enforce task ownership, marketing team visibility and director a
     .getByLabel("Người thực hiện", { exact: true })
     .selectOption(leader.id);
   await page
+    .getByLabel(/^Ghi chú công việc/)
+    .fill("Lập kế hoạch marketing và kết quả bàn giao.");
+  await page
     .getByRole("button", { name: "Giao công việc", exact: true })
     .click();
   await expect(

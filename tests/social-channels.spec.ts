@@ -87,9 +87,6 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
     .getByLabel("Ghi chú kênh", { exact: true })
     .fill("Kênh thương hiệu, nội dung dự án và giải pháp màn hình LED.");
   await page
-    .getByLabel("Nhập hoặc thay thế tài khoản/mật khẩu", { exact: true })
-    .check();
-  await page
     .getByLabel("Tài khoản đăng nhập", { exact: true })
     .fill("synthetic-social@example.test");
   await page
@@ -231,7 +228,16 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
       exact: true,
     })
     .click();
-  await staffPage.getByLabel("Kênh báo cáo").selectOption(secondId);
+  await staffPage.getByLabel("Kênh báo cáo").click();
+  await staffPage
+    .getByRole("option")
+    .filter({ hasText: "HacoLED Việt Nam" })
+    .click();
+  await staffPage
+    .getByRole("option")
+    .filter({ hasText: "HacoLED Video" })
+    .click();
+  await staffPage.getByLabel("Kênh báo cáo").click();
   await staffPage
     .getByLabel("Kết quả thực hiện", { exact: true })
     .fill("Đã chuẩn bị nội dung video cho YouTube.");
@@ -245,6 +251,7 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
   ).toBeVisible();
   task = (await (await admin.get(`/api/tasks?id=${taskId}`)).json()).tasks[0];
   expect(task.channel_id).toBe(secondId);
+  expect(task.channel_ids).toEqual([secondId]);
   const history = (
     await (await admin.get(`/api/tasks/report?id=${taskId}`)).json()
   ).reports;
@@ -252,7 +259,11 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
   await staffPage
     .getByRole("button", { name: "Đóng chi tiết", exact: true })
     .click();
-  await staffPage.getByLabel("Lọc kênh công việc").selectOption(id);
+  await staffPage.getByLabel("Lọc kênh công việc").click();
+  await staffPage
+    .getByRole("option")
+    .filter({ hasText: "HacoLED Việt Nam" })
+    .click();
   await expect(
     staffPage.getByRole("heading", {
       name: "Không có công việc phù hợp",
@@ -261,13 +272,11 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
   ).toBeVisible();
   await page.getByRole("button", { name: "Làm mới", exact: true }).click();
   await expect(
-    page
-      .locator(".social-card")
-      .filter({
-        has: page.getByRole("heading", {
-          name: /^(HacoLED Việt Nam|HacoLED Video)$/,
-        }),
+    page.locator(".social-card").filter({
+      has: page.getByRole("heading", {
+        name: /^(HacoLED Việt Nam|HacoLED Video)$/,
       }),
+    }),
   ).toHaveCount(2);
   await page.screenshot({
     path: ".impeccable/review/social-channels-desktop.png",

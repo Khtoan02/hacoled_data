@@ -248,6 +248,10 @@ export function TaskResult({
       setQuantity(d.task.delivered_quantity);
       setDeliveredOn(d.task.delivered_on ?? "");
       setResult(d.task.result_text);
+      setChannelIds(d.task.channel_ids?.length ? d.task.channel_ids : d.task.channel_id ? [d.task.channel_id] : []);
+      setStatus(d.task.status);
+      setLinks(d.task.evidence_links);
+      setChecklist(d.task.checklist);
       onSaved({ ...task, ...d.task });
       setMessage("Đã lưu kết quả và tiến độ công việc.");
     } catch (e) {
