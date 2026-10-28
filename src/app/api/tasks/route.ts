@@ -291,11 +291,16 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     checkOrigin(req);
-    await requireManager();
+    const actor = await requireManager();
     const id = req.nextUrl.searchParams.get("id");
     if (!isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
-    const rows =
-      await database()`DELETE FROM app_tasks WHERE id = ${id} RETURNING id`;
+    const sql = database();
+    const result = await sql.transaction([
+      sql`SELECT id FROM app_tasks WHERE id=${id} FOR UPDATE`,
+      sql`INSERT INTO app_deletion_audit(id,entity_type,entity_id,actor_id,snapshot) SELECT ${randomUUID()},'task',t.id,${actor.id},jsonb_build_object('task',to_jsonb(t),'channels',COALESCE((SELECT jsonb_agg(channel_id) FROM app_task_channels WHERE task_id=t.id),'[]'::jsonb)) FROM app_tasks t WHERE t.id=${id}`,
+      sql`DELETE FROM app_tasks WHERE id=${id} RETURNING id`,
+    ]);
+    const rows = result[2];
     if (!rows.length) throw new RequestError("Không tìm thấy công việc.", 404);
     return NextResponse.json({ ok: true });
   } catch (error) {

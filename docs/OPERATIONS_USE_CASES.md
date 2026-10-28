@@ -130,7 +130,7 @@ Nhân sự ghi nhận hỗ trợ/phát sinh cho mình; không chọn KPI. **Nghi
 
 ### UC14 — Tạm dừng/khôi phục KPI
 
-Leader/Giám đốc tạm dừng một KPI. **Nghiệm thu:** giữ liên kết, target history, kết quả và audit. Không gắn việc mới vào KPI tạm dừng; việc cũ vẫn đọc/báo cáo theo quy tắc hiện có. Xem KPI tạm dừng bằng bộ lọc và khôi phục qua chỉnh sửa. API DELETE được giữ để tương thích nhưng thực hiện tạm dừng, không xóa vật lý.
+Leader/Giám đốc tạm dừng một KPI. **Nghiệm thu:** giữ liên kết, target history, kết quả và audit. Không gắn việc mới vào KPI tạm dừng; việc cũ vẫn đọc/báo cáo theo quy tắc hiện có. Xem KPI tạm dừng bằng bộ lọc và khôi phục qua chỉnh sửa. Tạm dừng dùng PATCH active=false. DELETE thực hiện xóa chỉ tiêu và chuyển công việc liên kết ra ngoài KPI, giữ ảnh chụp nhật ký.
 
 ### UC15 — Tổng quan theo tháng
 
@@ -199,3 +199,11 @@ Cập nhật luồng công việc: KPI được tự đối chiếu theo ngườ
 - Giao KPI tháng 11, hoàn thành thực tế tháng 10 hoặc tháng 12: đều tính vào mục tiêu tháng 11 đã giao. Báo cáo sản lượng thực tế tháng 10/12 vẫn dùng ngày thực tế; các tập dữ liệu có mục đích khác nhau.
 - Việc cũ hoàn thành với số 0 được cảnh báo trên thẻ KPI và biểu mẫu kết quả. Nút dùng khối lượng đã giao cần người dùng xác nhận bằng thao tác lưu; không sửa hàng loạt số liệu cũ.
 - Kiểm thử `completion-kpi.spec.ts` tái hiện UI to-do, UI báo cáo nhân viên, API tạo/sửa, import/retry, sửa sản lượng, 0 tường minh, mở lại và hoàn thành sớm khác tháng.
+
+### Xóa KPI/công việc tạo lỗi
+
+Leader Marketing và Giám đốc có quyền xóa; Trưởng phòng, nhân viên, thực tập và kinh doanh không có quyền này. Nút xóa có ở thẻ KPI, bảng/Kanban/to-do và chi tiết công việc; hủy xác nhận không ghi dữ liệu.
+
+Xóa KPI thực hiện trong một transaction: khóa phiên bản chỉ tiêu, lưu snapshot chỉ tiêu và lịch sử điều chỉnh vào `app_deletion_audit`, gỡ liên kết KPI trên công việc và tăng report_version, sau đó xóa chỉ tiêu. Công việc, sản lượng thực tế, ngày và lịch sử báo cáo còn nguyên; có thể tạo lại chỉ tiêu đúng cùng khóa người/kênh/tháng/loại với UUID mới. Tạm dừng/khôi phục vẫn có qua phần chỉnh sửa.
+
+Xóa công việc lưu snapshot và danh sách kênh vào nhật ký trước khi xóa. Sản lượng hiện tại của việc đó không còn đóng góp KPI; lịch sử báo cáo cũ vẫn giữ. Chưa có luồng khôi phục từ giao diện. Migration `011-deletion-audit.sql` tạo bảng nhật ký, không tự xóa bất kỳ dữ liệu sẵn có nào.

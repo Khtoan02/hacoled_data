@@ -206,22 +206,22 @@ export function KpisPage() {
     if (
       busy ||
       !window.confirm(
-        `Tạm dừng KPI ${OUTPUT_TYPES[kpi.output_type].label} của ${kpi.assignee_name}? Giữ nguyên công việc, sản lượng và lịch sử để đối chiếu.`,
+        `Xóa KPI ${OUTPUT_TYPES[kpi.output_type].label} của ${kpi.assignee_name} (${monthLabel(kpi.month)} · ${kpi.channel_name} ${channels.find(c=>c.id===kpi.channel_id)?.handle ?? ""})? ${kpi.task_count} công việc liên kết sẽ được giữ lại và chuyển thành ngoài KPI. Chỉ tiêu sẽ bị xóa khỏi danh sách; không thể khôi phục từ giao diện.`,
       )
     )
       return;
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(`/api/kpis?id=${encodeURIComponent(kpi.id)}`, {
+      const r = await fetch(`/api/kpis?id=${encodeURIComponent(kpi.id)}&version=${kpi.version}`, {
         method: "DELETE",
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       await load();
-      setMessage("Đã tạm dừng KPI. Công việc và lịch sử vẫn được giữ nguyên.");
+      setMessage(`Đã xóa KPI. Giữ lại ${d.unlinked_tasks} công việc và chuyển thành ngoài KPI.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chưa tạm dừng được KPI.");
+      setError(e instanceof Error ? e.message : "Chưa xóa được KPI.");
     } finally {
       setBusy(false);
     }
@@ -505,7 +505,8 @@ export function KpisPage() {
                             </button>
                             <button
                               className="icon-button danger"
-                              aria-label={`Tạm dừng KPI ${k.channel_name} ${k.assignee_name}`}
+                              aria-label={`Xóa KPI ${k.channel_name} ${k.assignee_name}`}
+                              title="Xóa KPI"
                               disabled={busy}
                               onClick={() => void remove(k)}
                             >

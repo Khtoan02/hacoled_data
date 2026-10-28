@@ -426,6 +426,7 @@ export function TasksPage() {
         onDragEnd={() => setDragged(null)}
       >
         <div className="kanban-card-top">
+          {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
           {full && (
             <GripVertical size={16} className="drag-grip" aria-hidden="true" />
           )}
@@ -767,6 +768,7 @@ export function TasksPage() {
                         {formatDate(t.due_at, "Chưa đặt hạn")}
                       </span>
                       <Avatar name={t.assignee_name} size="small" />
+                      {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                     </div>
                   ))}
                 </section>
@@ -863,6 +865,7 @@ export function TasksPage() {
                         >
                           <ChevronDown size={16} />
                         </button>
+                        {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                       </td>
                     </tr>
                   ))}

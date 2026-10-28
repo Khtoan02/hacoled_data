@@ -491,7 +491,8 @@ test("bulk KPI preview, atomic commit, conflict/retry, linked task import and sc
   const orderedTasks=(await (await admin.get("/api/tasks")).json()).tasks;
   expect(orderedTasks.map((t:{id:string})=>t.id)).toEqual([...orderedTasks].sort(compareTaskDeadline).map(t=>t.id));
 
-  expect((await admin.delete(`/api/kpis?id=${goal.id}`)).status()).toBe(200);
+  const latestGoal=(await (await admin.get(`/api/kpis?month=${month}`)).json()).kpis.find((k:{id:string})=>k.id===goal.id);
+  expect((await admin.patch("/api/kpis",{data:{id:goal.id,version:latestGoal.version,target:24,notes:"",active:false}})).status()).toBe(200);
   task = (await (await own.get(`/api/tasks?id=${task.id}`)).json()).tasks[0];
   expect(task.kpi_id).toBe(goal.id);
   expect(

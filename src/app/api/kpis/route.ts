@@ -123,11 +123,23 @@ export async function DELETE(req: NextRequest) {
     const actor = await requireManager();
     const id = req.nextUrl.searchParams.get("id");
     if (!isUuid(id)) throw new RequestError("Mã KPI không hợp lệ.");
-    const rows =
-      await database()`WITH saved AS(UPDATE app_kpis SET active=false,version=version+1,updated_at=now() WHERE id=${id} RETURNING *)
-      INSERT INTO app_kpi_audit(id,kpi_id,actor_id,target,active,notes) SELECT ${randomUUID()},id,${actor.id},target,active,notes FROM saved RETURNING kpi_id`;
-    if (!rows.length) throw new RequestError("Không tìm thấy KPI.", 404);
-    return NextResponse.json({ ok: true, actor: actor.id });
+    const version = req.nextUrl.searchParams.get("version");
+    if (version !== null && !/^\d+$/.test(version)) throw new RequestError("Phiên bản KPI không hợp lệ.");
+    const expected = version === null ? null : Number(version);
+    if (expected !== null && (!Number.isSafeInteger(expected) || expected > 2147483647)) throw new RequestError("Phiên bản KPI không hợp lệ.");
+    const sql = database();
+    const result = await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(724111)`,
+      sql`SELECT id FROM app_kpis WHERE id=${id} AND (${expected}::int IS NULL OR version=${expected}::int) FOR UPDATE`,
+      sql`INSERT INTO app_deletion_audit(id,entity_type,entity_id,actor_id,snapshot)
+      SELECT ${randomUUID()},'kpi',k.id,${actor.id},jsonb_build_object('kpi',to_jsonb(k),'target_history',COALESCE((SELECT jsonb_agg(to_jsonb(a)) FROM app_kpi_audit a WHERE a.kpi_id=k.id),'[]'::jsonb),'linked_task_ids',COALESCE((SELECT jsonb_agg(t.id) FROM app_tasks t WHERE t.kpi_id=k.id),'[]'::jsonb))
+      FROM app_kpis k WHERE k.id=${id} AND (${expected}::int IS NULL OR k.version=${expected}::int)`,
+      sql`UPDATE app_tasks t SET kpi_id=NULL,report_version=report_version+1,updated_at=now() WHERE t.kpi_id=${id} AND EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=${id} AND (${expected}::int IS NULL OR k.version=${expected}::int)) RETURNING t.id`,
+      sql`DELETE FROM app_kpi_audit a WHERE a.kpi_id=${id} AND EXISTS(SELECT 1 FROM app_kpis k WHERE k.id=${id} AND (${expected}::int IS NULL OR k.version=${expected}::int))`,
+      sql`DELETE FROM app_kpis WHERE id=${id} AND (${expected}::int IS NULL OR version=${expected}::int) RETURNING id`,
+    ]);
+    if (!result[5].length) throw new RequestError("KPI không còn tồn tại hoặc vừa thay đổi. Làm mới trước khi xóa.", 409);
+    return NextResponse.json({ ok: true, unlinked_tasks: result[3].length });
   } catch (e) {
     return apiError(e);
   }
