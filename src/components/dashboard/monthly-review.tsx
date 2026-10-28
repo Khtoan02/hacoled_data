@@ -22,9 +22,19 @@ function change(v: number | null) {
     ? "Chưa đủ dữ liệu so sánh"
     : `${v > 0 ? "+" : ""}${v} điểm %`;
 }
-export function MonthlyReview() {
-  const [month, setMonth] = useState(currentMonth()),
-    [data, setData] = useState<PerformanceData | null>(null),
+export function MonthlyReview({
+  month: selectedMonth,
+  onMonthChange,
+  revision = 0,
+}: {
+  month?: string;
+  onMonthChange?: (month: string) => void;
+  revision?: number;
+} = {}) {
+  const [localMonth, setLocalMonth] = useState(currentMonth());
+  const month = selectedMonth ?? localMonth;
+  const setMonth = onMonthChange ?? setLocalMonth;
+  const [data, setData] = useState<PerformanceData | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [reload, setReload] = useState(0),
@@ -50,7 +60,7 @@ export function MonthlyReview() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [month, reload]);
+  }, [month, reload, revision]);
   const current = month === currentMonth(),
     selected = data?.people.find((p) => p.id === person);
   return (

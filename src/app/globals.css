@@ -3271,3 +3271,10 @@ progress::-moz-progress-bar {
 @media(max-width:640px) { .kpi-import-body,.review-person-detail { padding:18px; } .review-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .review-metrics>div { padding:16px; } .review-metrics strong { font-size:23px; } .monthly-review-toolbar>div { flex-basis:100%; } }
 .review-output-table { min-width:0; width:100%; table-layout:fixed; }
 .review-output-table th,.review-output-table td { white-space:normal; overflow-wrap:anywhere; padding:14px 12px; }
+
+/* One workspace for planning and reviewing monthly KPIs. */
+.kpi-section-nav { display:flex; gap:6px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+.kpi-section-nav a { padding:12px 16px; color:var(--muted); font-weight:600; border-bottom:3px solid transparent; text-decoration:none; }
+.kpi-section-nav a[aria-current="page"] { color:var(--red); border-bottom-color:var(--red); background:#fff0f0; border-radius:8px 8px 0 0; }
+.kpi-section-nav a:focus-visible { outline:2px solid var(--red); outline-offset:2px; }
+@media(max-width:640px) { .kpi-section-nav a { flex:1; text-align:center; padding:12px 8px; font-size:13px; } }

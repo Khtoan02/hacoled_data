@@ -18,6 +18,7 @@ import {
   OUTPUT_TYPES,
   SELECTABLE_OUTPUT_TYPES,
   currentMonth,
+  validMonth,
   kpiProgress,
   monthLabel,
   type Kpi,
@@ -33,6 +34,7 @@ import {
   Pagination,
   Panel,
 } from "./ui";
+import { MonthlyReview } from "./monthly-review";
 import { KpiImport } from "./kpi-import";
 import { ChannelIdentity, ChannelSelect } from "./channel-picker";
 type Extra = {
@@ -61,7 +63,7 @@ export function KpisPage() {
   const member = useMember(),
     full = isFullAccess(member.role),
     params = useSearchParams();
-  const [month, setMonth] = useState(currentMonth()),
+  const [month, setMonth] = useState(validMonth(params.get("month") ?? "") ? params.get("month")! : currentMonth()),
     [kpis, setKpis] = useState<Kpi[]>([]),
     [extras, setExtras] = useState<Extra[]>([]),
     [channels, setChannels] = useState<SocialChannel[]>([]),
@@ -77,6 +79,18 @@ export function KpisPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null),
     [baseline, setBaseline] = useState("");
+  const [reviewRevision, setReviewRevision] = useState(0);
+  const review = params.get("view") === "review";
+  function sectionHref(section: "targets" | "review") {
+    const query = new URLSearchParams(params.toString());
+    query.set("view", section);
+    query.set("month", month);
+    return `/admin/kpis?${query}`;
+  }
+  useEffect(() => {
+    const value = params.get("month");
+    if (value && validMonth(value)) setMonth(value);
+  }, [params]);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -85,6 +99,7 @@ export function KpisPage() {
         d = await r.json();
       if (!r.ok) throw new Error(d.error);
       setKpis(d.kpis);
+      setReviewRevision((n) => n + 1);
       setExtras(d.extras);
       const cr = await fetch("/api/social-channels", { cache: "no-store" }),
         cd = await cr.json();
@@ -234,8 +249,8 @@ export function KpisPage() {
   );
   return (
     <DashboardShell
-      title="KPI tháng"
-      description="Theo dõi chỉ tiêu, sản lượng hoàn thành và công việc ngoài KPI theo từng tháng."
+      title="KPI & hiệu suất"
+      description="Giao chỉ tiêu và đánh giá kết quả công việc theo tháng trong cùng một nơi."
       actions={
         full ? (
           <div className="task-page-actions">
@@ -265,6 +280,11 @@ export function KpisPage() {
     >
       {error && !draft && <Notice>{error}</Notice>}
       {message && <Notice tone="success">{message}</Notice>}
+      <nav className="kpi-section-nav" aria-label="KPI và hiệu suất">
+        <Link href={sectionHref("targets")} scroll={false} aria-current={!review ? "page" : undefined}>Chỉ tiêu tháng</Link>
+        <Link href={sectionHref("review")} scroll={false} aria-current={review ? "page" : undefined}>Đánh giá hiệu suất</Link>
+      </nav>
+      {review ? <MonthlyReview month={month} onMonthChange={setMonth} revision={reviewRevision} /> : <>
       <div className="kpi-toolbar">
         <label>
           Tháng theo dõi
@@ -581,6 +601,7 @@ export function KpisPage() {
           </p>
         </>
       )}
+      </>}
       {importOpen && (
         <KpiImport
           members={members}

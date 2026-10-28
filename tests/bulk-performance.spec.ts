@@ -413,6 +413,18 @@ test("bulk KPI preview, atomic commit, conflict/retry, linked task import and sc
   const empty = await (await own.get("/api/performance?month=2000-01")).json();
   expect(empty.summary.on_time_rate).toBeNull();
   expect(empty.summary.completion_rate).toBeNull();
+  await page.goto(`${baseURL}/admin/performance?month=${previous}`);
+  await expect(page).toHaveURL(new RegExp(`/admin/kpis\\?view=review&month=${previous}$`));
+  await expect(page.getByRole("heading",{name:"KPI & hiệu suất",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"KPI & hiệu suất",exact:true})).toHaveCount(1);
+  await expect(page.getByRole("button",{name:"Đánh giá theo tháng",exact:true})).toHaveCount(0);
+  await expect(page.getByLabel("Tháng đánh giá vận hành")).toHaveValue(previous);
+  await page.getByRole("link",{name:"Chỉ tiêu tháng",exact:true}).click();
+  await expect(page.getByLabel("Tháng KPI")).toHaveValue(previous);
+  await page.getByLabel("Tháng KPI").fill(month);
+  await page.getByRole("link",{name:"Đánh giá hiệu suất",exact:true}).click();
+  await expect(page.getByLabel("Tháng đánh giá vận hành")).toHaveValue(month);
+  await expect(page.getByRole("heading",{name:"Đánh giá vận hành theo tháng",exact:true})).toBeVisible();
   await page.goto(`${baseURL}/admin`);
   await expect(
     page.getByRole("heading", {

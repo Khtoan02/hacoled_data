@@ -50,16 +50,9 @@ export const workspaceItems = [
   },
   {
     id: "kpis",
-    label: "KPI tháng",
+    label: "KPI & hiệu suất",
     icon: BarChart3,
     href: "/admin/kpis",
-    group: "",
-  },
-  {
-    id: "performance",
-    label: "Đánh giá theo tháng",
-    icon: BarChart3,
-    href: "/admin/performance",
     group: "",
   },
   {
@@ -296,8 +289,7 @@ export function DashboardShell({
     if (
       id === "tasks" ||
       id === "channels" ||
-      id === "kpis" ||
-      id === "performance"
+      id === "kpis"
     )
       return policy.taskScope !== "none";
     return isFullAccess(member.role);
@@ -508,7 +500,7 @@ export function DashboardShell({
                       : pathname.includes("profile")
                         ? "Hồ sơ"
                         : pathname.includes("kpis")
-                          ? "KPI tháng"
+                          ? "KPI & hiệu suất"
                           : pathname.includes("channels")
                             ? "Tài khoản kênh"
                             : pathname.includes("components")

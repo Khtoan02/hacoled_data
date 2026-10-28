@@ -64,3 +64,5 @@ Giai đoạn hiện tại tập trung **sản lượng nội dung**; lead, doanh
 Chạy migration `010-kpi-imports.sql` bằng `npm run db:migrate` trước khi dùng import (Vercel Production prebuild tự chạy các migration). Tạm dừng KPI giữ liên kết công việc và lịch sử. Báo cáo tháng tính từ trạng thái hiện tại, còn thay đổi nếu sửa/mở lại/xóa việc; chưa phải kỳ đã khóa hay chấm năng lực/chất lượng.
 
 Trưởng phòng Marketing được quản lý danh mục kênh, thêm/sửa/lưu trữ kênh, cập nhật thông tin đăng nhập và cấp/thu hồi quyền xem đăng nhập cho thành viên. Giám đốc, Leader và Trưởng phòng có quyền xem đăng nhập kênh đang hoạt động; quyền tài khoản hệ thống và giao/import KPI vẫn theo phân quyền riêng. Danh sách cấp quyền kênh dùng API danh mục tối thiểu, không mở quyền quản trị thành viên.
+
+KPI và đánh giá tháng dùng chung mục **KPI & hiệu suất** tại `/admin/kpis`: hai phần **Chỉ tiêu tháng** và **Đánh giá hiệu suất** giữ tháng đang chọn khi chuyển qua lại. Đường dẫn cũ `/admin/performance` chuyển đến phần đánh giá trong trang này. Giao/import KPI vẫn theo quyền hiện có.
