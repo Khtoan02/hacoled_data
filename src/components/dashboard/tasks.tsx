@@ -29,6 +29,7 @@ import {
   Trash2,
   Download,
   Upload,
+  Users,
   X,
 } from "lucide-react";
 import { deadlineMonth, matchDeadlineKpi, compareTaskDeadline } from "../../lib/task-planning";
@@ -289,10 +290,9 @@ export function TasksPage() {
           },
     );
   }
-  useEffect(() => {
-    setKpiFilter(params.get("kpi") || "all");
-    setAssigneeFilter(params.get("assignee") || "all");
-  }, [params]);
+  const requestedKpi=params.get("kpi")||"all",requestedAssignee=params.get("assignee")||"all";
+  useEffect(()=>setKpiFilter(requestedKpi),[requestedKpi]);
+  useEffect(()=>setAssigneeFilter(requestedAssignee),[requestedAssignee]);
   useEffect(() => {
     if (loading) return;
     const token = `${params.get("create")}|${params.get("task")}|${params.get("kpi")}`;
@@ -399,9 +399,11 @@ export function TasksPage() {
       (currentPage - 1) * pageSize,
       currentPage * pageSize,
     );
-  const assignees = [
-    ...new Map(tasks.map((t) => [t.assignee_id, t.assignee_name])).entries(),
-  ];
+  const assignees = [...new Map<string,string>([
+    [member.id,member.name],
+    ...tasks.map(t=>[t.assignee_id,t.assignee_name] as [string,string]),
+  ]).entries()].sort((a,b)=>a[1].localeCompare(b[1],'vi'));
+  const canFilterTeam=['all','marketing_team'].includes(ROLE_POLICIES[member.role].taskScope);
   const stats = [
     {
       label: "Tất cả công việc",
@@ -610,10 +612,14 @@ export function TasksPage() {
           </label><button type="button" className="secondary-button" aria-expanded={expandedFilters} aria-controls="task-advanced-filters" onClick={()=>setExpandedFilters(!expandedFilters)}><ListFilter size={16}/>Bộ lọc{[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length>0&&` (${[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length})`}<ChevronDown size={15}/></button></div>
 </div>
         <div className="task-quick-filters" role="group" aria-label="Lọc nhanh công việc">
+          {canFilterTeam&&<label className="work-assignee-filter"><Users size={15} aria-hidden="true"/><span>Người thực hiện</span><select aria-label="Lọc người thực hiện" value={assigneeFilter} onChange={e=>changeFilter(setAssigneeFilter,e.target.value)}>
+            <option value="all">Tất cả nhân sự ({tasks.length} việc)</option>
+            {assignees.map(([id,name])=><option key={id} value={id}>{name}{id===member.id?' (Tôi)':''} · {tasks.filter(t=>t.assignee_id===id).length} việc</option>)}
+          </select></label>}
           <button className={assigneeFilter===member.id?"active":""} aria-pressed={assigneeFilter===member.id} onClick={()=>changeFilter(setAssigneeFilter,assigneeFilter===member.id?"all":member.id)}>Việc của tôi</button>
           {[['all','Mọi thời hạn'],['overdue','Quá hạn'],['today','Hôm nay'],['week','7 ngày tới']].map(([id,label])=><button key={id} className={dueFilter===id?"active":""} aria-pressed={dueFilter===id} onClick={()=>changeFilter(setDueFilter,id)}>{label}{id==='overdue'&&` · ${tasks.filter(isOverdue).length}`}</button>)}
         </div>
-        {(search||kpiFilter!=="all"||channelFilter!=="all"||statusFilter!=="all"||assigneeFilter!=="all"||dueFilter!=="all")&&<div className="work-filter-summary"><span>Đang lọc {filtered.length} công việc</span><button type="button" onClick={resetFilters}>Bỏ lọc</button></div>}
+        {(search||kpiFilter!=="all"||channelFilter!=="all"||statusFilter!=="all"||assigneeFilter!=="all"||dueFilter!=="all")&&<div className="work-filter-summary"><span>Đang lọc {filtered.length} công việc{assigneeFilter!=="all"?` · ${assignees.find(([id])=>id===assigneeFilter)?.[1]??"Nhân sự đã chọn"}`:""}</span><button type="button" onClick={resetFilters}>Bỏ lọc</button></div>}
         {expandedFilters&&<div className="advanced-toolbar" id="task-advanced-filters">
           <select
             aria-label="Lọc KPI công việc"
@@ -652,18 +658,7 @@ export function TasksPage() {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Lọc người thực hiện"
-            value={assigneeFilter}
-            onChange={(e) => changeFilter(setAssigneeFilter, e.target.value)}
-          >
-            <option value="all">Mọi người thực hiện</option>
-            {assignees.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
+
 
         </div>}
         {selecting&&full&&<div className="task-selection-bar">
