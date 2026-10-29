@@ -1,3 +1,4 @@
+import { ATTACHMENT_PATH } from "../../../../lib/task-attachments";
 import { resolveDeadlineKpi } from "../../../../lib/task-kpi";
 import { outputFields } from "../../../../lib/kpi-fields";
 import { randomUUID } from "node:crypto";
@@ -90,7 +91,7 @@ export async function PATCH(req: NextRequest) {
       )
     )
       throw new RequestError(
-        "Tối đa 10 link HTTP/HTTPS hợp lệ, mỗi link tối đa 2.048 ký tự.",
+        "Tối đa 10 ảnh đính kèm hoặc link HTTP/HTTPS hợp lệ, mỗi link tối đa 2.048 ký tự.",
       );
     if (
       !Array.isArray(b.completed_items) ||
@@ -105,6 +106,11 @@ export async function PATCH(req: NextRequest) {
       if (!Array.isArray(b.channel_ids) || b.channel_ids.length > 20 || b.channel_ids.some((id: unknown) => !isId(id)) || new Set(b.channel_ids).size !== b.channel_ids.length)
         throw new RequestError("Danh sách kênh không hợp lệ (tối đa 20 kênh).");
       b.channel_id = b.channel_ids[0] ?? null;
+    }
+    const attachmentIds=b.evidence_links.flatMap((url:string)=>{const m=url.match(ATTACHMENT_PATH);return m?[m[1]]:[];});
+    if(attachmentIds.length){
+      const owned=await database()`SELECT id FROM app_task_attachments WHERE task_id=${b.id} AND id IN(SELECT jsonb_array_elements_text(${JSON.stringify(attachmentIds)}::jsonb)::uuid)`;
+      if(owned.length!==new Set(attachmentIds).size)throw new RequestError("Có ảnh không thuộc công việc này. Hãy chọn lại ảnh.");
     }
     const production = outputFields(b);
     const current = await database()`SELECT assignee_id,channel_id,output_type,due_at,kpi_id FROM app_tasks WHERE id=${b.id} AND (${isFullAccess(member.role)} OR assignee_id=${member.id})`;

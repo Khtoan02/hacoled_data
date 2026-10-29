@@ -59,3 +59,5 @@ Chat nội bộ tại `/admin/chat`: nhắn riêng, tạo nhóm tối đa 50 ng�
 Thông báo trong ứng dụng: công việc mới đến người thực hiện/cấp quản lý có quyền; hoàn thành báo quản lý; KPI chậm tiến độ nhắc tối đa một lần/ngày/chỉ tiêu. Chuông lưu trạng thái đã đọc và cập nhật khi mở ứng dụng. Chi tiết: docs/NOTIFICATIONS.md.
 
 Điều hướng theo chức năng: chỉ Leader Marketing thấy các phân hệ chưa triển khai, dữ liệu marketing minh họa và thư viện giao diện. Các vai trò còn lại không thấy mục “Sắp có” hoặc mục không có quyền trong menu/tìm kiếm. Giám đốc vẫn có tổng quan dữ liệu thực và toàn quyền nghiệp vụ đã triển khai; không hiển thị báo cáo mẫu và không truy cập trang thư viện giao diện.
+
+Công việc: Leader/Giám đốc chọn tối đa 100 việc để xóa trong một giao dịch có xác nhận và snapshot; đổi bộ lọc bỏ lựa chọn, đổi chế độ giữ lựa chọn. To-do nhóm theo hạn; nhân sự cập nhật nhanh việc của mình. Trả kết quả nhận ảnh clipboard/chọn từ máy/kéo thả, xem trước, tối ưu WebP rồi lưu khi gửi báo cáo. Ảnh riêng tư trong PostgreSQL, tối đa 2 MB/ảnh sau tối ưu, 20 MB tổng/công việc, tối đa 10 ảnh/link trong kết quả hiện tại. Chi tiết: docs/TASK_WORKFLOWS.md.

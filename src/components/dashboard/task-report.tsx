@@ -1,4 +1,5 @@
 "use client";
+import { TaskImagePicker,prepareTaskImage,type PendingTaskImage } from "./task-images";
 import { matchDeadlineKpi } from "../../lib/task-planning";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { Check, ImagePlus, Plus, RefreshCw, X } from "lucide-react";
@@ -39,7 +40,7 @@ function EvidenceImage({ url, index }: { url: string; index: number }) {
         <div className="evidence-unavailable">
           <ImagePlus size={22} />
           <span>
-            Không tải được ảnh. Dùng link ảnh trực tiếp có quyền xem công khai.
+            Không tải được ảnh. Kiểm tra quyền truy cập hoặc dùng link ảnh trực tiếp.
           </span>
         </div>
       ) : (
@@ -62,7 +63,7 @@ function EvidenceImage({ url, index }: { url: string; index: number }) {
           <span>{expanded ? "Thu nhỏ" : "Bấm để phóng to"}</span>
         </button>
       )}
-      <p className="evidence-url">{url}</p>
+      <p className="evidence-url">{url.startsWith("/api/tasks/attachments?") ? "Ảnh đính kèm · Chỉ người có quyền xem công việc" : url}</p>
     </div>
   );
 }
@@ -84,6 +85,22 @@ export function TaskResult({
   onDirty: (dirty: boolean) => void;
 }) {
   const quantityEdited = useRef(false);
+  const [pendingImages,setPendingImages]=useState<PendingTaskImage[]>([]),[preparingImages,setPreparingImages]=useState(false);
+  const imageGate=useRef(false),previewUrls=useRef(new Set<string>());
+  useEffect(()=>()=>{for(const url of previewUrls.current)URL.revokeObjectURL(url);},[]);
+  async function addFiles(files:File[]){
+    if(!canReport||busy||imageGate.current||!files.length)return;
+    if(files.length+links.length+pendingImages.length>10){setError("Tối đa 10 ảnh hoặc link minh chứng trong mỗi kết quả.");return;}
+    imageGate.current=true;setPreparingImages(true);onBusy(true);setError("");
+    const prepared:PendingTaskImage[]=[];
+    try{
+      for(const source of files){const file=await prepareTaskImage(source),preview=URL.createObjectURL(file);previewUrls.current.add(preview);prepared.push({id:crypto.randomUUID(),file,preview});}
+      setPendingImages(current=>[...current,...prepared]);
+    }catch(e){for(const p of prepared){URL.revokeObjectURL(p.preview);previewUrls.current.delete(p.preview);}setError(e instanceof Error?e.message:"Không đọc được ảnh. Hãy chọn lại.");}
+    finally{imageGate.current=false;setPreparingImages(false);onBusy(false);}
+  }
+  function removePending(id:string){setPendingImages(current=>current.filter(p=>{if(p.id!==id)return true;URL.revokeObjectURL(p.preview);previewUrls.current.delete(p.preview);return false;}));}
+
   function changeStatus(next: Task["status"]) {
     if(next === "completed" && status !== "completed" && quantity === 0 && !quantityEdited.current) setQuantity(task.planned_quantity);
     setStatus(next);
@@ -126,7 +143,7 @@ export function TaskResult({
       result !== task.result_text ||
       JSON.stringify(links) !== JSON.stringify(task.evidence_links) ||
       JSON.stringify(checklist) !== JSON.stringify(task.checklist) ||
-      Boolean(link.trim()));
+      Boolean(link.trim()) || pendingImages.length>0);
   useEffect(() => {
     onDirty(dirty);
   }, [dirty, onDirty]);
@@ -174,7 +191,7 @@ export function TaskResult({
       return;
     }
     const next = [...new Set([...links, ...values])];
-    if (next.length > 10) {
+    if (next.length + pendingImages.length > 10) {
       setError("Mỗi công việc lưu tối đa 10 link minh chứng.");
       return;
     }
@@ -208,6 +225,7 @@ export function TaskResult({
       setLinks(latest.evidence_links);
       setChecklist(latest.checklist);
       setLink("");
+      for(const image of pendingImages)removePending(image.id);
       onSaved(latest);
       setConflict(false);
       setError("");
@@ -225,11 +243,19 @@ export function TaskResult({
       setError("Bấm Thêm ảnh để đưa link đang nhập vào kết quả trước khi lưu.");
       return;
     }
+    if(preparingImages)return;
     setBusy(true);
     onBusy(true);
     setError("");
     setMessage("");
     try {
+      const savedLinks=[...links];
+      for(const image of pendingImages){
+        const form=new FormData();form.set("task_id",task.id);form.set("id",image.id);form.set("file",image.file);
+        const response=await fetch("/api/tasks/attachments",{method:"POST",body:form}),data=await response.json();
+        if(!response.ok)throw Error(data.error||"Chưa tải được ảnh. Hãy thử lưu lại.");
+        savedLinks.push(data.url);setLinks([...savedLinks]);removePending(image.id);
+      }
       const r = await fetch("/api/tasks/report", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -243,7 +269,7 @@ export function TaskResult({
             delivered_on: deliveredOn || null,
             status,
             result_text: result,
-            evidence_links: links,
+            evidence_links: savedLinks,
             completed_items: checklist.filter((c) => c.done).map((c) => c.id),
           }),
         }),
@@ -275,7 +301,10 @@ export function TaskResult({
     }
   }
   return (
-    <div className="task-result">
+    <div className="task-result" onPasteCapture={e=>{
+      const files=Array.from(e.clipboardData.items).filter(item=>item.kind==="file"&&item.type.startsWith("image/")).map(item=>item.getAsFile()).filter((file):file is File=>Boolean(file));
+      if(files.length){e.preventDefault();e.stopPropagation();void addFiles(files);}
+    }}>
       <div className="result-heading">
         <h3>Kết quả & tiến độ</h3>
         <p>
@@ -289,7 +318,7 @@ export function TaskResult({
         <button
           type="button"
           className="secondary-button"
-          disabled={busy}
+          disabled={busy || preparingImages}
           onClick={() => void reloadLatest()}
         >
           <RefreshCw size={15} />
@@ -321,11 +350,160 @@ export function TaskResult({
           </Notice>
         )}
       <form className="account-form result-form" onSubmit={submit}>
-        <fieldset disabled={!canReport || busy}>
+        <fieldset disabled={!canReport || busy || preparingImages}>
+          <label>
+            Kết quả thực hiện
+            <textarea
+              aria-label="Kết quả thực hiện"
+              rows={5}
+              maxLength={10000}
+              value={result}
+              onChange={(e) => setResult(e.target.value)}
+              placeholder="Đã thực hiện những gì? Kết quả, số liệu đạt được, link bài đăng hoặc vướng mắc cần hỗ trợ…"
+            />
+          </label>
           {status === "completed" && quantity === 0 && <Notice tone="info">
             Công việc đã hoàn thành nhưng sản lượng bằng 0, nên chưa đóng góp vào KPI. Nếu đã bàn giao đủ khối lượng, bạn có thể dùng số đã giao rồi lưu kết quả.
             <button type="button" className="secondary-button" onClick={()=>{quantityEdited.current=true;setQuantity(task.planned_quantity);}}>Dùng khối lượng đã giao: {task.planned_quantity} {OUTPUT_TYPES[outputType].unit}</button>
           </Notice>}
+          <label>
+            Tiến độ công việc
+            <select
+              aria-label="Tiến độ báo cáo"
+              value={status}
+              onChange={(e) => changeStatus(e.target.value as Task["status"])}
+            >
+              {Object.entries(TASK_STATUSES).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="result-complete">
+            <input
+              type="checkbox"
+              checked={status === "completed"}
+              onChange={(e) =>
+                changeStatus(e.target.checked ? "completed" : "in_progress")
+              }
+            />
+            Đã hoàn thành công việc
+          </label>
+          {checklist.length > 0 && (
+            <section className="task-checklist">
+              <h4>
+                Các bước thực hiện{" "}
+                <span>
+                  {checklist.filter((c) => c.done).length}/{checklist.length}
+                </span>
+              </h4>
+              {checklist.map((item) => (
+                <label className="checklist-item" key={item.id}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Báo cáo hoàn tất ${item.title}`}
+                    checked={item.done}
+                    onChange={(e) =>
+                      setChecklist(
+                        checklist.map((c) =>
+                          c.id === item.id
+                            ? { ...c, done: e.target.checked }
+                            : c,
+                        ),
+                      )
+                    }
+                  />
+                  <span>{item.title}</span>
+                </label>
+              ))}
+            </section>
+          )}
+        </fieldset>
+        {task.channel_url && (
+          <a
+            className="task-channel-link"
+            href={task.channel_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Mở kênh {task.channel_name}
+          </a>
+        )}
+        {!canReport && !result && (
+          <p className="result-hint">Chưa có kết quả được báo cáo.</p>
+        )}
+        <section className="result-evidence">
+          <h4>
+            <ImagePlus size={17} />
+            Hình ảnh minh chứng <span>{links.length+pendingImages.length}/10</span>
+          </h4>
+          <p className="result-hint">
+            Dán ảnh từ clipboard, chọn từ máy hoặc thêm link. Bấm ảnh để phóng to ngay tại đây. Ảnh mới chỉ được gửi khi lưu kết quả.
+          </p>
+          {canReport && <TaskImagePicker pending={pendingImages} disabled={busy||preparingImages} onFiles={files=>void addFiles(files)} onRemove={removePending}/>}
+          {preparingImages&&<p role="status">Đang tối ưu ảnh…</p>}
+          {canReport && (
+            <div className="evidence-add">
+              <input
+                aria-label="Link ảnh minh chứng"
+                type="url"
+                maxLength={2048}
+                value={link}
+                disabled={busy || preparingImages}
+                placeholder="https://…/ket-qua.jpg"
+                onChange={(e) => setLink(e.target.value)}
+                onPaste={(e) => {
+                  const raw = e.clipboardData.getData("text");
+                  if (
+                    raw.trim() &&
+                    raw
+                      .split(/\r?\n/)
+                      .filter(Boolean)
+                      .every((v) => validEvidenceUrl(v.trim()))
+                  ) {
+                    e.preventDefault();
+                    addLinks(raw);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addLinks(link);
+                  }
+                }}
+              />
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || !link.trim()}
+                onClick={() => addLinks(link)}
+              >
+                <Plus size={16} />
+                Thêm ảnh
+              </button>
+            </div>
+          )}
+          <div className="evidence-list">
+            {links.map((url, index) => (
+              <div className="evidence-item" key={url}>
+                <EvidenceImage url={url} index={index} />
+                {canReport && (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    disabled={busy || preparingImages}
+                    aria-label={`Xóa ảnh minh chứng ${index + 1}`}
+                    onClick={() => setLinks(links.filter((v) => v !== url))}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+        <fieldset disabled={!canReport || busy || preparingImages}>
           <section className="task-kpi-fields">
             <h4>KPI & sản lượng thực tế</h4>
             <label>
@@ -398,154 +576,7 @@ export function TaskResult({
               KPI tự đối chiếu theo kênh chính, loại sản phẩm và tháng hạn hoàn thành.
             </p>
           )}
-          <label>
-            Tiến độ công việc
-            <select
-              aria-label="Tiến độ báo cáo"
-              value={status}
-              onChange={(e) => changeStatus(e.target.value as Task["status"])}
-            >
-              {Object.entries(TASK_STATUSES).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="result-complete">
-            <input
-              type="checkbox"
-              checked={status === "completed"}
-              onChange={(e) =>
-                changeStatus(e.target.checked ? "completed" : "in_progress")
-              }
-            />
-            Đã hoàn thành công việc
-          </label>
-          {checklist.length > 0 && (
-            <section className="task-checklist">
-              <h4>
-                Các bước thực hiện{" "}
-                <span>
-                  {checklist.filter((c) => c.done).length}/{checklist.length}
-                </span>
-              </h4>
-              {checklist.map((item) => (
-                <label className="checklist-item" key={item.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={`Báo cáo hoàn tất ${item.title}`}
-                    checked={item.done}
-                    onChange={(e) =>
-                      setChecklist(
-                        checklist.map((c) =>
-                          c.id === item.id
-                            ? { ...c, done: e.target.checked }
-                            : c,
-                        ),
-                      )
-                    }
-                  />
-                  <span>{item.title}</span>
-                </label>
-              ))}
-            </section>
-          )}
-          <label>
-            Kết quả thực hiện
-            <textarea
-              aria-label="Kết quả thực hiện"
-              rows={5}
-              maxLength={10000}
-              value={result}
-              onChange={(e) => setResult(e.target.value)}
-              placeholder="Đã thực hiện những gì? Kết quả, số liệu đạt được, link bài đăng hoặc vướng mắc cần hỗ trợ…"
-            />
-          </label>
         </fieldset>
-        {task.channel_url && (
-          <a
-            className="task-channel-link"
-            href={task.channel_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Mở kênh {task.channel_name}
-          </a>
-        )}
-        {!canReport && !result && (
-          <p className="result-hint">Chưa có kết quả được báo cáo.</p>
-        )}
-        <section className="result-evidence">
-          <h4>
-            <ImagePlus size={17} />
-            Hình ảnh minh chứng <span>{links.length}/10</span>
-          </h4>
-          <p className="result-hint">
-            Dán link ảnh trực tiếp để xem ngay tại đây. Link Drive hoặc trang
-            web có thể không hiển thị ảnh; bạn vẫn có thể lưu làm nguồn đối
-            chiếu.
-          </p>
-          {canReport && (
-            <div className="evidence-add">
-              <input
-                aria-label="Link ảnh minh chứng"
-                type="url"
-                maxLength={2048}
-                value={link}
-                disabled={busy}
-                placeholder="https://…/ket-qua.jpg"
-                onChange={(e) => setLink(e.target.value)}
-                onPaste={(e) => {
-                  const raw = e.clipboardData.getData("text");
-                  if (
-                    raw.trim() &&
-                    raw
-                      .split(/\r?\n/)
-                      .filter(Boolean)
-                      .every((v) => validEvidenceUrl(v.trim()))
-                  ) {
-                    e.preventDefault();
-                    addLinks(raw);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addLinks(link);
-                  }
-                }}
-              />
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={busy || !link.trim()}
-                onClick={() => addLinks(link)}
-              >
-                <Plus size={16} />
-                Thêm ảnh
-              </button>
-            </div>
-          )}
-          <div className="evidence-list">
-            {links.map((url, index) => (
-              <div className="evidence-item" key={url}>
-                <EvidenceImage url={url} index={index} />
-                {canReport && (
-                  <button
-                    type="button"
-                    className="icon-button"
-                    disabled={busy}
-                    aria-label={`Xóa ảnh minh chứng ${index + 1}`}
-                    onClick={() => setLinks(links.filter((v) => v !== url))}
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
         {task.completed_at && (
           <p className="result-completed-at">
             Hoàn thành lúc {timestamp(task.completed_at)}
@@ -554,7 +585,7 @@ export function TaskResult({
         {canReport && (
           <button
             className="primary-button result-save"
-            disabled={busy}
+            disabled={busy || preparingImages}
             type="submit"
           >
             <Check size={16} />

@@ -1,3 +1,4 @@
+import { ATTACHMENT_PATH } from "./task-attachments";
 import type { OutputType } from "./kpis";
 import type { MemberRoleId } from "./security/rbac";
 import type { SocialPlatform } from "./social";
@@ -96,6 +97,7 @@ export function dateInputValue(value: string | null) {
 }
 
 export function validEvidenceUrl(value: string) {
+  if (ATTACHMENT_PATH.test(value)) return true;
   try {
     const url = new URL(value);
     return (
@@ -125,4 +127,14 @@ export interface TaskReport {
   due_at: string | null;
   completed_at: string | null;
   created_at: string;
+}
+
+export function taskDeadlineGroup(task:Task,now=new Date()){
+ if(task.status==='completed')return 'completed';
+ if(!task.due_at)return 'undated';
+ if(new Date(task.due_at).getTime()<now.getTime())return 'overdue';
+ const today=dateInputValue(now.toISOString()),day=dateInputValue(task.due_at);
+ if(day===today)return 'today';
+ const end=new Date(`${today}T00:00:00Z`);end.setUTCDate(end.getUTCDate()+7);
+ return day<=end.toISOString().slice(0,10)?'week':'later';
 }

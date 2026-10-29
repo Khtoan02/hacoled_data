@@ -77,3 +77,5 @@ Leader/Giám đốc có nút xóa KPI và công việc tạo lỗi, kèm xác nh
 Chat nội bộ tại `/admin/chat`: nhắn riêng, tạo nhóm tối đa 50 người, quản lý thành viên/trưởng nhóm, tin chưa đọc và lịch sử. Mọi tài khoản hoạt động có thể chat; chỉ người tham gia đọc được nội dung. Thành viên mới xem tin từ lúc được thêm. Cập nhật khoảng 5 giây khi trang hiển thị; dùng PostgreSQL hiện có qua migration `012-team-chat.sql`. Xem `docs/TEAM_CHAT.md` cho quyền, use-case và giới hạn bản đầu.
 
 Thông báo nội bộ: chuông trên thanh đầu trang báo việc mới, hoàn thành và nhắc KPI theo phạm vi vai trò. Xem [quy tắc và vận hành](docs/NOTIFICATIONS.md).
+
+Công việc hỗ trợ xóa hàng loạt có kiểm tra phiên bản, To-do theo hạn và dán/chọn/kéo thả ảnh kết quả riêng tư. Xem [luồng thao tác và lưu trữ ảnh](docs/TASK_WORKFLOWS.md).

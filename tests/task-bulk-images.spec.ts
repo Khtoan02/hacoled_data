@@ -1,0 +1,92 @@
+import {test,expect} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {taskDeadlineGroup,type Task} from '../src/lib/tasks';
+const baseURL='http://127.0.0.1:3100';
+test('Bulk deletion is atomic, private pasted images survive saving and access follows task scope',async({playwright,browser})=>{
+ const headers={Origin:baseURL,'x-real-ip':'198.51.100.202'};
+ const root=await playwright.request.newContext({baseURL,extraHTTPHeaders:headers});const auth=await(await root.get('/api/auth/status')).json();
+ if(auth.needsSetup)await root.post('/api/auth/setup',{data:{name:'Khánh Toàn',email:'owner@example.test',password:'Test-only-password-2026!',setupToken:'isolated-test-setup-token'}});
+ else await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});
+ const actors:Record<string,typeof root>={},ids:Record<string,string>={};
+ for(const [key,role] of [['staff','marketing_staff'],['other','marketing_intern'],['manager','marketing_manager']]){
+  expect((await root.post('/api/members',{data:{name:`Task UX ${key}`,email:`task-ux-${key}@example.test`,password:`Task-UX-${key}-2026!`,role}})).status()).toBe(201);
+  actors[key]=await playwright.request.newContext({baseURL,extraHTTPHeaders:headers});expect((await actors[key].post('/api/auth/login',{data:{password:`Task-UX-${key}-2026!`}})).status()).toBe(200);
+ }
+ const members=(await(await root.get('/api/members')).json()).members;for(const key of Object.keys(actors))ids[key]=members.find((m:{email:string})=>m.email===`task-ux-${key}@example.test`).id;
+ const channel=await root.post('/api/social-channels',{data:{name:'Task UX Production',platform:'facebook',url:'https://www.facebook.com/task-ux',handle:'@task-ux',notes:'',active:true,access:[]}});expect(channel.status()).toBe(201);const channelId=(await channel.json()).id;
+ const goal=await root.post('/api/kpis',{data:{assignee_id:ids.staff,channel_id:channelId,month:'2030-01',output_type:'image',target:6,notes:'Task UX production',active:true}});expect(goal.status()).toBe(201);const goalId=(await goal.json()).id;
+ const taskIds:string[]=[];
+ for(let i=0;i<3;i++){const r=await root.post('/api/tasks',{data:{title:`Task UX ${i+1} – Nội dung LED`,description:'Bàn giao nội dung, ảnh và kết quả công việc.',assignee_id:ids.staff,channel_ids:[channelId],status:i===1?'in_progress':'pending',due_at:`2030-01-${10+i}T10:00:00Z`,planned_quantity:2,output_type:'image'}});expect(r.status()).toBe(201);taskIds.push((await r.json()).id);}
+ const taskId=taskIds[0],png=readFileSync('src/app/icon.png');
+ const upload=(client:typeof root,id=randomUUID(),tid=taskId,mime='image/png',buffer=png)=>client.post('/api/tasks/attachments',{multipart:{task_id:tid,id,file:{name:'proof.png',mimeType:mime,buffer}}});
+ const key=randomUUID(),stored=await upload(actors.staff,key);expect(stored.status()).toBe(201);const url=(await stored.json()).url;
+ expect((await upload(actors.staff,key)).status()).toBe(201);
+ expect((await upload(actors.other)).status()).toBe(409);expect((await upload(actors.manager)).status()).toBe(409);
+ expect((await upload(actors.staff,randomUUID(),taskId,'image/png',Buffer.from('<svg onload="alert(1)"/>'))).status()).toBe(400);
+ expect((await upload(actors.staff,randomUUID(),taskId,'image/png',Buffer.alloc(2097153))).status()).toBe(413);
+ const anonymous=await playwright.request.newContext({baseURL});expect((await anonymous.get(url)).status()).toBe(401);
+ expect((await actors.other.get(url)).status()).toBe(404);expect((await actors.manager.get(url)).status()).toBe(200);
+ expect((await actors.staff.get(url)).headers()['cache-control']).toContain('no-store');
+ const report={id:taskId,version:0,status:'in_progress',result_text:'Đã có ảnh bàn giao.',evidence_links:[url],completed_items:[]};expect((await actors.staff.patch('/api/tasks/report',{data:report})).status()).toBe(200);
+ expect((await actors.staff.patch('/api/tasks/report',{data:{...report,id:taskIds[1],version:0}})).status()).toBe(400);
+ const ctx=await browser.newContext({storageState:await actors.staff.storageState(),viewport:{width:1440,height:1000}}),page=await ctx.newPage();
+ await page.goto(`${baseURL}/admin/tasks?task=${taskId}`);await expect(page.getByLabel('Kết quả thực hiện',{exact:true})).toBeVisible();
+ // Use a real browser clipboard-shaped paste event, exercising image conversion and pending previews.
+ await page.getByLabel('Kết quả thực hiện',{exact:true}).evaluate((el,base64)=>{const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0)),dt=new DataTransfer();dt.items.add(new File([bytes],'clipboard.png',{type:'image/png'}));el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));},png.toString('base64'));
+ await expect(page.getByAltText(/Ảnh chờ lưu/)).toBeVisible();
+ await page.getByLabel('Chọn ảnh minh chứng',{exact:true}).setInputFiles({name:'upload.png',mimeType:'image/png',buffer:png});await expect(page.getByAltText(/Ảnh chờ lưu/)).toHaveCount(2);
+ await page.screenshot({path:'.impeccable/review/tasks-result-desktop.png',fullPage:true});
+ await page.route('**/api/tasks/report',async route=>{if(route.request().method()==='PATCH'){await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Kiểm thử lỗi lưu tạm thời.'})});await page.unroute('**/api/tasks/report');}else await route.continue();});
+ await page.getByRole('button',{name:'Lưu kết quả & tiến độ',exact:true}).click();await expect(page.getByText('Kiểm thử lỗi lưu tạm thời.',{exact:true})).toBeVisible();
+ await expect(page.getByAltText(/Ảnh chờ lưu/)).toHaveCount(0);
+ await page.getByRole('button',{name:'Lưu kết quả & tiến độ',exact:true}).click();await expect(page.getByText('Đã lưu kết quả và tiến độ công việc.',{exact:true})).toBeVisible();
+ const saved=(await(await actors.staff.get(`/api/tasks?id=${taskId}`)).json()).tasks[0];expect(saved.evidence_links).toHaveLength(3);expect(saved.evidence_links.every((u:string)=>u.startsWith('/api/tasks/attachments?id='))).toBe(true);
+ await page.getByRole('button',{name:'Đóng chi tiết',exact:true}).click();
+ await page.getByRole('button',{name:'To-do',exact:true}).click();await page.getByRole('checkbox',{name:`Hoàn thành Task UX 1 – Nội dung LED`,exact:true}).check();await expect(page.getByText('Đã cập nhật tiến độ công việc.',{exact:true})).toBeVisible();
+ const completed=(await(await actors.staff.get(`/api/tasks?id=${taskId}`)).json()).tasks[0];expect(completed.status).toBe('completed');expect(completed.delivered_quantity).toBe(2);
+ await page.setViewportSize({width:390,height:844});await page.goto(`${baseURL}/admin/tasks?task=${taskId}`);await expect(page.getByLabel('Kết quả thực hiện',{exact:true})).toBeVisible();await page.screenshot({path:'.impeccable/review/tasks-result-mobile.png',fullPage:true});
+ await page.getByRole('button',{name:'Đóng chi tiết',exact:true}).click();await page.goto(`${baseURL}/admin/tasks?view=todo`);await expect(page.getByRole('checkbox',{name:'Hoàn thành Task UX 2 – Nội dung LED',exact:true})).toBeVisible();await page.screenshot({path:'.impeccable/review/tasks-todo-mobile.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ const beforeKpi=(await(await root.get('/api/kpis?month=2030-01')).json()).kpis.find((k:{id:string})=>k.id===goalId);expect(Number(beforeKpi.delivered)).toBe(2);
+ const bulkItems=taskIds.map(id=>({id,version:id===taskId?completed.report_version:0}));
+ expect((await actors.staff.post('/api/tasks/bulk-delete',{data:{items:bulkItems}})).status()).toBe(403);
+ expect((await actors.manager.post('/api/tasks/bulk-delete',{data:{items:bulkItems}})).status()).toBe(403);
+ expect((await root.post('/api/tasks/bulk-delete',{data:{items:[bulkItems[0],{id:taskIds[1],version:99}]}})).status()).toBe(409);
+ expect((await root.get(`/api/tasks?id=${taskId}`)).status()).toBe(200);
+ expect((await root.post('/api/tasks/bulk-delete',{data:{items:[bulkItems[0],bulkItems[0]]}})).status()).toBe(400);
+ const leaderCtx=await browser.newContext({storageState:await root.storageState(),viewport:{width:1440,height:1000}}),leaderPage=await leaderCtx.newPage();await leaderPage.goto(`${baseURL}/admin/tasks`);
+ await leaderPage.getByLabel('Tìm công việc',{exact:true}).fill('Task UX');await leaderPage.getByRole('button',{name:'Chọn nhiều',exact:true}).click();await leaderPage.getByLabel('Chọn tất cả trên trang',{exact:true}).check();
+ await expect(leaderPage.getByRole('button',{name:'Xóa đã chọn (3)',exact:true})).toBeEnabled();
+ await leaderPage.screenshot({path:'.impeccable/review/tasks-list-desktop.png',fullPage:true});
+ await leaderPage.getByRole('button',{name:'Kanban',exact:true}).click();await expect(leaderPage.getByRole('checkbox',{name:/Chọn công việc Task UX/})).toHaveCount(3);await leaderPage.screenshot({path:'.impeccable/review/tasks-kanban-desktop.png',fullPage:true});
+ await leaderPage.setViewportSize({width:390,height:844});await leaderPage.screenshot({path:'.impeccable/review/tasks-kanban-mobile.png',fullPage:true});expect(await leaderPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await leaderPage.getByRole('button',{name:'To-do',exact:true}).click();await leaderPage.getByRole('button',{name:'Xóa đã chọn (3)',exact:true}).click();await expect(leaderPage.getByRole('dialog',{name:'Xóa 3 công việc?',exact:true})).toBeVisible();await leaderPage.getByRole('button',{name:'Giữ lại công việc',exact:true}).click();
+ await leaderPage.getByRole('button',{name:'Xóa đã chọn (3)',exact:true}).click();await leaderPage.getByRole('button',{name:'Xác nhận xóa 3 công việc',exact:true}).click();await expect(leaderPage.getByText(/Đã xóa 3 công việc/)).toBeVisible();
+ for(const id of taskIds)expect((await root.get(`/api/tasks?id=${id}`)).status()).toBe(404);expect((await root.get(url)).status()).toBe(404);
+ const afterKpi=(await(await root.get('/api/kpis?month=2030-01')).json()).kpis.find((k:{id:string})=>k.id===goalId);expect(Number(afterKpi.delivered)).toBe(0);
+ const audit=await(await fetch('http://127.0.0.1:54339',{method:'POST',body:JSON.stringify({query:'SELECT count(*)::int AS n FROM app_deletion_audit WHERE entity_id IN ($1::uuid,$2::uuid,$3::uuid)',params:taskIds})})).json();expect(Number(audit.rows[0][0])).toBe(3);
+ await leaderCtx.close();await ctx.close();await anonymous.dispose();for(const c of Object.values(actors))await c.dispose();await root.dispose();
+});
+test('Deadline buckets use Vietnam dates and keep completed work separate',()=>{
+ const now=new Date('2026-10-29T03:00:00Z'),base={status:'pending'} as Task;
+ expect(taskDeadlineGroup({...base,due_at:'2026-10-28T10:00:00Z'},now)).toBe('overdue');
+ expect(taskDeadlineGroup({...base,due_at:'2026-10-29T10:00:00Z'},now)).toBe('today');
+ expect(taskDeadlineGroup({...base,due_at:'2026-11-02T10:00:00Z'},now)).toBe('week');
+ expect(taskDeadlineGroup({...base,due_at:null},now)).toBe('undated');
+ expect(taskDeadlineGroup({...base,status:'completed',due_at:null},now)).toBe('completed');
+});
+test('Selecting across pages preserves choices and changing a filter clears them',async({playwright,browser})=>{
+ const root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.203'}});
+ expect((await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}})).status()).toBe(200);
+ const members=(await(await root.get('/api/members')).json()).members,owner=members.find((m:{email:string})=>m.email==='owner@example.test'),ids:string[]=[];
+ for(let i=0;i<12;i++){const r=await root.post('/api/tasks',{data:{title:`Bulk Page ${i+1}`,assignee_id:owner.id}});expect(r.status()).toBe(201);ids.push((await r.json()).id);}
+ const ctx=await browser.newContext({storageState:await root.storageState()}),page=await ctx.newPage();await page.goto(`${baseURL}/admin/tasks`);await page.getByLabel('Tìm công việc',{exact:true}).fill('Bulk Page');
+ await page.getByRole('button',{name:'Chọn nhiều',exact:true}).click();await page.getByLabel('Chọn tất cả trên trang',{exact:true}).check();await expect(page.getByRole('button',{name:'Xóa đã chọn (10)',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Trang sau',exact:true}).click();await page.getByLabel('Chọn tất cả trên trang',{exact:true}).check();await expect(page.getByRole('button',{name:'Xóa đã chọn (12)',exact:true})).toBeEnabled();
+ await page.getByLabel('Chọn tất cả trên trang',{exact:true}).uncheck();await expect(page.getByRole('button',{name:'Xóa đã chọn (10)',exact:true})).toBeEnabled();
+ await page.getByLabel('Tìm công việc',{exact:true}).fill('Bulk Page 1');await expect(page.getByRole('button',{name:'Xóa đã chọn (0)',exact:true})).toBeDisabled();
+ expect((await root.post('/api/tasks/bulk-delete',{headers:{Origin:'https://untrusted.example'},data:{items:ids.map(id=>({id,version:0}))}})).status()).toBe(403);
+ expect((await root.post('/api/tasks/bulk-delete',{data:{items:[]}})).status()).toBe(400);
+ expect((await root.post('/api/tasks/bulk-delete',{data:{items:ids.map(id=>({id,version:0}))}})).status()).toBe(200);
+ await ctx.close();await root.dispose();
+});

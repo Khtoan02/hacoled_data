@@ -41,6 +41,7 @@ import {
 import type { SocialChannel } from "../../lib/social";
 import type { Member } from "../../lib/auth/types";
 import {
+  taskDeadlineGroup,
   dateInputValue,
   formatDate,
   isOverdue,
@@ -91,6 +92,8 @@ export function TasksPage() {
   const view = ["list", "board", "todo"].includes(params.get("view") || "")
     ? params.get("view")!
     : "list";
+  const [expandedFilters,setExpandedFilters]=useState(true);
+  useEffect(()=>{const media=window.matchMedia('(max-width: 640px)'),update=()=>setExpandedFilters(!media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
   const [tasks, setTasks] = useState<Task[]>([]),
     [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true),
@@ -129,6 +132,21 @@ export function TasksPage() {
   const [reportDirty, setReportDirty] = useState(false);
   const [detailTab, setDetailTab] = useState<"details" | "result">("details");
   const [newItem, setNewItem] = useState("");
+  const [selecting,setSelecting]=useState(false),[selected,setSelected]=useState<string[]>([]),[deleteOpen,setDeleteOpen]=useState(false);
+  useEffect(()=>{setSelected([]);setDeleteOpen(false);},[search,statusFilter,assigneeFilter,dueFilter,kpiFilter,channelFilter]);
+  function toggleSelected(id:string){setSelected(current=>current.includes(id)?current.filter(v=>v!==id):current.length<100?[...current,id]:current);}
+  function selectBox(task:Task){return <input type="checkbox" className="task-select" aria-label={`Chọn công việc ${task.title}`} checked={selected.includes(task.id)} disabled={busy||(!selected.includes(task.id)&&selected.length>=100)} onChange={()=>toggleSelected(task.id)}/>;}
+  async function bulkDelete(){
+    setBusy(true);setError("");
+    try{
+      const items=tasks.filter(t=>selected.includes(t.id)).map(t=>({id:t.id,version:t.report_version}));
+      const r=await fetch('/api/tasks/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}),d=await r.json();
+      if(!r.ok)throw Error(d.error);
+      setDeleteOpen(false);setSelected([]);setSelecting(false);await load();setNotice(`Đã xóa ${d.deleted} công việc. KPI và hiệu suất được tính lại theo dữ liệu còn lại.`);
+    }catch(e){setError(e instanceof Error?e.message:'Chưa xóa được công việc. Hãy thử lại.');setDeleteOpen(false);}
+    finally{setBusy(false);}
+  }
+
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
@@ -310,6 +328,17 @@ export function TasksPage() {
     setReportDirty(false);
     setDetailTab(tab);
   }
+  async function quickStatus(task:Task,status:TaskStatus){
+    if(full){await save({id:task.id,status},"PATCH");return;}
+    if(task.assignee_id!==member.id)return;
+    setTasks(current=>current.map(t=>t.id===task.id?{...t,status}:t));
+    setBusy(true);setError("");
+    try{
+      const r=await fetch('/api/tasks/report',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:task.id,version:task.report_version,status,result_text:task.result_text,evidence_links:task.evidence_links,completed_items:task.checklist.filter(c=>c.done).map(c=>c.id)})}),d=await r.json();
+      if(!r.ok)throw Error(d.error);await load(true);setNotice("Đã cập nhật tiến độ công việc.");
+    }catch(e){setTasks(current=>current.map(t=>t.id===task.id?task:t));setError(e instanceof Error?e.message:"Chưa cập nhật được tiến độ. Hãy tải lại danh sách.");}
+    finally{setBusy(false);}
+  }
   async function remove(task: Task) {
     if (
       !window.confirm(
@@ -356,7 +385,7 @@ export function TasksPage() {
         .includes(search.toLocaleLowerCase("vi")) &&
       (statusFilter === "all" || t.status === statusFilter) &&
       (assigneeFilter === "all" || t.assignee_id === assigneeFilter) &&
-      (dueFilter === "all" || isOverdue(t)),
+      (dueFilter === "all" || (dueFilter === "overdue" ? isOverdue(t) : taskDeadlineGroup(t) === dueFilter)),
   ).sort(compareTaskDeadline);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)),
     currentPage = Math.min(page, totalPages),
@@ -417,8 +446,8 @@ export function TasksPage() {
     return (
       <article
         key={task.id}
-        className={`kanban-card ${full ? "can-drag" : ""}`}
-        draggable={full && !busy}
+        className={`kanban-card ${full && !selecting ? "can-drag" : ""} ${selected.includes(task.id)?"is-selected":""}`}
+        draggable={full && !busy && !selecting}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", task.id);
           setDragged(task.id);
@@ -426,8 +455,9 @@ export function TasksPage() {
         onDragEnd={() => setDragged(null)}
       >
         <div className="kanban-card-top">
-          {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
-          {full && (
+          {full && selecting ? selectBox(task) : <span className="task-output-label">{OUTPUT_TYPES[task.output_type].label} · {task.planned_quantity} {OUTPUT_TYPES[task.output_type].unit}</span>}
+          {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
+          {full && !selecting && (
             <GripVertical size={16} className="drag-grip" aria-hidden="true" />
           )}
         </div>
@@ -470,6 +500,7 @@ export function TasksPage() {
             <Avatar name={task.assignee_name} size="small" />
           </span>
         </div>
+        <div className="task-card-actions"><span className="task-assignee-caption">{task.assignee_name}</span><button type="button" className="task-result-link" onClick={()=>{open(task);setDetailTab("result");}}><MessageSquareText size={14}/>{full||task.assignee_id===member.id?"Trả kết quả":"Xem kết quả"}</button></div>
       </article>
     );
   }
@@ -507,7 +538,7 @@ export function TasksPage() {
         </div>
       }
     >
-      <div className="summary-grid">
+      <div className="summary-grid tasks-summary">
         {stats.map((stat) => (
           <div key={stat.label} className={`summary-tile ${stat.tone}`}>
             <span className="summary-icon">
@@ -523,9 +554,10 @@ export function TasksPage() {
       {error && <Notice>{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
       <Panel
+        className="tasks-panel"
         title="Danh sách công việc"
         description={`${filtered.length} công việc trong phạm vi quyền của bạn. Hạn gần nhất xếp trước; chưa có hạn ở cuối.`}
-        action={
+        action={<div className="task-panel-actions">{full&&<button className="secondary-button" disabled={busy||loading} aria-pressed={selecting} onClick={()=>{setSelecting(!selecting);setSelected([]);}}> {selecting?"Hủy chọn":"Chọn nhiều"}</button>}
           <button
             className="secondary-button"
             onClick={() => void load()}
@@ -533,7 +565,7 @@ export function TasksPage() {
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             Làm mới
-          </button>
+          </button></div>
         }
       >
         <div className="task-viewbar">
@@ -574,7 +606,20 @@ export function TasksPage() {
                 : "Mở công việc để xem hoặc báo cáo kết quả."}
           </span>
         </div>
-        <div className="advanced-toolbar">
+        <div className="task-quick-filters" role="group" aria-label="Lọc nhanh công việc">
+          <button className={assigneeFilter===member.id?"active":""} aria-pressed={assigneeFilter===member.id} onClick={()=>changeFilter(setAssigneeFilter,assigneeFilter===member.id?"all":member.id)}>Việc của tôi</button>
+          {[['all','Mọi thời hạn'],['overdue','Quá hạn'],['today','Hôm nay'],['week','7 ngày tới']].map(([id,label])=><button key={id} className={dueFilter===id?"active":""} aria-pressed={dueFilter===id} onClick={()=>changeFilter(setDueFilter,id)}>{label}{id==='overdue'&&` · ${tasks.filter(isOverdue).length}`}</button>)}
+        </div>
+        <div className="task-search-row">          <label className="table-search">
+            <Search size={17} />
+            <input
+              aria-label="Tìm công việc"
+              placeholder="Tìm công việc, mô tả, người thực hiện…"
+              value={search}
+              onChange={(e) => changeFilter(setSearch, e.target.value)}
+            />
+          </label><button type="button" className="secondary-button" aria-expanded={expandedFilters} aria-controls="task-advanced-filters" onClick={()=>setExpandedFilters(!expandedFilters)}><ListFilter size={16}/>Bộ lọc{[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length>0&&` (${[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length})`}<ChevronDown size={15}/></button></div>
+        {expandedFilters&&<div className="advanced-toolbar" id="task-advanced-filters">
           <select
             aria-label="Lọc KPI công việc"
             value={kpiFilter}
@@ -599,15 +644,7 @@ export function TasksPage() {
               { value: "none", label: "Chưa gắn kênh" },
             ]}
           />
-          <label className="table-search">
-            <Search size={17} />
-            <input
-              aria-label="Tìm công việc"
-              placeholder="Tìm công việc, mô tả, người thực hiện…"
-              value={search}
-              onChange={(e) => changeFilter(setSearch, e.target.value)}
-            />
-          </label>
+
           <select
             aria-label="Lọc trạng thái"
             value={statusFilter}
@@ -632,20 +669,14 @@ export function TasksPage() {
               </option>
             ))}
           </select>
-          <button
-            className={`secondary-button filter-overdue ${dueFilter === "overdue" ? "selected" : ""}`}
-            aria-pressed={dueFilter === "overdue"}
-            onClick={() =>
-              changeFilter(
-                setDueFilter,
-                dueFilter === "all" ? "overdue" : "all",
-              )
-            }
-          >
-            <ListFilter size={15} />
-            Quá hạn
-          </button>
-        </div>
+
+        </div>}
+        {selecting&&full&&<div className="task-selection-bar">
+          <label><input type="checkbox" aria-label={view==='list'?"Chọn tất cả trên trang":"Chọn các công việc đang hiển thị"} checked={(view==='list'?visible:filtered).slice(0,100).length>0&&(view==='list'?visible:filtered).slice(0,100).every(t=>selected.includes(t.id))} disabled={busy||loading||!filtered.length} onChange={e=>{const ids=(view==='list'?visible:filtered).slice(0,100).map(t=>t.id);setSelected(current=>e.target.checked?[...new Set([...current,...ids])].slice(0,100):current.filter(id=>!ids.includes(id)));}}/>{view==='list'?"Chọn trang này":"Chọn tối đa 100 việc"}</label>
+          <span aria-live="polite">Đã chọn <strong>{selected.length}</strong> công việc</span>
+          <button className="secondary-button" disabled={!selected.length||busy} onClick={()=>setSelected([])}>Bỏ chọn</button>
+          <button className="primary-button danger-action" disabled={!selected.length||busy} onClick={()=>setDeleteOpen(true)}><Trash2 size={16}/>Xóa đã chọn ({selected.length})</button>
+        </div>}
         {loading ? (
           <LoadingState label="Đang tải công việc…" />
         ) : !filtered.length ? (
@@ -727,8 +758,8 @@ export function TasksPage() {
           </div>
         ) : view === "todo" ? (
           <div className="todo-groups">
-            {Object.entries(TASK_STATUSES).map(([status, label]) => {
-              const items = filtered.filter((t) => t.status === status);
+            {[['overdue','Quá hạn'],['today','Đến hạn hôm nay'],['week','7 ngày tới'],['later','Sắp tới'],['undated','Chưa đặt hạn'],['completed','Đã hoàn thành']].map(([status, label]) => {
+              const items = filtered.filter((t) => taskDeadlineGroup(t) === status);
               if (!items.length) return null;
               return (
                 <section key={status}>
@@ -741,34 +772,27 @@ export function TasksPage() {
                       className={`todo-row ${t.status === "completed" ? "done" : ""}`}
                       key={t.id}
                     >
-                      <input
+                      {full&&selecting?selectBox(t):<input
                         type="checkbox"
                         aria-label={`Hoàn thành ${t.title}`}
                         checked={t.status === "completed"}
-                        disabled={!full || busy}
+                        disabled={(!full && t.assignee_id!==member.id) || busy}
                         onChange={(e) =>
-                          void save(
-                            {
-                              id: t.id,
-                              status: e.target.checked
-                                ? "completed"
-                                : "pending",
-                            },
-                            "PATCH",
-                          )
+                          void quickStatus(t,e.target.checked?"completed":"pending")
                         }
-                      />
+                      />}
                       <button className="todo-title" onClick={() => open(t)}>
                         {t.title}
-                        <small>{t.assignee_name}</small>
+                        <small>{t.assignee_name} · {OUTPUT_TYPES[t.output_type].label} · {t.channel_name||"Chưa gắn kênh"}</small>
                       </button>
                       <span
                         className={`todo-date ${isOverdue(t) ? "overdue" : ""}`}
                       >
                         {formatDate(t.due_at, "Chưa đặt hạn")}
                       </span>
-                      <Avatar name={t.assignee_name} size="small" />
-                      {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
+                      <StatusBadge status={t.status}/>
+                      <button type="button" className="task-result-link" aria-label={`Kết quả ${t.title}`} onClick={()=>{open(t);setDetailTab("result");}}><MessageSquareText size={16}/><span>Kết quả</span></button>
+                      {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                     </div>
                   ))}
                 </section>
@@ -781,6 +805,7 @@ export function TasksPage() {
               <table className="members-table task-table">
                 <thead>
                   <tr>
+                    {full&&selecting&&<th aria-label="Chọn công việc"/>}
                     <th>Công việc</th>
                     <th>Người thực hiện</th>
                     <th>Hạn hoàn thành</th>
@@ -790,8 +815,9 @@ export function TasksPage() {
                 </thead>
                 <tbody>
                   {visible.map((t) => (
-                    <tr key={t.id}>
-                      <td>
+                    <tr key={t.id} className={selected.includes(t.id)?"is-selected":""}>
+                      {full&&selecting&&<td className="task-select-cell">{selectBox(t)}</td>}
+                      <td className="task-main-cell">
                         <button
                           className="table-task-title"
                           onClick={() => open(t)}
@@ -840,7 +866,7 @@ export function TasksPage() {
                           </small>
                         )}
                       </td>
-                      <td>
+                      <td className="task-owner-cell">
                         <div className="member-identity">
                           <Avatar name={t.assignee_name} size="small" />
                           <span>
@@ -851,13 +877,13 @@ export function TasksPage() {
                           </span>
                         </div>
                       </td>
-                      <td className={isOverdue(t) ? "overdue" : ""}>
+                      <td className={`task-due-cell ${isOverdue(t) ? "overdue" : ""}`}>
                         {formatDate(t.due_at)}
                       </td>
-                      <td>
+                      <td className="task-status-cell">
                         <StatusBadge status={t.status} />
                       </td>
-                      <td>
+                      <td className="task-actions-cell">
                         <button
                           className="icon-button"
                           aria-label={`Mở chi tiết ${t.title}`}
@@ -865,7 +891,7 @@ export function TasksPage() {
                         >
                           <ChevronDown size={16} />
                         </button>
-                        {full && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
+                        {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                       </td>
                     </tr>
                   ))}
@@ -881,6 +907,11 @@ export function TasksPage() {
           </>
         )}
       </Panel>
+      {deleteOpen&&<Drawer title={`Xóa ${selected.length} công việc?`} description="Kiểm tra danh sách trước khi xác nhận." onClose={()=>{if(!busy)setDeleteOpen(false);}}>
+        <div className="bulk-delete-confirm"><Notice>Các công việc sẽ bị xóa khỏi danh sách. Sản lượng liên quan sẽ bị loại khỏi KPI và hiệu suất. Thao tác không thể hoàn tác từ giao diện.</Notice>
+        <ul>{tasks.filter(t=>selected.includes(t.id)).map(t=><li key={t.id}><strong>{t.title}</strong><span>{t.assignee_name} · {formatDate(t.due_at)} · {TASK_STATUSES[t.status]}</span></li>)}</ul>
+        <div className="task-confirm-actions"><button className="secondary-button" disabled={busy} onClick={()=>setDeleteOpen(false)}>Giữ lại công việc</button><button className="primary-button danger-action" disabled={busy} onClick={()=>void bulkDelete()}><Trash2 size={16}/>{busy?"Đang xóa…":`Xác nhận xóa ${selected.length} công việc`}</button></div></div>
+      </Drawer>}
       {importOpen && (
         <TaskImport
           onClose={() => setImportOpen(false)}
@@ -914,6 +945,7 @@ export function TasksPage() {
               <Notice>{error}</Notice>
             </div>
           )}
+          {opened!=="new"&&<div className="task-detail-summary"><h3>{opened.title}</h3><div><StatusBadge status={opened.status}/><span className={isOverdue(opened)?"overdue":""}><CalendarDays size={14}/>{formatDate(opened.due_at)}</span><span>{opened.assignee_name}</span></div><p>{OUTPUT_TYPES[opened.output_type].label} · Dự kiến {opened.planned_quantity} {OUTPUT_TYPES[opened.output_type].unit} · {opened.kpi_id?"Đã liên kết KPI":"Ngoài KPI"}</p></div>}
           {opened !== "new" && (
             <div
               className="task-detail-tabs"
