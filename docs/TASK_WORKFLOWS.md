@@ -41,3 +41,15 @@ Xem trước phân biệt tổng số dòng trong file, số dòng hợp lệ, s
 Kênh được khớp chính xác theo ID, URL, tên hoặc @định danh đang hoạt động. Nếu @định danh/tên dùng chung cho nhiều kênh, báo các kênh ứng viên và yêu cầu dùng URL/ID chính xác; không tự đoán theo tiêu đề công việc hoặc KPI. Không tìm thấy kênh không còn bị báo nhầm là lặp kênh. Các giá trị chung như Facebook Reels, TikTok hay YouTube Shorts chỉ dùng được nếu trùng đúng tên kênh đã khai báo.
 
 Email người thực hiện phải có và khớp tài khoản Marketing đang hoạt động. `video` vẫn tương thích dữ liệu cũ và được hiểu là video dài; video ngắn dùng `video_doc_ngan`. Audit chưa là loại sản phẩm riêng: công việc rà soát có thể dùng `khac` và ghi rõ mô tả/ghi chú, không tự đổi loại dữ liệu của người dùng.
+
+## File mẫu lấy dữ liệu hiện tại
+
+`GET /api/tasks/import?month=YYYY-MM` tải CSV kế hoạch dựa trên dữ liệu đang hoạt động lúc tải. Trong Import kế hoạch, chọn tháng trước khi tải. Không có tham số tháng thì dùng tháng hiện tại theo giờ Việt Nam.
+
+- Nhân sự trong mẫu/danh mục: `marketing_manager`, `marketing_staff`, `marketing_intern` đang hoạt động. Không gồm Giám đốc, Kinh doanh và Leader Marketing; đây là phạm vi mẫu tham khảo, không đổi quyền tạo/giao việc hiện có.
+- Kênh: chỉ metadata kênh đang hoạt động, dùng ID làm giá trị cột `kenh` để không nhập nhầm khi các nền tảng dùng chung tên/handle. Không xuất tài khoản đăng nhập, mật khẩu hoặc token kênh.
+- Ưu tiên một dòng ví dụ cho mỗi KPI đang hoạt động của tháng và nhân sự/kênh phù hợp, sau đó bổ sung một dòng công việc khác chưa gắn kênh cho các nhân sự còn thiếu. Ví dụ có lượng 1 và hạn cuối tháng để dễ thay bằng lịch thực; không tự chia khối lượng hoặc giao việc thật.
+- Tất cả tên ví dụ bắt đầu `MẪU -`; importer bỏ qua cho đến khi người dùng sửa nội dung và xóa tiền tố. Email là email thật, loại sản phẩm dùng mã chuẩn. Dòng không có KPI ghi rõ là ngoài chỉ tiêu. Không tự đoán kênh cho nhân sự chưa có KPI.
+- Tối đa 500 dòng ví dụ trong CSV. Không có nhân sự phù hợp thì chỉ xuất dòng tiêu đề, giao diện yêu cầu bổ sung thành viên.
+
+Cùng endpoint có `kind=members` tải danh mục nhân sự CSV, `kind=channels` tải danh mục kênh CSV, `kind=reference` tải bộ JSON dành cho AI gồm cột/quy tắc, nhân sự, kênh, KPI đã chọn tháng và mẫu. `kind=summary` chỉ trả số lượng để giao diện hiển thị. Tất cả yêu cầu phiên đăng nhập quyền quản trị hệ thống, trả private/no-store và không ghi dữ liệu nghiệp vụ. File sẽ phản ánh thay đổi nhân sự/kênh/KPI ở lần tải tiếp theo; không suy ra danh mục production từ fixture kiểm thử.

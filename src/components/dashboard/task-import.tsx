@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect,useState } from "react";
 import { Drawer, Notice } from "./ui";
+import { currentMonth,validMonth } from "../../lib/kpis";
 import { parseTableImport } from "../../lib/table-import";
 export function TaskImport({
   onClose,
@@ -27,6 +28,15 @@ export function TaskImport({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [batch, setBatch] = useState("");
+  const [templateMonth,setTemplateMonth]=useState(currentMonth());
+  const [directory,setDirectory]=useState<{members:number;channels:number;goals:number;samples:number;omitted_samples:number}|null>(null),[directoryError,setDirectoryError]=useState('');
+  useEffect(()=>{
+    const controller=new AbortController();setDirectory(null);setDirectoryError('');
+    if(!validMonth(templateMonth))return;
+    fetch(`/api/tasks/import?kind=summary&month=${templateMonth}`,{cache:'no-store',signal:controller.signal}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error);setDirectory(d);}).catch(e=>{if(!controller.signal.aborted)setDirectoryError(e instanceof Error?e.message:'Chưa tải được danh mục hiện tại.');});
+    return()=>controller.abort();
+  },[templateMonth]);
+  const templateHref=(kind:string)=>`/api/tasks/import?month=${templateMonth}&kind=${kind}`;
   async function inspect(file: File) {
     setBusy(true);
     setError("");
@@ -89,11 +99,17 @@ export function TaskImport({
     >
       <div className="kpi-import-body">
         {error && <Notice>{error}</Notice>}
-        <a className="secondary-button" href="/api/tasks/import">
-          Tải mẫu CSV kế hoạch
-        </a>
+        <section className="task-template-download">
+          <h3>Mẫu theo nhân sự & kênh hiện tại</h3>
+          <label>Tháng cần lập kế hoạch<input aria-label="Tháng của file mẫu" type="month" min="2000-01" max="2100-12" value={templateMonth} onChange={e=>setTemplateMonth(e.target.value)}/></label>
+          {directory&&<p className="result-hint">{directory.members} nhân sự · {directory.channels} kênh đang hoạt động · {directory.goals} KPI trong tháng. Chỉ gồm Trưởng phòng, Nhân viên và Thực tập Marketing.</p>}
+          {directoryError&&<Notice>{directoryError}</Notice>}
+          {directory?.members===0&&<Notice tone="info">Chưa có nhân sự Marketing phù hợp đang hoạt động. Mẫu chỉ có tiêu đề cột; hãy bổ sung thành viên trước khi lập kế hoạch.</Notice>}
+          {directory?.omitted_samples!==undefined&&directory.omitted_samples>0&&<Notice tone="info">Mẫu gồm 500 ví dụ đầu tiên. Tải bộ tham chiếu JSON để xem đầy đủ danh mục nhân sự, kênh và KPI.</Notice>}
+          {validMonth(templateMonth)&&<div className="task-template-links"><a className="primary-button" href={templateHref('plan')}>Tải mẫu CSV kế hoạch</a><a className="secondary-button" href={templateHref('members')}>Danh mục nhân sự</a><a className="secondary-button" href={templateHref('channels')}>Danh mục kênh</a><a className="secondary-button" href={templateHref('reference')}>Bộ tham chiếu cho AI (JSON)</a></div>}
+        </section>
         <p className="result-hint">
-          Mỗi dòng là một công việc. Hệ thống tự gắn KPI theo người, kênh chính, loại sản phẩm và tháng hạn hoàn thành. Chưa có hạn hoặc chưa có KPI phù hợp thì ghi việc ngoài KPI. Nhiều kênh phân cách bằng |; kênh đầu tiên là kênh chính. Các dòng MẪU - được bỏ qua.
+          CSV mẫu điền sẵn email thật, ID kênh và ví dụ theo KPI của tháng đã chọn; đây là dòng tham khảo, chưa phải công việc đã giao. Sau khi sửa nội dung, bỏ tiền tố MẪU - ở tên việc để import. Nhiều kênh phân cách bằng |; kênh đầu tiên là kênh chính. Dùng video_doc_ngan cho Reels/Shorts/TikTok và khac cho Audit. Bộ JSON dành cho AI có danh mục và quy tắc để soạn CSV đúng hệ thống.
         </p>
         <label className="import-file">
           Chọn file CSV

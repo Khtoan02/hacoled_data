@@ -1,3 +1,5 @@
+import { createTaskTemplate,importCsv,TASK_IMPORT_HEADERS,type TemplateMember,type TemplateChannel,type TemplateGoal } from "../../../../lib/task-import-template";
+import { currentMonth } from "../../../../lib/kpis";
 import { resolveImportChannels,type ImportChannel } from "../../../../lib/task-import-channels";
 import { createHash } from "node:crypto";
 import { isUuid } from "../../../../lib/social";
@@ -15,26 +17,7 @@ import { SELECTABLE_OUTPUT_TYPES } from "../../../../lib/kpis";
 import { TASK_PRIORITIES, TASK_STATUSES } from "../../../../lib/tasks";
 
 export const dynamic = "force-dynamic";
-const headers = [
-  "ten_cong_viec",
-  "mo_ta_chung",
-  "email_nguoi_thuc_hien",
-  "kenh",
-  "dinh_dang",
-  "so_luong",
-  "han_hoan_thanh",
-  "trang_thai",
-  "checklist",
-  "tuyen_noi_dung",
-  "dinh_dang_noi_dung",
-  "cta",
-  "link_website",
-  "tu_khoa_chinh",
-  "slug",
-  "link_tro_di",
-  "dinh_huong_noi_dung",
-  "ghi_chu_cong_viec",
-];
+const headers:readonly string[] = TASK_IMPORT_HEADERS;
 const aliases: Record<string, string> = {
   bai_viet: "post",
   video_dai: "video",
@@ -51,109 +34,29 @@ const statusAliases: Record<string, string> = {
   hoan_thanh: "completed",
 };
 
-export async function GET() {
+export async function GET(req:NextRequest) {
   try {
     await requireManager();
-    const samples = [
-      [
-        "MẪU - Bài Facebook",
-        "Mục tiêu chung",
-        "nhanvien@hacoled.com",
-        "@kenh-facebook",
-        "bai_viet",
-        "1",
-        "2026-11-15",
-        "cao",
-        "chua_bat_dau",
-        "Viết nội dung|Duyệt",
-        "Dự án thực tế",
-        "Bài ảnh",
-        "Nhắn tin tư vấn",
-        "https://hacoled.com/du-an",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ],
-      [
-        "MẪU - Bài Website",
-        "Mục tiêu SEO",
-        "nhanvien@hacoled.com",
-        "website-hacoled",
-        "bai_viet",
-        "1",
-        "2026-11-16",
-        "binh_thuong",
-        "chua_bat_dau",
-        "Viết bài|Tối ưu SEO",
-        "",
-        "",
-        "",
-        "",
-        "màn hình LED",
-        "man-hinh-led",
-        "https://hacoled.com/dich-vu",
-        "",
-        "",
-      ],
-      [
-        "MẪU - Video dọc ngắn",
-        "Video đăng đa kênh",
-        "nhanvien@hacoled.com",
-        "@kenh-facebook|@kenh-tiktok",
-        "video_doc_ngan",
-        "1",
-        "2026-11-17",
-        "cao",
-        "chua_bat_dau",
-        "Kịch bản|Quay|Dựng",
-        "",
-        "",
-        "Theo dõi HacoLED",
-        "",
-        "",
-        "",
-        "",
-        "Giới thiệu dự án trong 30 giây, mở đầu có hook",
-        "",
-      ],
-      [
-        "MẪU - Công việc khác",
-        "",
-        "nhanvien@hacoled.com",
-        "",
-        "khac",
-        "1",
-        "2026-11-18",
-        "binh_thuong",
-        "chua_bat_dau",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "Ghi rõ việc cần làm và kết quả bàn giao",
-      ],
-    ];
-    samples.forEach((row) => row.splice(7,1));
-    const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
-    const csv = `\uFEFF${headers.map(quote).join(",")}\r\n${samples.map((sample) => sample.map(quote).join(",")).join("\r\n")}\r\n`;
-    return new NextResponse(csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition":
-          'attachment; filename="mau-ke-hoach-cong-viec.csv"',
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (e) {
-    return apiError(e);
-  }
+    const month=req.nextUrl.searchParams.get('month')??currentMonth(),kind=req.nextUrl.searchParams.get('kind')??'plan';
+    if(!validMonth(month))throw new RequestError('Chọn tháng mẫu theo YYYY-MM.');
+    if(!['plan','members','channels','reference','summary'].includes(kind))throw new RequestError('Loại file mẫu không hợp lệ.');
+    const sql=database();
+    const [members,channels,goals]=await Promise.all([
+      sql`SELECT id,name,email,role FROM app_members WHERE active=true AND role IN ('marketing_manager','marketing_staff','marketing_intern') ORDER BY name,id`,
+      sql`SELECT id,name,platform,handle,url FROM app_social_channels WHERE active=true ORDER BY platform,name,id`,
+      sql`SELECT k.id,k.assignee_id,k.channel_id,k.output_type,k.target FROM app_kpis k JOIN app_members m ON m.id=k.assignee_id JOIN app_social_channels c ON c.id=k.channel_id WHERE k.active=true AND k.month=${month+'-01'}::date AND m.active=true AND m.role IN ('marketing_manager','marketing_staff','marketing_intern') AND c.active=true ORDER BY m.name,c.platform,c.name,k.output_type,k.id`,
+    ]);
+    const data=createTaskTemplate(members as TemplateMember[],channels as TemplateChannel[],goals as TemplateGoal[],month);
+    const cache={'Cache-Control':'private, no-store'};
+    if(kind==='summary')return NextResponse.json({members:data.members.length,channels:data.channels.length,goals:data.goals.length,samples:data.samples.length,omitted_samples:data.omitted_samples},{headers:cache});
+    if(kind==='reference')return new NextResponse(JSON.stringify(data,null,2),{headers:{...cache,'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="hacoled-tham-chieu-ke-hoach-${month}.json"`}});
+    let csv:string;
+    if(kind==='members')csv=importCsv(['name','email','role_label','id'],data.members);
+    else if(kind==='channels')csv=importCsv(['id','platform_label','name','handle','url'],data.channels);
+    else csv=importCsv(TASK_IMPORT_HEADERS,data.samples);
+    const filename=kind==='plan'?'mau-ke-hoach-cong-viec':kind==='members'?'danh-muc-nhan-su':'danh-muc-kenh';
+    return new NextResponse(csv,{headers:{...cache,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="${filename}-${month}.csv"`}});
+  }catch(e){return apiError(e);}
 }
 
 export async function POST(req: NextRequest) {

@@ -1,0 +1,34 @@
+import {test,expect} from '@playwright/test';
+import {createTaskTemplate,templateMembers} from '../src/lib/task-import-template';
+import {parseTableImport} from '../src/lib/table-import';
+import {randomUUID} from 'node:crypto';
+const baseURL='http://127.0.0.1:3100';
+test('Live plan templates contain eligible team, exact channel IDs and valid KPI examples, without writing tasks',async({playwright,browser})=>{
+ const root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.217'}}),auth=await(await root.get('/api/auth/status')).json();
+ if(auth.needsSetup)await root.post('/api/auth/setup',{data:{name:'Khánh Toàn',email:'owner@example.test',password:'Test-only-password-2026!',setupToken:'isolated-test-setup-token'}});else await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});
+ const actors:Record<string,typeof root>={};
+ for(const [key,role] of [['staff','marketing_staff'],['intern','marketing_intern'],['manager','marketing_manager'],['sales','sales_hotline']]){expect((await root.post('/api/members',{data:{name:`Template ${key}`,email:`template-${key}@example.test`,password:`Template-${key}-2026!`,role}})).status()).toBe(201);actors[key]=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL}});await actors[key].post('/api/auth/login',{data:{password:`Template-${key}-2026!`}});}
+ const members=(await(await root.get('/api/members')).json()).members,staff=members.find((m:{email:string})=>m.email==='template-staff@example.test');
+ const channelIds:string[]=[];for(const platform of ['website','facebook','tiktok','youtube']){const r=await root.post('/api/social-channels',{data:{name:'Template HacoLED',platform,url:`https://${platform}.example.test/template`,handle:'@same-handle',notes:'',active:true,access:[]}});expect(r.status()).toBe(201);channelIds.push((await r.json()).id);}
+ expect((await root.post('/api/kpis',{data:{assignee_id:staff.id,channel_id:channelIds[0],month:'2030-02',output_type:'post',target:30,notes:'',active:true}})).status()).toBe(201);
+ for(const [email,channelId,output] of [['template-staff@example.test',channelIds[1],'post'],['template-intern@example.test',channelIds[2],'short_video'],['template-manager@example.test',channelIds[3],'video']]){const person=members.find((m:{email:string})=>m.email===email);expect((await root.post('/api/kpis',{data:{assignee_id:person.id,channel_id:channelId,month:'2030-02',output_type:output,target:20,notes:'',active:true}})).status()).toBe(201);}
+ const before=(await(await root.get('/api/tasks')).json()).tasks.length;
+ const response=await root.get('/api/tasks/import?month=2030-02');expect(response.status()).toBe(200);expect(response.headers()['cache-control']).toContain('no-store');
+ const samples=parseTableImport(await response.text());expect(samples.length).toBeGreaterThan(0);expect(samples.every(r=>String(r.ten_cong_viec).startsWith('MẪU -'))).toBe(true);expect(samples.every(r=>r.han_hoan_thanh==='2030-02-28')).toBe(true);expect(samples.every(r=>r.email_nguoi_thuc_hien!=='owner@example.test'&&r.email_nguoi_thuc_hien!=='template-sales@example.test')).toBe(true);
+ const reference=await(await root.get('/api/tasks/import?month=2030-02&kind=reference')).json();expect(reference.members.every((m:{role:string})=>['marketing_manager','marketing_staff','marketing_intern'].includes(m.role))).toBe(true);expect(reference.members.some((m:{email:string})=>m.email==='template-manager@example.test')).toBe(true);expect(JSON.stringify(reference)).not.toContain('password');expect(JSON.stringify(reference)).not.toContain('credentials');
+ for(const id of channelIds)expect(samples.some(r=>r.kenh===id)).toBe(true);
+ const original=await(await root.post('/api/tasks/import',{data:{rows:samples,stage:'preview'}})).json();expect(original.valid).toBe(0);expect(original.skipped).toBe(samples.length);expect(original.errors).toEqual([]);
+ const actual=samples.map(r=>({...r,ten_cong_viec:String(r.ten_cong_viec).replace(/^MẪU - /,'')}));const preview=await(await root.post('/api/tasks/import',{data:{rows:actual,stage:'preview'}})).json();expect(preview.errors).toEqual([]);expect(preview.valid).toBe(samples.length);expect(preview.rows.find((r:{channel_ids:string[];assignee_id:string})=>r.channel_ids[0]===channelIds[0]&&r.assignee_id===staff.id).kpi_id).toBeTruthy();
+ const people=parseTableImport(await(await root.get('/api/tasks/import?kind=members')).text());expect(people.some(r=>r.email==='template-staff@example.test')).toBe(true);expect(people.some(r=>r.email==='owner@example.test'||r.email==='template-sales@example.test')).toBe(false);
+ expect((await root.get('/api/tasks/import?month=2030-99')).status()).toBe(400);expect((await root.get('/api/tasks/import?kind=passwords')).status()).toBe(400);
+ for(const actor of Object.values(actors))expect((await actor.get('/api/tasks/import?kind=reference')).status()).toBe(403);
+ const anon=await playwright.request.newContext({baseURL});expect((await anon.get('/api/tasks/import')).status()).toBe(401);
+ const ctx=await browser.newContext({storageState:await root.storageState()}),page=await ctx.newPage();await page.goto(`${baseURL}/admin/tasks`);await page.getByRole('button',{name:'Import kế hoạch',exact:true}).click();await page.getByLabel('Tháng của file mẫu',{exact:true}).fill('2030-02');await expect(page.getByRole('link',{name:'Tải mẫu CSV kế hoạch',exact:true})).toHaveAttribute('href','/api/tasks/import?month=2030-02&kind=plan');await expect(page.getByText(/KPI trong tháng/)).toBeVisible();await expect(page.getByRole('link',{name:'Bộ tham chiếu cho AI (JSON)',exact:true})).toBeVisible();
+ expect((await(await root.get('/api/tasks')).json()).tasks.length).toBe(before);
+ expect((await root.patch('/api/members',{data:{id:staff.id,active:false}})).status()).toBe(200);const refreshed=await(await root.get('/api/tasks/import?month=2030-02&kind=reference')).json();expect(refreshed.members.some((m:{id:string})=>m.id===staff.id)).toBe(false);expect(refreshed.samples.some((r:{email_nguoi_thuc_hien:string})=>r.email_nguoi_thuc_hien===staff.email)).toBe(false);
+ await ctx.close();await anon.dispose();for(const a of Object.values(actors))await a.dispose();await root.dispose();
+});
+test('Template works with no eligible member, no channels and leap years',()=>{
+ const leader={id:randomUUID(),name:'Leader',email:'leader@example.test',role:'lead_marketing' as const};expect(templateMembers([leader,{...leader,role:'executive'},{...leader,role:'sales_hotline'}])).toEqual([]);expect(createTaskTemplate([leader],[],[],'2028-02').samples).toEqual([]);
+ const staff={...leader,role:'marketing_staff' as const};const data=createTaskTemplate([staff],[],[],'2028-02');expect(data.samples[0].han_hoan_thanh).toBe('2028-02-29');expect(data.samples[0].dinh_dang).toBe('khac');expect(data.samples[0].kenh).toBe('');
+});
