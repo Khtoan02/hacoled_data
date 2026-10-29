@@ -17,6 +17,8 @@ import {
   ClipboardList,
   GripVertical,
   LayoutGrid,
+  List,
+  Table2,
   ListChecks,
   ListFilter,
   ListTodo,
@@ -30,6 +32,8 @@ import {
   X,
 } from "lucide-react";
 import { deadlineMonth, matchDeadlineKpi, compareTaskDeadline } from "../../lib/task-planning";
+import { TaskListView,TaskTableView } from "./task-collection-views";
+import { compareTaskView,type TaskSort } from "../../lib/task-views";
 import { TaskResult } from "./task-report";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
@@ -89,11 +93,12 @@ export function TasksPage() {
     full = isFullAccess(member.role),
     router = useRouter(),
     params = useSearchParams();
-  const view = ["list", "board", "todo"].includes(params.get("view") || "")
+  const view = ["list", "table", "board", "todo"].includes(params.get("view") || "")
     ? params.get("view")!
     : "list";
-  const [expandedFilters,setExpandedFilters]=useState(true);
-  useEffect(()=>{const media=window.matchMedia('(max-width: 640px)'),update=()=>setExpandedFilters(!media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
+  const [expandedFilters,setExpandedFilters]=useState(false);
+  const [sort,setSort]=useState<TaskSort>({field:'deadline',direction:'asc'});
+  const paginatedView=view==='list'||view==='table';
   const [tasks, setTasks] = useState<Task[]>([]),
     [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true),
@@ -387,9 +392,10 @@ export function TasksPage() {
       (assigneeFilter === "all" || t.assignee_id === assigneeFilter) &&
       (dueFilter === "all" || (dueFilter === "overdue" ? isOverdue(t) : taskDeadlineGroup(t) === dueFilter)),
   ).sort(compareTaskDeadline);
+  const orderedTasks=view==='table'?[...filtered].sort((a,b)=>compareTaskView(a,b,sort)):filtered;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)),
     currentPage = Math.min(page, totalPages),
-    visible = filtered.slice(
+    visible = orderedTasks.slice(
       (currentPage - 1) * pageSize,
       currentPage * pageSize,
     );
@@ -504,6 +510,7 @@ export function TasksPage() {
       </article>
     );
   }
+  const collectionProps={tasks:visible,full,memberId:member.id,busy,selecting,selected,onSelect:toggleSelected,onOpen:(task:Task)=>open(task),onResult:(task:Task)=>{open(task);setDetailTab("result");},onDelete:(task:Task)=>void remove(task)};
   return (
     <DashboardShell
       title="Công việc"
@@ -538,25 +545,17 @@ export function TasksPage() {
         </div>
       }
     >
-      <div className="summary-grid tasks-summary">
+      <div className="task-workspace-summary" role="group" aria-label="Tổng hợp công việc">
         {stats.map((stat) => (
-          <div key={stat.label} className={`summary-tile ${stat.tone}`}>
-            <span className="summary-icon">
-              <stat.icon size={22} strokeWidth={1.6} />
-            </span>
-            <div>
-              <span>{stat.label}</span>
-              <strong>{loading ? "—" : stat.value}</strong>
-            </div>
-          </div>
+          <span key={stat.label} className={`task-workspace-stat ${stat.tone}`}><stat.icon size={16}/><span>{stat.label}</span><strong>{loading?'—':stat.value}</strong></span>
         ))}
       </div>
       {error && <Notice>{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
       <Panel
-        className="tasks-panel"
+        className="tasks-panel work-collection"
         title="Danh sách công việc"
-        description={`${filtered.length} công việc trong phạm vi quyền của bạn. Hạn gần nhất xếp trước; chưa có hạn ở cuối.`}
+        description={loading?"Đang tải công việc…":`${filtered.length} công việc${filtered.length!==tasks.length?` / ${tasks.length} trong phạm vi của bạn`:" trong phạm vi của bạn"}`}
         action={<div className="task-panel-actions">{full&&<button className="secondary-button" disabled={busy||loading} aria-pressed={selecting} onClick={()=>{setSelecting(!selecting);setSelected([]);}}> {selecting?"Hủy chọn":"Chọn nhiều"}</button>}
           <button
             className="secondary-button"
@@ -568,14 +567,15 @@ export function TasksPage() {
           </button></div>
         }
       >
-        <div className="task-viewbar">
+        <div className="work-toolbar">        <div className="task-viewbar">
           <div
             className="segmented-control"
             role="group"
             aria-label="Chế độ xem công việc"
           >
             {[
-              { id: "list", label: "Bảng", icon: ClipboardList },
+              { id: "list", label: "List", icon: List },
+              { id: "table", label: "Table", icon: Table2 },
               { id: "board", label: "Kanban", icon: LayoutGrid },
               { id: "todo", label: "To-do", icon: ListChecks },
             ].map((v) => (
@@ -598,19 +598,8 @@ export function TasksPage() {
               </button>
             ))}
           </div>
-          <span className="view-hint">
-            {full && view === "board"
-              ? "Kéo thả thẻ hoặc mở chi tiết để chuyển trạng thái."
-              : full
-                ? "Quản lý tiến độ và người thực hiện."
-                : "Mở công việc để xem hoặc báo cáo kết quả."}
-          </span>
         </div>
-        <div className="task-quick-filters" role="group" aria-label="Lọc nhanh công việc">
-          <button className={assigneeFilter===member.id?"active":""} aria-pressed={assigneeFilter===member.id} onClick={()=>changeFilter(setAssigneeFilter,assigneeFilter===member.id?"all":member.id)}>Việc của tôi</button>
-          {[['all','Mọi thời hạn'],['overdue','Quá hạn'],['today','Hôm nay'],['week','7 ngày tới']].map(([id,label])=><button key={id} className={dueFilter===id?"active":""} aria-pressed={dueFilter===id} onClick={()=>changeFilter(setDueFilter,id)}>{label}{id==='overdue'&&` · ${tasks.filter(isOverdue).length}`}</button>)}
-        </div>
-        <div className="task-search-row">          <label className="table-search">
+        <div className="work-search-controls">          <label className="table-search">
             <Search size={17} />
             <input
               aria-label="Tìm công việc"
@@ -619,6 +608,12 @@ export function TasksPage() {
               onChange={(e) => changeFilter(setSearch, e.target.value)}
             />
           </label><button type="button" className="secondary-button" aria-expanded={expandedFilters} aria-controls="task-advanced-filters" onClick={()=>setExpandedFilters(!expandedFilters)}><ListFilter size={16}/>Bộ lọc{[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length>0&&` (${[kpiFilter,channelFilter,statusFilter,assigneeFilter].filter(v=>v!=="all").length})`}<ChevronDown size={15}/></button></div>
+</div>
+        <div className="task-quick-filters" role="group" aria-label="Lọc nhanh công việc">
+          <button className={assigneeFilter===member.id?"active":""} aria-pressed={assigneeFilter===member.id} onClick={()=>changeFilter(setAssigneeFilter,assigneeFilter===member.id?"all":member.id)}>Việc của tôi</button>
+          {[['all','Mọi thời hạn'],['overdue','Quá hạn'],['today','Hôm nay'],['week','7 ngày tới']].map(([id,label])=><button key={id} className={dueFilter===id?"active":""} aria-pressed={dueFilter===id} onClick={()=>changeFilter(setDueFilter,id)}>{label}{id==='overdue'&&` · ${tasks.filter(isOverdue).length}`}</button>)}
+        </div>
+        {(search||kpiFilter!=="all"||channelFilter!=="all"||statusFilter!=="all"||assigneeFilter!=="all"||dueFilter!=="all")&&<div className="work-filter-summary"><span>Đang lọc {filtered.length} công việc</span><button type="button" onClick={resetFilters}>Bỏ lọc</button></div>}
         {expandedFilters&&<div className="advanced-toolbar" id="task-advanced-filters">
           <select
             aria-label="Lọc KPI công việc"
@@ -672,7 +667,7 @@ export function TasksPage() {
 
         </div>}
         {selecting&&full&&<div className="task-selection-bar">
-          <label><input type="checkbox" aria-label={view==='list'?"Chọn tất cả trên trang":"Chọn các công việc đang hiển thị"} checked={(view==='list'?visible:filtered).slice(0,100).length>0&&(view==='list'?visible:filtered).slice(0,100).every(t=>selected.includes(t.id))} disabled={busy||loading||!filtered.length} onChange={e=>{const ids=(view==='list'?visible:filtered).slice(0,100).map(t=>t.id);setSelected(current=>e.target.checked?[...new Set([...current,...ids])].slice(0,100):current.filter(id=>!ids.includes(id)));}}/>{view==='list'?"Chọn trang này":"Chọn tối đa 100 việc"}</label>
+          <label><input type="checkbox" aria-label={paginatedView?"Chọn tất cả trên trang":"Chọn các công việc đang hiển thị"} checked={(paginatedView?visible:filtered).slice(0,100).length>0&&(paginatedView?visible:filtered).slice(0,100).every(t=>selected.includes(t.id))} disabled={busy||loading||!filtered.length} onChange={e=>{const ids=(paginatedView?visible:filtered).slice(0,100).map(t=>t.id);setSelected(current=>e.target.checked?[...new Set([...current,...ids])].slice(0,100):current.filter(id=>!ids.includes(id)));}}/>{paginatedView?"Chọn trang này":"Chọn tối đa 100 việc"}</label>
           <span aria-live="polite">Đã chọn <strong>{selected.length}</strong> công việc</span>
           <button className="secondary-button" disabled={!selected.length||busy} onClick={()=>setSelected([])}>Bỏ chọn</button>
           <button className="primary-button danger-action" disabled={!selected.length||busy} onClick={()=>setDeleteOpen(true)}><Trash2 size={16}/>Xóa đã chọn ({selected.length})</button>
@@ -762,11 +757,8 @@ export function TasksPage() {
               const items = filtered.filter((t) => taskDeadlineGroup(t) === status);
               if (!items.length) return null;
               return (
-                <section key={status}>
-                  <h3>
-                    {label}
-                    <span className="count-badge">{items.length}</span>
-                  </h3>
+                <details key={status} className="work-todo-group" open>
+                  <summary><span>{label}</span><span className="count-badge">{items.length}</span><ChevronDown size={15}/></summary>
                   {items.map((t) => (
                     <div
                       className={`todo-row ${t.status === "completed" ? "done" : ""}`}
@@ -795,115 +787,14 @@ export function TasksPage() {
                       {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                     </div>
                   ))}
-                </section>
+                </details>
               );
             })}
           </div>
         ) : (
           <>
-            <div className="table-scroll">
-              <table className="members-table task-table">
-                <thead>
-                  <tr>
-                    {full&&selecting&&<th aria-label="Chọn công việc"/>}
-                    <th>Công việc</th>
-                    <th>Người thực hiện</th>
-                    <th>Hạn hoàn thành</th>
-                    <th>Trạng thái</th>
-                    <th aria-label="Chi tiết" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((t) => (
-                    <tr key={t.id} className={selected.includes(t.id)?"is-selected":""}>
-                      {full&&selecting&&<td className="task-select-cell">{selectBox(t)}</td>}
-                      <td className="task-main-cell">
-                        <button
-                          className="table-task-title"
-                          onClick={() => open(t)}
-                        >
-                          {t.title}
-                        </button>
-                        <button
-                          type="button"
-                          className="task-result-link"
-                          onClick={() => {
-                            open(t);
-                            setDetailTab("result");
-                          }}
-                        >
-                          <MessageSquareText size={13} />
-                          {t.result_text || t.evidence_links.length
-                            ? "Xem kết quả"
-                            : "Kết quả & tiến độ"}
-                        </button>
-                        <small className="task-channel-label">
-                          {t.kpi_id ? "Trong KPI" : "Ngoài KPI"} ·{" "}
-                          {t.status === "completed" ? t.delivered_quantity : 0}/
-                          {t.planned_quantity}{" "}
-                          {OUTPUT_TYPES[t.output_type].unit}
-                        </small>
-                        {t.channels?.length ? (
-                          <div className="task-channel-stack">
-                            {t.channels.map((channel) => (
-                              <ChannelIdentity
-                                key={channel.id}
-                                channel={channel}
-                                compact
-                              />
-                            ))}
-                          </div>
-                        ) : t.channel_name ? (
-                          <small className="task-channel-label">
-                            {t.channel_name}
-                          </small>
-                        ) : null}
-                        {t.checklist.length > 0 && (
-                          <small className="table-task-checklist">
-                            <ListChecks size={13} />
-                            {t.checklist.filter((c) => c.done).length}/
-                            {t.checklist.length} mục
-                          </small>
-                        )}
-                      </td>
-                      <td className="task-owner-cell">
-                        <div className="member-identity">
-                          <Avatar name={t.assignee_name} size="small" />
-                          <span>
-                            <strong>{t.assignee_name}</strong>
-                            <small>
-                              {ROLE_POLICIES[t.assignee_role].label}
-                            </small>
-                          </span>
-                        </div>
-                      </td>
-                      <td className={`task-due-cell ${isOverdue(t) ? "overdue" : ""}`}>
-                        {formatDate(t.due_at)}
-                      </td>
-                      <td className="task-status-cell">
-                        <StatusBadge status={t.status} />
-                      </td>
-                      <td className="task-actions-cell">
-                        <button
-                          className="icon-button"
-                          aria-label={`Mở chi tiết ${t.title}`}
-                          onClick={() => open(t)}
-                        >
-                          <ChevronDown size={16} />
-                        </button>
-                        {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              page={currentPage}
-              total={filtered.length}
-              pageSize={pageSize}
-              onChange={setPage}
-            />
+            {view==='list'?<TaskListView {...collectionProps}/>:<TaskTableView {...collectionProps} sort={sort} onSort={field=>{setSort(current=>({field,direction:current.field===field&&current.direction==='asc'?'desc':'asc'}));setPage(1);}}/>}
+            <Pagination page={currentPage} total={filtered.length} pageSize={pageSize} onChange={setPage}/>
           </>
         )}
       </Panel>

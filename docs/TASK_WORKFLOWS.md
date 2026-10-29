@@ -1,8 +1,17 @@
 # Công việc: danh sách, Kanban, To-do và ảnh kết quả
 
-Ba chế độ dùng cùng dữ liệu và bộ lọc. Danh sách theo hạn tăng dần (chưa có hạn ở cuối), hiển thị dạng từng mục trên điện thoại. Kanban chia theo trạng thái, vẫn xếp hạn gần trước. To-do chia quá hạn / hôm nay / 7 ngày tới / sắp tới / chưa đặt hạn / hoàn thành; trong mỗi nhóm giữ thứ tự hạn. Mốc ngày dùng múi giờ Việt Nam.
+Bốn chế độ dùng cùng dữ liệu và bộ lọc:
 
-Bộ lọc nhanh có Việc của tôi, Quá hạn, Hôm nay, 7 ngày tới. Bộ lọc chi tiết kênh/KPI/trạng thái/người thực hiện có thể thu gọn, mặc định thu gọn trên điện thoại. Các bộ lọc dùng chung giữa ba chế độ xem. Thẻ Kanban và To-do có lối mở nhanh phần trả kết quả.
+- **List** (mặc định): hàng gọn có tên việc, kênh/loại sản phẩm, checklist/minh chứng, hạn, người phụ trách và trạng thái. Luôn ưu tiên hạn gần nhất, chưa có hạn ở cuối. Hàng xếp lại theo chiều dọc trên điện thoại.
+- **Table**: bảng cột Công việc, Kênh, Người thực hiện, Hạn, Sản lượng/KPI, Trạng thái và Thao tác. Bấm tiêu đề để sắp xếp tăng/giảm theo tên, người thực hiện, hạn hoặc trạng thái; mặc định theo hạn tăng dần, chưa có hạn luôn ở cuối. Thứ tự tùy chỉnh chỉ áp dụng Table, được giữ khi chuyển đi rồi quay lại. Trên điện thoại giữ cấu trúc cột và cuộn ngang, kèm hướng dẫn.
+- **To-do**: checkbox hoàn thành nhanh, nhóm theo quá hạn / hôm nay / 7 ngày tới / sắp tới / chưa đặt hạn / hoàn thành; thu/mở từng nhóm. Trong nhóm giữ thứ tự hạn.
+- **Kanban**: ba cột trạng thái, thẻ có yêu cầu tóm tắt, kênh, checklist, hạn, người phụ trách và mở nhanh trả kết quả. Quản trị viên kéo thả được; chi tiết vẫn là đường cập nhật bằng bàn phím/điện thoại.
+
+List/Table phân trang 10 việc; chọn nhiều được giữ khi chuyển giữa cả bốn cách xem. To-do/Kanban dùng toàn bộ tập việc sau lọc. URL lần lượt `view=list`, `view=table`, `view=todo`, `view=board`; không có view hoặc không hợp lệ mặc định List. Link `view=list` cũ chuyển sang List thực sự, không còn là bí danh của bảng.
+
+Tìm kiếm và nút Bộ lọc cùng hàng với chọn chế độ trên máy tính. Bộ lọc chi tiết mặc định đóng trên mọi kích thước; bộ lọc nhanh Việc của tôi, Quá hạn, Hôm nay, 7 ngày tới luôn có sẵn. Lọc đang áp dụng có số kết quả và nút Bỏ lọc; thu bộ lọc không xóa điều kiện. Mốc ngày dùng múi giờ Việt Nam. Thống kê là một hàng tóm tắt thay vì bốn ô lớn để dành không gian cho công việc.
+
+Tham khảo bố cục bảng, avatar, badge và divider từ `src/components/tables/BasicTableOne.tsx` trong ZIP TailAdmin người dùng cung cấp. ZIP Free 2.4.0 không chứa mã trang Task/Kanban hoàn chỉnh; các chế độ công việc được xây dựng trên dữ liệu và phân quyền hiện có, không thêm dữ liệu mẫu vào production.
 
 Trong chi tiết luôn hiển thị tên việc, người thực hiện, hạn và khối lượng. Phần kết quả ưu tiên mô tả kết quả, trạng thái, checklist và hình ảnh trước thông tin sản lượng/KPI. Nhân viên/thực tập chỉ cập nhật việc của mình. Trưởng phòng có thể xem việc của đội theo quyền hiện hành, không tự sửa kết quả việc người khác. To-do cho người thực hiện tích hoàn thành nhanh; ghi lịch sử và đối chiếu phiên bản giống phần trả kết quả.
 

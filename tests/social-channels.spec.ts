@@ -260,6 +260,7 @@ test("channel metadata, encrypted credentials, per-member grants and task channe
   await staffPage
     .getByRole("button", { name: "Đóng chi tiết", exact: true })
     .click();
+  await staffPage.getByRole("button", { name: /^Bộ lọc/ }).click();
   await staffPage.getByLabel("Lọc kênh công việc").click();
   await staffPage
     .getByRole("option")

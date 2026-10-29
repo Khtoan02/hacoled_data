@@ -203,7 +203,7 @@ test("assignees report outcomes with inline images, immutable history and scoped
   await page.getByRole("button", { name: "Thêm ảnh", exact: true }).click();
   await expect(
     page.getByText(
-      "Không tải được ảnh. Dùng link ảnh trực tiếp có quyền xem công khai.",
+      "Không tải được ảnh. Kiểm tra quyền truy cập hoặc dùng link ảnh trực tiếp.",
       { exact: true },
     ),
   ).toBeVisible();

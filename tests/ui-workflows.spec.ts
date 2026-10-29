@@ -115,7 +115,7 @@ test("polished table, kanban, todo, team and profile share real data and preserv
     path: ".impeccable/review/todo-desktop.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Bảng", exact: true }).click();
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   await page.getByLabel("Tìm công việc").fill("không có dữ liệu tương ứng");
   await expect(
     page.getByRole("heading", { name: "Không có công việc phù hợp" }),
