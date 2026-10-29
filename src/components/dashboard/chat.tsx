@@ -11,14 +11,17 @@ function clock(value:string){return new Date(value).toLocaleTimeString("vi-VN",{
 function day(value:string){return new Date(value).toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"Asia/Ho_Chi_Minh"});}
 async function data(response:Response){const d=await response.json().catch(()=>({error:"Máy chủ chưa phản hồi đúng. Hãy thử lại."}));if(!response.ok)throw Object.assign(new Error(d.error||"Chưa tải được cuộc trò chuyện."),{status:response.status});return d;}
 function MessageText({body}:{body:string}){return <>{body.split(/(https?:\/\/[^\s<>]+)/g).map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>:part)}</>;}
-export function ChatPage(){
- const member=useMember(),router=useRouter(),params=useSearchParams(),selected=params.get("room")??"";
+export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{compact?:boolean;initialRoom?:string;active?:boolean;onSelect?:(id:string)=>void}={}){
+ const member=useMember(),router=useRouter(),params=useSearchParams();
+ const [localRoom,setLocalRoom]=useState(initialRoom),selected=compact?localRoom:params.get("room")??"";
+ useEffect(()=>{if(compact)setLocalRoom(initialRoom);},[compact,initialRoom]);
  const [rooms,setRooms]=useState<ChatRoom[]>([]),[people,setPeople]=useState<ChatPerson[]>([]),[loading,setLoading]=useState(true),[inboxError,setInboxError]=useState("");
  const [room,setRoom]=useState<ChatRoom|null>(null),[messages,setMessages]=useState<ChatMessage[]>([]),[hasMore,setHasMore]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[chatLoading,setChatLoading]=useState(false),[chatError,setChatError]=useState("");
  const [drafts,setDrafts]=useState<Record<string,string>>({}),[sending,setSending]=useState(false),[sendError,setSendError]=useState("");
  const [revision,setRevision]=useState(0);
  const fetchedCursor=useRef<Record<string,string>>({});
  const [query,setQuery]=useState(""),[editor,setEditor]=useState<"new"|"manage"|null>(null);
+ const activeRef=useRef(active);activeRef.current=active;
  const selectedRef=useRef(selected),sendLock=useRef(false),pending=useRef<Record<string,{text:string;id:string}>>({});selectedRef.current=selected;
  const scroller=useRef<HTMLDivElement>(null),nearBottom=useRef(true),readSeq=useRef<Record<string,string>>({});
  const inbox=useCallback(async(signal?:AbortSignal)=>{
@@ -28,15 +31,15 @@ export function ChatPage(){
  },[]);
  useEffect(()=>{const controller=new AbortController();const refresh=()=>{if(document.visibilityState==="visible")void inbox(controller.signal);};void inbox(controller.signal);const timer=setInterval(refresh,5000);document.addEventListener("visibilitychange",refresh);return()=>{controller.abort();clearInterval(timer);document.removeEventListener("visibilitychange",refresh);};},[inbox]);
  const markRead=useCallback(async(id:string,seq:string)=>{
-  if(document.visibilityState!=="visible"||!document.hasFocus()||selectedRef.current!==id||readSeq.current[id]===seq)return;
-  try{await data(await fetch("/api/chat/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({room_id:id,last_seen_seq:seq})}));readSeq.current[id]=seq;setRooms(all=>all.map(r=>r.id===id?{...r,unread:0}:r));}catch{/* The next visible refresh retries unread acknowledgement. */}
+  if(!activeRef.current||document.visibilityState!=="visible"||!document.hasFocus()||selectedRef.current!==id||readSeq.current[id]===seq)return;
+  try{await data(await fetch("/api/chat/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({room_id:id,last_seen_seq:seq})}));readSeq.current[id]=seq;setRooms(all=>all.map(r=>r.id===id?{...r,unread:0}:r));window.dispatchEvent(new Event("haco-chat-read"));}catch{/* The next visible refresh retries unread acknowledgement. */}
  },[]);
  useEffect(()=>{
   const controller=new AbortController();setRoom(null);setMessages([]);setChatError("");setSendError("");setHasMore(false);nearBottom.current=true;
   if(!selected){setChatLoading(false);return()=>controller.abort();}
   setChatLoading(true);let initial=true,latestSeq:string|null=null;let fetching=false;
   const refresh=async()=>{
-   if(document.visibilityState!=="visible"||fetching)return;
+   if(!active||document.visibilityState!=="visible"||fetching)return;
    fetching=true;
    try{
     const response=await fetch(`/api/chat/messages?room=${encodeURIComponent(selected)}${latestSeq!==null?`&after=${latestSeq}`:""}`,{cache:"no-store",signal:controller.signal});
@@ -49,10 +52,10 @@ export function ChatPage(){
   };
   void refresh();const timer=setInterval(()=>void refresh(),5000);const onFocus=()=>void refresh();window.addEventListener("focus",onFocus);document.addEventListener("visibilitychange",onFocus);
   return()=>{controller.abort();clearInterval(timer);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onFocus);};
- },[selected,markRead,revision]);
+ },[selected,markRead,revision,active]);
  useEffect(()=>{if(nearBottom.current&&scroller.current)scroller.current.scrollTop=scroller.current.scrollHeight;},[messages]);
  useEffect(()=>{const el=scroller.current;if(!el)return;const observer=new ResizeObserver(()=>{if(nearBottom.current)el.scrollTop=el.scrollHeight;});observer.observe(el);return()=>observer.disconnect();},[selected,chatLoading]);
- function choose(id:string){setEditor(null);router.replace(id?`/admin/chat?room=${encodeURIComponent(id)}`:"/admin/chat",{scroll:false});}
+ function choose(id:string){setEditor(null);if(compact){setLocalRoom(id);onSelect?.(id);return;}router.replace(id?`/admin/chat?room=${encodeURIComponent(id)}`:"/admin/chat",{scroll:false});}
  async function older(){
   if(!messages[0]||historyBusy)return;const id=selected,height=scroller.current?.scrollHeight??0,top=scroller.current?.scrollTop??0;setHistoryBusy(true);
   try{const d=await data(await fetch(`/api/chat/messages?room=${id}&before=${messages[0].seq}`,{cache:"no-store"}));if(selectedRef.current!==id)return;nearBottom.current=false;setMessages(old=>mergeMessages(d.messages,old));setHasMore(d.has_more);requestAnimationFrame(()=>{if(scroller.current&&selectedRef.current===id)scroller.current.scrollTop=scroller.current.scrollHeight-height+top;});}
@@ -70,7 +73,8 @@ export function ChatPage(){
   finally{sendLock.current=false;setSending(false);}
  }
  const visible=rooms.filter(r=>roomTitle(r,member.id).toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi"))),text=drafts[selected]??"";
- return <DashboardShell title="Chat nội bộ" description="Trao đổi riêng và phối hợp công việc trong nhóm." actions={<button className="primary-button" onClick={()=>setEditor("new")}><Plus size={17}/>Cuộc trò chuyện mới</button>}>
+ const content=<>
+  {compact&&<button className="mini-chat-new secondary-button" onClick={()=>setEditor("new")}><Plus size={16}/>Cuộc trò chuyện mới</button>}
   {inboxError&&<Notice>{inboxError} <button className="table-action" onClick={()=>void inbox()}>Thử lại</button></Notice>}
   <div className={`team-chat ${selected?"has-selection":""}`}>
    <aside className="chat-inbox" aria-label="Danh sách cuộc trò chuyện">
@@ -105,7 +109,8 @@ export function ChatPage(){
    </section>
   </div>
   {editor&&<ChatEditor key={`${editor}-${room?.id??"new"}`} mode={editor} room={editor==="manage"?room:null} people={people} onClose={()=>setEditor(null)} onSaved={id=>{setEditor(null);void inbox();if(id===selected)setRevision(n=>n+1);choose(id);}}/>}
- </DashboardShell>;
+ </>;
+ return compact?content:<DashboardShell title="Chat nội bộ" description="Trao đổi riêng và phối hợp công việc trong nhóm." actions={<button className="primary-button" onClick={()=>setEditor("new")}><Plus size={17}/>Cuộc trò chuyện mới</button>}>{content}</DashboardShell>;
 }
 function ChatEditor({mode,room,people,onClose,onSaved}:{mode:"new"|"manage";room:ChatRoom|null;people:ChatPerson[];onClose:()=>void;onSaved:(id:string)=>void}){
  const member=useMember(),canEdit=mode==="new"||room?.kind==="group"&&room.owner_id===member.id;

@@ -1,0 +1,26 @@
+import {test,expect} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
+test('Quick chat announces new messages, replies, preserves drafts and works on mobile',async({playwright,browser})=>{
+ const baseURL='http://127.0.0.1:3100',headers={Origin:baseURL,'x-real-ip':'198.51.100.231'},root=await playwright.request.newContext({baseURL,extraHTTPHeaders:headers});
+ const auth=await(await root.get('/api/auth/status')).json();
+ if(auth.needsSetup)await root.post('/api/auth/setup',{data:{name:'Khánh Toàn',email:'owner@example.test',password:'Test-only-password-2026!',setupToken:'isolated-test-setup-token'}});else await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});
+ expect((await root.post('/api/members',{data:{name:'Popup colleague',email:'popup@example.test',password:'Popup-test-2026!',role:'marketing_staff'}})).status()).toBe(201);
+ const people=(await(await root.get('/api/members')).json()).members,peerId=people.find((m:any)=>m.email==='popup@example.test').id;
+ const peer=await playwright.request.newContext({baseURL,extraHTTPHeaders:headers});await peer.post('/api/auth/login',{data:{password:'Popup-test-2026!'}});
+ const room=(await(await root.post('/api/chat',{data:{kind:'direct',member_ids:[peerId],request_id:randomUUID()}})).json()).id;
+ await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'Old unread message'}});
+ const context=await browser.newContext({storageState:await root.storageState()}),page=await context.newPage();
+ await page.goto('/admin/profile');await expect(page.getByRole('button',{name:/Mở chat nhanh · 1 tin chưa đọc/})).toBeVisible();await expect(page.locator('.chat-toast')).toHaveCount(0);
+ await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'New message for popup'}});
+ await expect(page.locator('.chat-toast')).toBeVisible({timeout:15000});await expect(page.locator('.chat-launcher')).toHaveClass(/has-unread/);
+ await page.locator('.chat-toast-open').click();const panel=page.getByRole('region',{name:'Chat nhanh'});await expect(panel.getByRole('log').getByText('New message for popup',{exact:true})).toBeVisible();
+ await expect.poll(async()=>((await(await root.get('/api/chat')).json()).rooms.find((r:any)=>r.id===room).unread)).toBe(0);
+ const input=panel.getByRole('textbox',{name:'Nội dung tin nhắn'});await input.fill('Draft stays here');await panel.getByRole('button',{name:'Thu gọn chat',exact:true}).click();await expect(panel).toBeHidden();
+ await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'While minimized'}});await expect(page.locator('.chat-toast')).toBeVisible({timeout:15000});expect((await(await root.get('/api/chat')).json()).rooms.find((r:any)=>r.id===room).unread).toBe(1);
+ await page.locator('.chat-launcher').click();await expect(input).toHaveValue('Draft stays here');await input.fill('Reply from quick chat');await panel.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();await expect(panel.getByRole('log').getByText('Reply from quick chat',{exact:true})).toBeVisible();
+ await expect(panel.getByRole('link',{name:'Mở chat toàn màn hình'})).toHaveAttribute('href',`/admin/chat?room=${room}`);
+ await page.screenshot({path:'.impeccable/review/quick-chat-desktop.png'});
+ await page.setViewportSize({width:390,height:844});await expect(panel).toBeVisible();const bounds=await panel.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390);await page.screenshot({path:'.impeccable/review/quick-chat-mobile.png'});
+ await panel.getByRole('link',{name:'Mở chat toàn màn hình'}).click();await expect(page).toHaveURL(new RegExp(`/admin/chat\\?room=${room}`));await expect(page.locator('.floating-chat')).toHaveCount(0);
+ await context.close();await peer.dispose();await root.dispose();
+});

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { FloatingChat } from "../../components/dashboard/floating-chat";
 import { redirect } from "next/navigation";
 import { getMember } from "../../lib/auth/server";
 import { SessionProvider } from "../../components/dashboard/session";
@@ -13,6 +15,7 @@ export default async function AdminLayout({
   return (
     <SessionProvider member={JSON.parse(JSON.stringify(member))}>
       {children}
+      <Suspense fallback={null}><FloatingChat /></Suspense>
     </SessionProvider>
   );
 }

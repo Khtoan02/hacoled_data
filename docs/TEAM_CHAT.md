@@ -54,3 +54,9 @@ Dùng `DATABASE_URL` hiện tại; không cần thêm khóa của nhà cung cấ
 7. Ngừng tài khoản chặn chat, không thêm người đã ngừng hoạt động.
 8. Tạo nhóm, gửi text chứa HTML, đổi tên và giao diện desktop/mobile.
 9. Chuyển trưởng nhóm và thu hồi quyền quản lý của trưởng nhóm cũ.
+
+## Chat nhanh ở góc màn hình
+
+Các trang nội bộ có nút Chat ở góc phải dưới. Nút hiện số tin chưa đọc và nháy viền đỏ nhẹ; tôn trọng cài đặt giảm chuyển động. Tin mới phát hiện trong lúc dùng ứng dụng hiện thông báo nổi trong 8 giây, bấm để mở đúng cuộc trò chuyện. Tin cũ chưa đọc chỉ hiện số đếm, không hiện lại thành thông báo mới mỗi lần tải trang. Không tự mở cửa sổ hay chiếm focus khi có tin.
+
+Cửa sổ nhỏ dùng chung API, kiểm tra thành viên, gửi lại chống trùng và phân trang với trang chat đầy đủ. Có tạo nhóm/nhắn riêng, thu gọn giữ bản nháp, nút mở toàn màn hình và Escape để thu gọn. Thu gọn không đánh dấu đã đọc. Trên trang chat đầy đủ sẽ ẩn nút nổi để tránh trùng giao diện. Dữ liệu mới kiểm tra mỗi 5 giây khi tab hiện; Web Push vẫn phụ trách nhắc thiết bị khi tab đóng theo cấu hình riêng.

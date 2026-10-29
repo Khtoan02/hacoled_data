@@ -67,3 +67,5 @@ Bốn cách xem công việc độc lập: List gọn (mặc định), Table có
 Mẫu kế hoạch CSV được tạo từ nhân sự/kênh/KPI hiện tại theo tháng chọn, chỉ gồm Trưởng phòng, Nhân viên và Thực tập Marketing đang hoạt động. Kênh dùng ID chính xác, email dùng tài khoản thực. Có danh mục CSV riêng và bộ JSON tham chiếu cho AI; không chứa thông tin đăng nhập kênh. Mẫu giữ tiền tố MẪU - để không tạo việc nhầm. Không thay đổi quyền nghiệp vụ hoặc tự giao các dòng ví dụ.
 
 Thông báo thiết bị bằng Web Push: người dùng tự bật quyền từ hồ sơ/chuông trên từng thiết bị. Chat, công việc và KPI có outbox chống trùng, kiểm tra quyền lại khi gửi và khi hiện; nội dung OS chỉ là lời nhắc chung, không hiện nội dung chat riêng. Đăng ký gắn với phiên, dừng khi thu hồi/hết hạn. Cần khóa VAPID ổn định (có thể suy ra riêng từ master key hiện tại) và CRON_SECRET trên Vercel cho lịch nhắc KPI hằng ngày khi không mở ứng dụng. Chi tiết giới hạn và thiết lập: docs/WEB_PUSH.md.
+
+Chat nhanh: nút nổi góc phải trên các trang nội bộ, số tin chưa đọc/viền đỏ nhấp nhẹ và thông báo nổi khi phát hiện tin mới; mở trả lời tại chỗ, giữ bản nháp khi thu gọn. Trang chat đầy đủ không hiển thị widget trùng lặp.
