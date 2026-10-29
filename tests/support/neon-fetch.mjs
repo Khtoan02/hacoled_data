@@ -1,3 +1,4 @@
+import "./push-transport.mjs";
 // Imported only by the test runner process, never by application code.
 const original = globalThis.fetch;
 globalThis.fetch = (input, init) => {

@@ -1,3 +1,4 @@
+import {schedulePush} from "../../../lib/push-delivery";
 import { resolveDeadlineKpi } from "../../../lib/task-kpi";
 import { outputFields, type OutputFields } from "../../../lib/kpi-fields";
 import { NextRequest, NextResponse } from "next/server";
@@ -18,6 +19,7 @@ import {
   type TaskBrief,
 } from "../../../lib/tasks";
 export const dynamic = "force-dynamic";
+export const maxDuration=60;
 const isId = (value: unknown): value is string =>
   typeof value === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -241,6 +243,7 @@ export async function POST(req: NextRequest) {
       throw new RequestError(
         "Nhân sự/kênh không hoạt động hoặc KPI không khớp người, kênh và loại sản phẩm.",
       );
+    schedulePush();
     return NextResponse.json({ ok: true, id: rows[0].id }, { status: 201 });
   } catch (error) {
     return apiError(error);
@@ -283,6 +286,7 @@ export async function PATCH(req: NextRequest) {
         "Công việc không tồn tại hoặc KPI/nhân sự/kênh không khớp. Kiểm tra lại liên kết KPI.",
         404,
       );
+    schedulePush();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiError(error);
@@ -302,6 +306,7 @@ export async function DELETE(req: NextRequest) {
     ]);
     const rows = result[2];
     if (!rows.length) throw new RequestError("Không tìm thấy công việc.", 404);
+    schedulePush();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiError(error);

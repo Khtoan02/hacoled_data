@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:migrate": "node scripts/migrate.mjs",
     "test:e2e": "playwright test",
-    "credentials:key": "node scripts/create-social-key.mjs"
+    "credentials:key": "node scripts/create-social-key.mjs",
+    "push:setup": "node scripts/create-push-config.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
@@ -28,11 +29,13 @@
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
     "tailwindcss": "^3.4.14",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.12",
-    "@playwright/test": "^1.64.1"
+    "@playwright/test": "^1.64.1",
+    "@types/web-push": "^3.6.4"
   },
   "overrides": {
     "next": {

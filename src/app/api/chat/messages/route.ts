@@ -1,7 +1,9 @@
+import {schedulePush} from "../../../../lib/push-delivery";
 import { NextRequest,NextResponse } from "next/server";
 import { apiError,checkOrigin,database,RequestError } from "../../../../lib/auth/server";
 import { chatActor,chatId,visibleChatRoom } from "../../../../lib/chat-server";
 export const dynamic="force-dynamic";
+export const maxDuration=60;
 const headers={"Cache-Control":"no-store, private"};
 export async function GET(req:NextRequest){
  try{
@@ -31,6 +33,7 @@ export async function POST(req:NextRequest){
     RETURNING id,seq::text,room_id,author_id,body,created_at`,
   ]);
   if(!result[1].length)throw new RequestError("Chưa gửi được: quyền truy cập, người nhận hoặc mã tin nhắn đã thay đổi. Tải lại cuộc trò chuyện.",409);
+  schedulePush();
   return NextResponse.json({message:{...result[1][0],author_name:actor.name}},{status:201,headers});
  }catch(e){return apiError(e);}
 }

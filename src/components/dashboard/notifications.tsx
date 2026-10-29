@@ -1,4 +1,5 @@
 "use client";
+import {PushSettings} from "./push-settings";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
 import {Bell,CheckCheck,ChevronRight,ClipboardList,RefreshCw,Target} from "lucide-react";
@@ -43,6 +44,7 @@ export function NotificationBell(){
   <button className="icon-button notification-bell" aria-label={`Thông báo${unread?` · ${unread} chưa đọc`:''}`} onClick={()=>{setOpen(true);void refresh();}}><Bell size={20}/>{unread>0&&<span className="notification-count">{unread>99?'99+':unread}</span>}</button>
   {open&&<Drawer title="Thông báo" description="Công việc và tiến độ KPI trong phạm vi của bạn." onClose={()=>setOpen(false)}>
    <div className="notification-body">
+    <PushSettings compact/>
     <div className="notification-toolbar"><span className="notification-inbox-count" aria-live="polite"><strong>{unread}</strong> chưa đọc</span><button className="secondary-button" disabled={loading||reading} onClick={()=>void refresh()}><RefreshCw size={15} className={loading?'animate-spin':''}/>Tải lại</button><button className="secondary-button" disabled={!unread||reading||loading} onClick={()=>void read('all')}><CheckCheck size={16}/>{reading?'Đang cập nhật…':'Đánh dấu tất cả đã đọc'}</button></div>
     <div className="notification-filters"><button className={`notification-filter-button ${unreadOnly?'active':''}`} aria-pressed={unreadOnly} onClick={()=>setUnreadOnly(!unreadOnly)}>Chỉ hiện chưa đọc</button><select aria-label="Lọc loại thông báo" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Tất cả thông báo</option><option value="task_assigned">Công việc mới</option><option value="task_completed">Đã hoàn thành</option><option value="kpi_reminder">Nhắc tiến độ KPI</option></select></div>
     {error&&<Notice>{error}</Notice>}

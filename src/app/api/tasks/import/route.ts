@@ -1,3 +1,4 @@
+import {schedulePush} from "../../../../lib/push-delivery";
 import { createTaskTemplate,importCsv,TASK_IMPORT_HEADERS,type TemplateMember,type TemplateChannel,type TemplateGoal } from "../../../../lib/task-import-template";
 import { currentMonth } from "../../../../lib/kpis";
 import { resolveImportChannels,type ImportChannel } from "../../../../lib/task-import-channels";
@@ -17,6 +18,7 @@ import { SELECTABLE_OUTPUT_TYPES } from "../../../../lib/kpis";
 import { TASK_PRIORITIES, TASK_STATUSES } from "../../../../lib/tasks";
 
 export const dynamic = "force-dynamic";
+export const maxDuration=60;
 const headers:readonly string[] = TASK_IMPORT_HEADERS;
 const aliases: Record<string, string> = {
   bai_viet: "post",
@@ -347,6 +349,7 @@ export async function POST(req: NextRequest) {
       ],
       { isolationLevel: "Serializable" },
     );
+    schedulePush();
     return NextResponse.json(
       { ok: true, imported: prepared.length },
       { status: 201 },

@@ -133,3 +133,5 @@ Migration `012-team-chat.sql` creates rooms, memberships with join/read sequence
 `013-notifications.sql`: hộp thông báo theo thành viên, trigger giao việc/hoàn thành và khóa chống trùng; xóa công việc/KPI sẽ cascade thông báo tương ứng. Không backfill thông báo lịch sử.
 
 `014-task-attachments.sql`: ảnh minh chứng riêng tư dạng bytea, FK công việc cascade. Ảnh phục vụ bởi API có xác thực và scope; không công khai URL Blob. Tổng ảnh cũ/mới tối đa 20 MB/công việc, có tính vào dung lượng PostgreSQL. Xem docs/TASK_WORKFLOWS.md.
+
+`015-web-push.sql`: đăng ký thiết bị gắn phiên đăng nhập, hàng đợi sự kiện chat/notifications và dấu gửi theo thiết bị; trigger không backfill. Thu hồi phiên xóa đăng ký theo FK. Xem docs/WEB_PUSH.md để cấu hình VAPID và cron.

@@ -79,3 +79,5 @@ Chat nội bộ tại `/admin/chat`: nhắn riêng, tạo nhóm tối đa 50 ng�
 Thông báo nội bộ: chuông trên thanh đầu trang báo việc mới, hoàn thành và nhắc KPI theo phạm vi vai trò. Xem [quy tắc và vận hành](docs/NOTIFICATIONS.md).
 
 Công việc hỗ trợ xóa hàng loạt có kiểm tra phiên bản, To-do theo hạn và dán/chọn/kéo thả ảnh kết quả riêng tư. Xem [luồng thao tác và lưu trữ ảnh](docs/TASK_WORKFLOWS.md).
+
+Web Push cho chat/công việc/KPI: bật riêng trên từng thiết bị từ chuông hoặc hồ sơ. Xem [cấu hình khóa, CRON_SECRET và kiểm thử](docs/WEB_PUSH.md); `npm run push:setup` tạo file cấu hình bí mật riêng trên máy (không commit).

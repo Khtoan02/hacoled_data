@@ -1,4 +1,5 @@
 "use client";
+import {PushSettings} from "./push-settings";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Mail, Save, ShieldCheck, UserRound } from "lucide-react";
@@ -44,6 +45,7 @@ export function ProfilePage() {
       title="Hồ sơ cá nhân"
       description="Thông tin của bạn và quyền truy cập trong không gian HacoLED."
     >
+      <PushSettings/>
       <section className="profile-cover">
         <div className="dongson-pattern" aria-hidden="true" />
         <div className="profile-identity">

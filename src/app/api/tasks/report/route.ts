@@ -1,3 +1,4 @@
+import {schedulePush} from "../../../../lib/push-delivery";
 import { ATTACHMENT_PATH } from "../../../../lib/task-attachments";
 import { resolveDeadlineKpi } from "../../../../lib/task-kpi";
 import { outputFields } from "../../../../lib/kpi-fields";
@@ -13,6 +14,7 @@ import {
 import { ROLE_POLICIES, isFullAccess } from "../../../../lib/security/rbac";
 import { TASK_STATUSES, validEvidenceUrl } from "../../../../lib/tasks";
 export const dynamic = "force-dynamic";
+export const maxDuration=60;
 const isId = (v: unknown): v is string =>
   typeof v === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -144,6 +146,7 @@ export async function PATCH(req: NextRequest) {
         "Công việc vừa thay đổi hoặc bạn không có quyền cập nhật. Tải lại chi tiết trước khi gửi lại.",
         409,
       );
+    schedulePush();
     return NextResponse.json({ ok: true, task: rows[0] });
   } catch (e) {
     return apiError(e);

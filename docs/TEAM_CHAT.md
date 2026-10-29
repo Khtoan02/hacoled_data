@@ -7,7 +7,7 @@
 - Chat riêng: đúng hai người; mở lại từ một trong hai phía trả về cùng cuộc trò chuyện.
 - Nhóm: từ hai người lúc tạo, tối đa 50 người. Người tạo là trưởng nhóm, có thể đổi tên, thêm/gỡ người và chuyển trưởng nhóm cho một thành viên đang hoạt động.
 - Tin nhắn văn bản tối đa 4.000 ký tự, giữ xuống dòng và hỗ trợ mở link HTTP/HTTPS. Enter gửi, Shift+Enter xuống dòng; không gửi khi bộ gõ đang ghép ký tự.
-- Chưa có upload ảnh/tệp, cuộc gọi, xóa/sửa tin nhắn hoặc thông báo đẩy ngoài trình duyệt trong bản này.
+- Chưa có upload ảnh/tệp, cuộc gọi hoặc xóa/sửa tin nhắn. Có thể bật Web Push riêng trên thiết bị để nhận nhắc tin mới khi không mở tab; xem docs/WEB_PUSH.md.
 
 ## Quyền và lịch sử
 

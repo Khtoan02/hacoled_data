@@ -1,6 +1,6 @@
 # Thông báo nội bộ
 
-Chuông trong thanh đầu trang hiển thị tối đa 100 thông báo gần nhất của tài khoản. Trạng thái đã đọc lưu trong PostgreSQL, dùng chung giữa các thiết bị. Kiểm tra mỗi 30 giây khi tab đang hiển thị; đây là thông báo trong ứng dụng, không phải email hoặc push khi đóng trình duyệt.
+Chuông trong thanh đầu trang hiển thị tối đa 100 thông báo gần nhất của tài khoản. Trạng thái đã đọc lưu trong PostgreSQL, dùng chung giữa các thiết bị. Kiểm tra mỗi 30 giây khi tab đang hiển thị; đây là hộp thông báo trong ứng dụng. Có thể bật Web Push riêng trên thiết bị để nhận khi không mở tab; cấu hình và giới hạn tại docs/WEB_PUSH.md.
 
 ## Người nhận
 
@@ -15,7 +15,7 @@ Trigger PostgreSQL phát sự kiện cùng giao dịch ghi công việc, bao g�
 
 Khi mở ứng dụng, mỗi ngày tạo tối đa một lời nhắc cho mỗi KPI đang hoạt động trong tháng hiện tại (múi giờ Việt Nam), thuộc phạm vi người xem. Nhắc nếu từ ngày 7 trở đi sản lượng thực tế thấp hơn tiến độ tuyến tính `ngày hiện tại / số ngày của tháng`, hoặc còn tối đa 3 ngày đến cuối tháng và chưa đạt chỉ tiêu. Không nhắc KPI đã đạt, vượt hoặc tạm dừng. Chỉ tiêu được tính theo sản lượng hoàn thành đã liên kết, cùng quy tắc trang KPI.
 
-Khóa duy nhất `(member_id,event_key)` chống trùng khi mở nhiều tab/thiết bị. Lời nhắc là ảnh chụp tiến độ tại thời điểm phát; bấm vào để xem số liệu hiện tại. Sự kiện công việc sử dụng phiên bản báo cáo để phân biệt các lần giao lại/hoàn thành lại. Không có tác vụ nền khi tất cả người dùng đóng ứng dụng.
+Khóa duy nhất `(member_id,event_key)` chống trùng khi mở nhiều tab/thiết bị. Lời nhắc là ảnh chụp tiến độ tại thời điểm phát; bấm vào để xem số liệu hiện tại. Sự kiện công việc sử dụng phiên bản báo cáo để phân biệt các lần giao lại/hoàn thành lại. Khi cấu hình CRON_SECRET và lịch Vercel, nhắc KPI được tạo thêm hằng ngày cho tài khoản đã bật Push và còn phiên hợp lệ kể cả khi đóng ứng dụng; nếu chưa cấu hình thì chỉ đồng bộ khi mở ứng dụng.
 
 Migration: `db/013-notifications.sql`, chạy theo quy trình migration hiện tại trước triển khai production. Kiểm thử: `tests/notifications.spec.ts`.
 
