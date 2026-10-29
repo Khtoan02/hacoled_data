@@ -26,16 +26,16 @@ export function TaskListView(props:CollectionProps){
  </article>)}</div>;
 }
 export function TaskTableView(props:CollectionProps&{sort:TaskSort;onSort:(field:TaskSort['field'])=>void}){
- function heading(field:TaskSort['field'],text:string){const active=props.sort.field===field,Icon=active?(props.sort.direction==='asc'?ArrowUp:ArrowDown):ArrowUpDown;return <th aria-sort={active?(props.sort.direction==='asc'?'ascending':'descending'):'none'}><button onClick={()=>props.onSort(field)}>{text}<Icon size={13}/></button></th>;}
- return <><p className="work-table-hint"><ArrowLeftRight size={14}/>Cuộn ngang để xem đầy đủ các cột</p><div className="work-table-scroll" role="region" aria-label="Bảng công việc, cuộn ngang để xem thêm" tabIndex={0}><table className="work-table"><thead><tr>
- {props.full&&props.selecting&&<th aria-label="Chọn công việc"/>}{heading('title','Công việc')}<th>Kênh thực hiện</th>{heading('assignee','Người thực hiện')}{heading('deadline','Hạn hoàn thành')}<th>Sản lượng / KPI</th>{heading('status','Trạng thái')}<th aria-label="Thao tác"/>
+ function heading(field:TaskSort['field'],text:string){const active=props.sort.field===field,Icon=active?(props.sort.direction==='asc'?ArrowUp:ArrowDown):ArrowUpDown;return <th className={`grid-${field}-cell`} scope="col" aria-sort={active?(props.sort.direction==='asc'?'ascending':'descending'):'none'}><button onClick={()=>props.onSort(field)}>{text}<Icon size={13}/></button></th>;}
+ return <><p className="work-table-hint"><ArrowLeftRight size={14}/>Cuộn ngang để xem đầy đủ các cột</p><div className="work-table-scroll" role="region" aria-label="Bảng công việc, cuộn ngang để xem thêm" tabIndex={0}><table aria-label="Lưới dữ liệu công việc" className={`work-table work-data-grid ${props.full&&props.selecting?"has-selection":""}`}><thead><tr>
+ {props.full&&props.selecting&&<th className="grid-selection-cell" aria-label="Chọn công việc"/>}{heading('title','Công việc')}<th className="grid-channel-cell">Kênh thực hiện</th>{heading('assignee','Người thực hiện')}{heading('deadline','Hạn hoàn thành')}<th className="grid-production-cell">Sản lượng / KPI</th>{heading('status','Trạng thái')}<th className="grid-actions-cell" aria-label="Thao tác">Thao tác</th>
  </tr></thead><tbody>{props.tasks.map(t=><tr key={t.id} className={props.selected.includes(t.id)?'is-selected':''}>
- {props.full&&props.selecting&&<td><TaskSelection task={t} props={props}/></td>}
+ {props.full&&props.selecting&&<td className="grid-selection-cell"><TaskSelection task={t} props={props}/></td>}
  <td className="work-table-title"><button onClick={()=>props.onOpen(t)}>{t.title}</button><small>{OUTPUT_TYPES[t.output_type].label}{t.checklist.length>0&&` · ${t.checklist.filter(c=>c.done).length}/${t.checklist.length} bước`}</small></td>
- <td>{t.channels?.length?<div className="work-table-channels">{t.channels.slice(0,2).map(c=><ChannelIdentity key={c.id} channel={c} compact/>)}{t.channels.length>2&&<small>+{t.channels.length-2} kênh</small>}</div>:<span className="work-muted">{t.channel_name||'Chưa gắn kênh'}</span>}</td>
- <td><div className="work-table-person"><Avatar name={t.assignee_name} size="small"/><span>{t.assignee_name}</span></div></td>
- <td className={isOverdue(t)?'overdue':''}>{formatDate(t.due_at)}</td>
- <td><span className="work-production">{t.status==='completed'?t.delivered_quantity:0} / {t.planned_quantity} {OUTPUT_TYPES[t.output_type].unit}</span><small className="work-muted">{t.kpi_id?'Trong KPI':'Ngoài KPI'}</small></td>
- <td><StatusBadge status={t.status}/></td><td><RowActions task={t} props={props}/></td>
+ <td className="grid-channel-cell">{t.channels?.length?<div className="work-table-channels">{t.channels.slice(0,2).map(c=><ChannelIdentity key={c.id} channel={c} compact/>)}{t.channels.length>2&&<small>+{t.channels.length-2} kênh</small>}</div>:<span className="work-muted">{t.channel_name||'Chưa gắn kênh'}</span>}</td>
+ <td className="grid-person-cell"><div className="work-table-person"><Avatar name={t.assignee_name} size="small"/><span>{t.assignee_name}</span></div></td>
+ <td className={`grid-deadline-cell ${isOverdue(t)?'overdue':''}`}>{formatDate(t.due_at)}</td>
+ <td className="grid-production-cell"><span className="work-production">{t.status==='completed'?t.delivered_quantity:0} / {t.planned_quantity} {OUTPUT_TYPES[t.output_type].unit}</span><small className="work-muted">{t.kpi_id?'Trong KPI':'Ngoài KPI'}</small></td>
+ <td className="grid-status-cell"><StatusBadge status={t.status}/></td><td className="grid-actions-cell"><RowActions task={t} props={props}/></td>
  </tr>)}</tbody></table></div></>;
 }

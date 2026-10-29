@@ -18,3 +18,5 @@ Khi mở ứng dụng, mỗi ngày tạo tối đa một lời nhắc cho mỗi 
 Khóa duy nhất `(member_id,event_key)` chống trùng khi mở nhiều tab/thiết bị. Lời nhắc là ảnh chụp tiến độ tại thời điểm phát; bấm vào để xem số liệu hiện tại. Sự kiện công việc sử dụng phiên bản báo cáo để phân biệt các lần giao lại/hoàn thành lại. Không có tác vụ nền khi tất cả người dùng đóng ứng dụng.
 
 Migration: `db/013-notifications.sql`, chạy theo quy trình migration hiện tại trước triển khai production. Kiểm thử: `tests/notifications.spec.ts`.
+
+Giao diện hộp thông báo dùng nút chuẩn của dashboard, có bộ lọc Chỉ hiện chưa đọc và loại sự kiện (việc mới/hoàn thành/KPI). Danh sách nhóm theo ngày Việt Nam, hiển thị Hôm nay/Hôm qua hoặc ngày cụ thể, icon phân loại và chấm chưa đọc. Thời gian gọn giờ/phút, tooltip giữ đầy đủ ngày giờ. Lọc chỉ áp dụng trên 100 thông báo đã được server cho phép xem; đánh dấu tất cả vẫn đánh dấu toàn bộ tập thông báo được phép trong hộp thư, không chỉ nhóm đang lọc. Có trạng thái tải/lỗi/rỗng và khóa nút khi đang cập nhật, không đổi quy tắc phát thông báo hoặc quyền truy cập.

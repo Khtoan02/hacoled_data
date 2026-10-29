@@ -53,3 +53,5 @@ Email người thực hiện phải có và khớp tài khoản Marketing đang 
 - Tối đa 500 dòng ví dụ trong CSV. Không có nhân sự phù hợp thì chỉ xuất dòng tiêu đề, giao diện yêu cầu bổ sung thành viên.
 
 Cùng endpoint có `kind=members` tải danh mục nhân sự CSV, `kind=channels` tải danh mục kênh CSV, `kind=reference` tải bộ JSON dành cho AI gồm cột/quy tắc, nhân sự, kênh, KPI đã chọn tháng và mẫu. `kind=summary` chỉ trả số lượng để giao diện hiển thị. Tất cả yêu cầu phiên đăng nhập quyền quản trị hệ thống, trả private/no-store và không ghi dữ liệu nghiệp vụ. File sẽ phản ánh thay đổi nhân sự/kênh/KPI ở lần tải tiếp theo; không suy ra danh mục production từ fixture kiểm thử.
+
+Table được trình bày như data grid: đường chia ô cả hai chiều, hàng xen màu và highlight khi hover/focus/chọn. Header bám trên vùng cuộn; cột tên việc và checkbox chọn được ghim trên desktop khi cuộn ngang. Trên điện thoại chỉ ghim checkbox để tên việc không che toàn bộ cột còn lại; bảng vẫn cuộn ngang trong vùng riêng. Giữ nguyên cách sắp xếp, phân trang, chi tiết/kết quả và kiểm tra quyền server, không thêm chỉnh sửa dữ liệu trực tiếp trong ô.
