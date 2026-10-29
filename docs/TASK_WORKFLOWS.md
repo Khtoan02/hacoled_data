@@ -33,3 +33,11 @@ API `POST /api/tasks/bulk-delete` nhận `{items:[{id,version}]}`. Kiểm tra Or
 - Xóa công việc xóa các byte ảnh đính kèm theo FK cascade. Gỡ một ảnh khỏi kết quả hiện tại không xóa byte để giữ minh chứng trong lịch sử.
 
 Migration: `db/014-task-attachments.sql`. Kiểm thử: `tests/task-bulk-images.spec.ts`, `tests/task-reports.spec.ts`, `tests/completion-kpi.spec.ts`.
+
+## Chẩn đoán import CSV
+
+Xem trước phân biệt tổng số dòng trong file, số dòng hợp lệ, số dòng cần sửa và dòng mẫu/trống bỏ qua. Chỉ hiển thị tối đa 100 thông báo lỗi nhưng báo rõ tổng số lỗi nếu vượt giới hạn; một dòng có thể có nhiều lỗi. Không nhập phần hợp lệ khi còn dòng lỗi.
+
+Kênh được khớp chính xác theo ID, URL, tên hoặc @định danh đang hoạt động. Nếu @định danh/tên dùng chung cho nhiều kênh, báo các kênh ứng viên và yêu cầu dùng URL/ID chính xác; không tự đoán theo tiêu đề công việc hoặc KPI. Không tìm thấy kênh không còn bị báo nhầm là lặp kênh. Các giá trị chung như Facebook Reels, TikTok hay YouTube Shorts chỉ dùng được nếu trùng đúng tên kênh đã khai báo.
+
+Email người thực hiện phải có và khớp tài khoản Marketing đang hoạt động. `video` vẫn tương thích dữ liệu cũ và được hiểu là video dài; video ngắn dùng `video_doc_ngan`. Audit chưa là loại sản phẩm riêng: công việc rà soát có thể dùng `khac` và ghi rõ mô tả/ghi chú, không tự đổi loại dữ liệu của người dùng.

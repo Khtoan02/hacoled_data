@@ -13,6 +13,10 @@ export function TaskImport({
     [preview, setPreview] = useState<{
       fingerprint: string;
       valid: number;
+      total: number;
+      invalid: number;
+      skipped: number;
+      errors_total: number;
       errors: string[];
       rows: {
         title: string;
@@ -107,13 +111,14 @@ export function TaskImport({
         {preview && (
           <>
             <p>
-              {preview.valid} dòng được đọc · {preview.errors.length} lỗi
+              {preview.total} dòng trong file · {preview.valid} hợp lệ · {preview.invalid} cần sửa{preview.skipped>0?` · ${preview.skipped} dòng mẫu/trống bỏ qua`:""}
             </p>
+            {preview.errors_total>preview.errors.length&&<p className="result-hint">Đang hiển thị {preview.errors.length}/{preview.errors_total} lỗi. Hãy sửa các dòng được liệt kê rồi kiểm tra lại file.</p>}
             {preview.errors.length > 0 && (
               <Notice>
                 <ul>
-                  {preview.errors.map((e) => (
-                    <li key={e}>{e}</li>
+                  {preview.errors.map((e,index) => (
+                    <li key={index}>{e}</li>
                   ))}
                 </ul>
               </Notice>

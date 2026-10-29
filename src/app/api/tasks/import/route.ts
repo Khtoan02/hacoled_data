@@ -1,3 +1,4 @@
+import { resolveImportChannels,type ImportChannel } from "../../../../lib/task-import-channels";
 import { createHash } from "node:crypto";
 import { isUuid } from "../../../../lib/social";
 import { randomUUID } from "node:crypto";
@@ -209,6 +210,7 @@ export async function POST(req: NextRequest) {
         .toLocaleLowerCase("vi")
         .replace(/^@/, "");
     const allowedTypes = new Set(SELECTABLE_OUTPUT_TYPES.map(([id]) => id));
+    let skipped=0;
     body.rows.forEach((raw: unknown, index: number) => {
       const beforeErrors = errors.length;
       const line = index + 2,
@@ -218,26 +220,15 @@ export async function POST(req: NextRequest) {
         return;
       }
       const title = String(row.ten_cong_viec ?? "").trim();
-      if(title.startsWith("MẪU -"))return;
-      if(!title){if(Object.values(row).some(v=>String(v??"").trim()))errors.push(`Dòng ${line}: Tên công việc bắt buộc.`);return;}
+      if(title.startsWith("MẪU -")){skipped++;return;}
+      if(!title){if(Object.values(row).some(v=>String(v??"").trim()))errors.push(`Dòng ${line}: Tên công việc bắt buộc.`);else skipped++;return;}
       if(Object.keys(row).some(k=>!headers.includes(k)&&!["mo_ta","thang_kpi","do_uu_tien"].includes(k)))errors.push(`Dòng ${line}: Có cột chưa hỗ trợ, kiểm tra lại tên cột theo mẫu.`);
       const member = members.find(
         (m) => norm(m.email) === norm(row.email_nguoi_thuc_hien),
       );
-      const tokens = String(row.kenh ?? "")
-        .split("|")
-        .map(norm)
-        .filter(Boolean);
-      const selected = tokens
-        .map((token) => {
-          const matches = channels.filter((c) =>
-            [norm(c.id), norm(c.handle), norm(c.name), norm(c.url)]
-              .filter(Boolean)
-              .includes(token),
-          );
-          return matches.length === 1 ? matches[0] : undefined;
-        })
-        .filter(Boolean) as Array<{ id: string; platform: string }>;
+      const resolved=resolveImportChannels(row.kenh,channels as ImportChannel[]);
+      const {tokens,selected}=resolved;
+      errors.push(...resolved.errors.map(message=>`Dòng ${line}: ${message}`));
       const due = String(row.han_hoan_thanh ?? "").trim();
       const legacyMonth = String(row.thang_kpi ?? "").trim();
       const kpiMonth = due ? due.slice(0,7) : legacyMonth;
@@ -284,18 +275,10 @@ export async function POST(req: NextRequest) {
         String(row.mo_ta_chung ?? row.mo_ta ?? "").length > 10000
       )
         errors.push(`Dòng ${line}: Tên tối đa 200, mô tả tối đa 10.000 ký tự.`);
-      if (tokens.length > 20 || channelIds.length !== tokens.length)
-        errors.push(`Dòng ${line}: Tối đa 20 kênh và không lặp kênh.`);
       if (!member)
-        errors.push(
-          `Dòng ${line}: Không tìm thấy email nhân sự đang hoạt động.`,
-        );
-      if (tokens.length !== selected.length)
-        errors.push(
-          `Dòng ${line}: Có kênh không khớp tên hoặc @định danh đang hoạt động.`,
-        );
+        errors.push(`Dòng ${line}: ${String(row.email_nguoi_thuc_hien??'').trim()?`Không tìm thấy email nhân sự đang hoạt động: "${row.email_nguoi_thuc_hien}".`:'Chưa điền email_nguoi_thuc_hien. Điền email tài khoản được giao việc.'}`);
       if (!allowedTypes.has(outputType as never))
-        errors.push(`Dòng ${line}: Định dạng không hợp lệ.`);
+        errors.push(`Dòng ${line}: Định dạng "${row.dinh_dang}" không hợp lệ. Dùng bai_viet, video_dai, video_doc_ngan, thiet_ke_anh, livestream hoặc khac.`);
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000)
         errors.push(`Dòng ${line}: Số lượng phải từ 1 đến 100.000.`);
       if (!Object.hasOwn(TASK_PRIORITIES, priority))
@@ -393,6 +376,10 @@ export async function POST(req: NextRequest) {
         {
           fingerprint,
           valid: prepared.length,
+          total: body.rows.length,
+          invalid: body.rows.length-prepared.length-skipped,
+          skipped,
+          errors_total: errors.length,
           errors: errors.slice(0, 100),
           rows: prepared.map((r) => ({
             title: r.title,
