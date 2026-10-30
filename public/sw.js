@@ -9,7 +9,7 @@ self.addEventListener('push',event=>{
    const response=await fetch(`/api/push/validate?events=${input.events.join(',')}&device=${encodeURIComponent(input.device)}`,{credentials:'include',cache:'no-store'});
    if(response.status!==200)return;
    const data=await response.json();
-   await self.registration.showNotification(data.title,{body:data.body,icon:'/icon.png',badge:'/icon.png',tag:data.tag,renotify:false,data:{url:data.url}});
+   await self.registration.showNotification(data.title,{body:data.body,icon:'/icon.png',badge:'/icon.png',tag:data.tag,renotify:true,data:{url:data.url}});
   }catch{/* Never display cached private content or trust a sender-supplied URL. */}
  })());
 });

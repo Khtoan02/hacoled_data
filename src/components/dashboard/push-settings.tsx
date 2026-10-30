@@ -41,8 +41,14 @@ export function PushSettings({compact=false}:{compact?:boolean}){
   const permission=await Notification.requestPermission();setPermission(permission);
   if(permission!=='granted')throw Error('Trình duyệt chưa cho phép thông báo. Hãy mở quyền thông báo của trang và kiểm tra cài đặt thông báo của hệ điều hành.');
   await navigator.serviceWorker.register('/sw.js',{scope:'/'});const registration=await navigator.serviceWorker.ready;
-  await registration.showNotification('HacoLED · Thông báo thử',{body:'Nếu bạn thấy thông báo này, trình duyệt đã gửi được thông báo tới thiết bị.',tag:'haco-notification-test',icon:'/icon.png'});
-  setTestResult('Đã yêu cầu trình duyệt hiện thông báo thử. Nếu không thấy, kiểm tra quyền thông báo của trình duyệt trong cài đặt hệ điều hành và chế độ Không làm phiền. Đây là kiểm tra hiển thị trên máy, chưa xác nhận Web Push từ máy chủ.');
+  const tag=`haco-notification-test:${crypto.randomUUID()}`;
+  // Do not silently replace the previous test; each click must request a fresh alert.
+  const stale=await registration.getNotifications?.();stale?.filter(n=>n.tag.startsWith('haco-notification-test')).forEach(n=>n.close());
+  const options={body:'Đây là thông báo thử trên thiết bị của bạn.',tag,renotify:true,requireInteraction:true,icon:'/icon.png'};
+  await registration.showNotification('HacoLED · Thông báo thử',options);
+  const notifications=await registration.getNotifications?.({tag});
+  const result=notifications===undefined?'Trình duyệt đã tiếp nhận yêu cầu thông báo thử.':notifications.length?'Trình duyệt đã tạo và lưu thông báo thử.':'Trình duyệt nhận yêu cầu nhưng không tìm thấy thông báo thử đang lưu.';
+  setTestResult(`${result} Quyền website: ${permission}. Nếu vẫn không thấy banner, kiểm tra cả mục cho phép thông báo khi chia sẻ/chiếu màn hình trong macOS và chế độ Không làm phiền. Phép thử này chưa xác nhận Web Push từ máy chủ.`);
  }catch(e){setError(e instanceof Error?e.message:'Chưa hiện được thông báo thử.');}}
  const Container=compact?'details':'section',Heading=compact?'summary':'div';
  return <Container className={`push-settings ${compact?'compact':''}`}><Heading><BellRing size={18}/><h3>Thông báo trên thiết bị</h3><span className={enabled?'push-active':''}>{enabled?'Đang bật':'Chưa bật'}</span>{compact&&<ChevronDown size={15}/>}</Heading>

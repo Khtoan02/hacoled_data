@@ -44,7 +44,7 @@ export function FloatingChat(){
       const subscription=await registration?.pushManager?.getSubscription();
       let pushActive=false;
       if(subscription){const status=await fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status",endpoint:subscription.endpoint})});if(status.ok)pushActive=Boolean((await status.json()).enabled);}
-      if(!pushActive||(document.visibilityState==="visible"&&document.hasFocus())){const title="HacoLED · Tin nhắn mới",options={body:"Bạn có tin nhắn mới trong chat nội bộ.",tag:`chat:${fresh.id}`,icon:"/icon.png",data:{url:`/admin/chat?room=${fresh.id}`}};
+      if(!pushActive||(document.visibilityState==="visible"&&document.hasFocus())){const title="HacoLED · Tin nhắn mới",options={body:"Bạn có tin nhắn mới trong chat nội bộ.",tag:`chat:${fresh.id}`,renotify:true,icon:"/icon.png",data:{url:`/admin/chat?room=${fresh.id}`}};
        if(registration)await registration.showNotification(title,options);
        else {const alert=new Notification(title,options);alert.onclick=()=>{window.focus();window.location.assign(`/admin/chat?room=${fresh.id}`);alert.close();};}
       }
