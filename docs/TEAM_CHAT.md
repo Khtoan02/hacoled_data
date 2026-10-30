@@ -61,7 +61,7 @@ Các trang nội bộ có nút Chat ở góc phải dưới. Nút hiện số ti
 
 Cửa sổ nhỏ dùng chung API, kiểm tra thành viên, gửi lại chống trùng và phân trang với trang chat đầy đủ. Có tạo nhóm/nhắn riêng, thu gọn giữ bản nháp, nút mở toàn màn hình và Escape để thu gọn. Thu gọn không đánh dấu đã đọc. Trên trang chat đầy đủ sẽ ẩn nút nổi để tránh trùng giao diện. Dữ liệu mới kiểm tra mỗi 5 giây khi tab hiện; Web Push vẫn phụ trách nhắc thiết bị khi tab đóng theo cấu hình riêng.
 
-Thông báo nổi cũng hiển thị khi đang ở trang chat đầy đủ. Bộ phát hiện tin mới tiếp tục kiểm tra khi chuyển tab (tần suất có thể bị trình duyệt giới hạn). Nếu đã cấp quyền Notification nhưng chưa đăng ký Web Push, tab đang mở có thể gửi thông báo trình duyệt dự phòng; khi đã có đăng ký push, Web Push đảm nhiệm để tránh gửi trùng. Không nhắc cho tin do chính mình gửi.
+Thông báo nổi cũng hiển thị khi đang ở trang chat đầy đủ. Bộ phát hiện tin mới tiếp tục kiểm tra khi chuyển tab (tần suất có thể bị trình duyệt giới hạn). Chỉ service worker Web Push phát thông báo hệ điều hành. Các tab không gọi showNotification/Notification để tránh phát trùng; thông báo nổi trong trang chỉ xuất hiện ở tab hiển thị và có focus. Không nhắc cho tin do chính mình gửi.
 
 ## Ảnh, video và file đính kèm
 
@@ -73,4 +73,8 @@ Nút chuông cạnh nút Chat mở cài đặt thiết bị và nút **Thử th�
 
 Bộ nhắc tin đến dùng `last_incoming_seq` cả khi số chưa đọc đã về 0 vì cửa sổ chat đang mở. Kiểm tra số chưa đọc trước đây có thể bỏ sót tin do API đánh dấu đã đọc chạy trước lượt polling; nay lượt polling vẫn nhận biết mã tin đến vừa thay đổi. Chỉ nhắc tin đến mới đã quan sát, không nhắc lại tin đã đọc ở lần tải đầu.
 
-Thông báo chat (Web Push, dự phòng trình duyệt và thông báo nổi) hiện tên người gửi + nội dung theo mẫu “Haco | Hải: nội dung”. Luồng dự phòng lấy riêng tin đến mới nhất, tránh hiển thị nhầm tin do người xem vừa gửi. Web Push vẫn lấy nội dung sau bước xác minh phiên và tư cách thành viên.
+Thông báo chat (Web Push và thông báo nổi) hiện tên người gửi + nội dung theo mẫu “Haco | Hải: nội dung”. Thông báo nổi lấy riêng tin đến mới nhất, tránh hiển thị nhầm tin do người xem vừa gửi. Web Push vẫn lấy nội dung sau bước xác minh phiên và tư cách thành viên.
+
+Chống báo sai người/trùng: API chat chỉ trả cuộc trò chuyện của thành viên, kèm viewer_id và tác giả/mã tin đến. Tab gửi X-Haco-Member; nếu cookie đã đổi tài khoản thì server từ chối và UI xoá trạng thái chat của tab cũ. Bộ phát hiện chỉ so sánh mã tin đến tăng, tuyệt đối không dùng last_at/tin tự gửi thay thế khi chưa có tin đến. Lượt tải đầu chỉ đồng bộ badge, không phát lại lịch sử. Kiểm thử ba tài khoản và hai tab xác nhận chỉ người nhận có hàng đợi push; Leader ngoài phòng không có quyền mặc định.
+
+Fetch từ trình duyệt của giao diện chat cũ thiếu header danh tính được yêu cầu tải lại (426), để tab chưa refresh không tiếp tục phát thông báo Chrome bằng luồng cũ. Không tự tải lại tab hoặc làm mất bản nháp.

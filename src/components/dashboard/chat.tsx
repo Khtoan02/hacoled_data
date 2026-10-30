@@ -10,6 +10,7 @@ import { mergeMessages,roomTitle,type ChatAttachment,type ChatMessage,type ChatP
 function clock(value:string){return new Date(value).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Ho_Chi_Minh"});}
 function day(value:string){return new Date(value).toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"Asia/Ho_Chi_Minh"});}
 async function data(response:Response){const d=await response.json().catch(()=>({error:"Máy chủ chưa phản hồi đúng. Hãy thử lại."}));if(!response.ok)throw Object.assign(new Error(d.error||"Chưa tải được cuộc trò chuyện."),{status:response.status});return d;}
+function chatFetch(memberId:string,input:RequestInfo|URL,init?:RequestInit){const headers=new Headers(init?.headers);headers.set("X-Haco-Member",memberId);return fetch(input,{...init,headers});}
 function MessageText({body}:{body:string}){return <>{body.split(/(https?:\/\/[^\s<>]+)/g).map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>:part)}</>;}
 export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{compact?:boolean;initialRoom?:string;active?:boolean;onSelect?:(id:string)=>void}={}){
  const member=useMember(),router=useRouter(),params=useSearchParams();
@@ -35,14 +36,14 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
  const selectedRef=useRef(selected),sendLock=useRef(false),pending=useRef<Record<string,{text:string;id:string}>>({});selectedRef.current=selected;
  const scroller=useRef<HTMLDivElement>(null),nearBottom=useRef(true),readSeq=useRef<Record<string,string>>({});
  const inbox=useCallback(async(signal?:AbortSignal)=>{
-  try{const d=await data(await fetch("/api/chat",{cache:"no-store",signal}));if(signal?.aborted)return;setRooms(d.rooms);setPeople(d.people);setInboxError("");}
+  try{const d=await data(await chatFetch(member.id,"/api/chat",{cache:"no-store",signal}));if(signal?.aborted)return;setRooms(d.rooms);setPeople(d.people);setInboxError("");}
   catch(e){if(!signal?.aborted){setInboxError(e instanceof Error?e.message:"Chưa tải được danh sách chat.");if((e as {status?:number}).status===401){setRooms([]);setPeople([]);setRoom(null);setMessages([]);setEditor(null);}}}
   finally{if(!signal?.aborted)setLoading(false);}
  },[]);
  useEffect(()=>{const controller=new AbortController();const refresh=()=>{if(document.visibilityState==="visible")void inbox(controller.signal);};void inbox(controller.signal);const timer=setInterval(refresh,5000);document.addEventListener("visibilitychange",refresh);return()=>{controller.abort();clearInterval(timer);document.removeEventListener("visibilitychange",refresh);};},[inbox]);
  const markRead=useCallback(async(id:string,seq:string)=>{
   if(!activeRef.current||document.visibilityState!=="visible"||!document.hasFocus()||selectedRef.current!==id||readSeq.current[id]===seq)return;
-  try{await data(await fetch("/api/chat/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({room_id:id,last_seen_seq:seq})}));readSeq.current[id]=seq;setRooms(all=>all.map(r=>r.id===id?{...r,unread:0}:r));window.dispatchEvent(new Event("haco-chat-read"));}catch{/* The next visible refresh retries unread acknowledgement. */}
+  try{await data(await chatFetch(member.id,"/api/chat/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({room_id:id,last_seen_seq:seq})}));readSeq.current[id]=seq;setRooms(all=>all.map(r=>r.id===id?{...r,unread:0}:r));window.dispatchEvent(new Event("haco-chat-read"));}catch{/* The next visible refresh retries unread acknowledgement. */}
  },[]);
  useEffect(()=>{
   const controller=new AbortController();setRoom(null);setMessages([]);setChatError("");setSendError("");setHasMore(false);nearBottom.current=true;
@@ -52,7 +53,7 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
    if(!active||document.visibilityState!=="visible"||fetching)return;
    fetching=true;
    try{
-    const response=await fetch(`/api/chat/messages?room=${encodeURIComponent(selected)}${latestSeq!==null?`&after=${latestSeq}`:""}`,{cache:"no-store",signal:controller.signal});
+    const response=await chatFetch(member.id,`/api/chat/messages?room=${encodeURIComponent(selected)}${latestSeq!==null?`&after=${latestSeq}`:""}`,{cache:"no-store",signal:controller.signal});
     if(response.status===404){if(!controller.signal.aborted){setRoom(null);setMessages([]);}throw new Error("Bạn không còn trong cuộc trò chuyện này. Chọn cuộc trò chuyện khác.");}
     const d=await data(response);if(controller.signal.aborted)return;
     setRoom(d.room);setMessages(old=>mergeMessages(old,d.messages));if(initial)setHasMore(d.has_more);setChatError("");
@@ -68,7 +69,7 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
  function choose(id:string){setEditor(null);if(compact){setLocalRoom(id);onSelect?.(id);return;}router.replace(id?`/admin/chat?room=${encodeURIComponent(id)}`:"/admin/chat",{scroll:false});}
  async function older(){
   if(!messages[0]||historyBusy)return;const id=selected,height=scroller.current?.scrollHeight??0,top=scroller.current?.scrollTop??0;setHistoryBusy(true);
-  try{const d=await data(await fetch(`/api/chat/messages?room=${id}&before=${messages[0].seq}`,{cache:"no-store"}));if(selectedRef.current!==id)return;nearBottom.current=false;setMessages(old=>mergeMessages(d.messages,old));setHasMore(d.has_more);requestAnimationFrame(()=>{if(scroller.current&&selectedRef.current===id)scroller.current.scrollTop=scroller.current.scrollHeight-height+top;});}
+  try{const d=await data(await chatFetch(member.id,`/api/chat/messages?room=${id}&before=${messages[0].seq}`,{cache:"no-store"}));if(selectedRef.current!==id)return;nearBottom.current=false;setMessages(old=>mergeMessages(d.messages,old));setHasMore(d.has_more);requestAnimationFrame(()=>{if(scroller.current&&selectedRef.current===id)scroller.current.scrollTop=scroller.current.scrollHeight-height+top;});}
   catch(e){setChatError(e instanceof Error?e.message:"Chưa tải được tin cũ.");}finally{setHistoryBusy(false);}
  }
  async function send(){
@@ -77,8 +78,8 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
   const batch=pending.current[id]?.text===text?pending.current[id]:{text,id:crypto.randomUUID()};pending.current[id]=batch;
   try{
    const attachments=files[id]??[];
-   for(const item of attachments){if(!item.uploaded){const form=new FormData();form.set("id",item.id);form.set("room_id",id);form.set("file",item.file);const uploaded=await data(await fetch("/api/chat/attachments",{method:"POST",body:form}));item.uploaded=uploaded.attachment;}}
-   const d=await data(await fetch("/api/chat/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:batch.id,room_id:id,body:text,attachment_ids:attachments.map(f=>f.id)})}));
+   for(const item of attachments){if(!item.uploaded){const form=new FormData();form.set("id",item.id);form.set("room_id",id);form.set("file",item.file);const uploaded=await data(await chatFetch(member.id,"/api/chat/attachments",{method:"POST",body:form}));item.uploaded=uploaded.attachment;}}
+   const d=await data(await chatFetch(member.id,"/api/chat/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:batch.id,room_id:id,body:text,attachment_ids:attachments.map(f=>f.id)})}));
    if(selectedRef.current===id){nearBottom.current=true;setMessages(old=>mergeMessages(old,[d.message]));}
    setDrafts(old=>(old[id]??"").trim()===text?{...old,[id]:""}:old);delete pending.current[id];setFiles(old=>({...old,[id]:[]}));attachments.forEach(f=>URL.revokeObjectURL(f.url));void inbox();
   }catch(e){if(selectedRef.current===id)setSendError(e instanceof Error?e.message:"Chưa gửi được. Bấm gửi lại để thử với cùng tin nhắn.");}
@@ -131,7 +132,7 @@ function ChatEditor({mode,room,people,onClose,onSaved}:{mode:"new"|"manage";room
  const [requestId]=useState(()=>crypto.randomUUID());
  const [kind,setKind]=useState<"direct"|"group">(room?.kind??"direct"),[title,setTitle]=useState(room?.title??""),[ids,setIds]=useState<string[]>(room?.members.map(p=>p.id)??[member.id]),[owner,setOwner]=useState(room?.owner_id??member.id),[query,setQuery]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const directory=[...new Map([...people,...(room?.members??[])].map(p=>[p.id,p])).values()],matches=directory.filter(p=>(mode!=="new"||kind!=="direct"||p.id!==member.id)&&p.name.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi"))&&(canEdit||ids.includes(p.id)));
- async function save(e:React.FormEvent){e.preventDefault();if(busy||!canEdit)return;setBusy(true);setError("");try{const d=await data(await fetch("/api/chat",{method:mode==="new"?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(mode==="new"?{kind,title,member_ids:ids,request_id:requestId}:{id:room!.id,version:room!.version,title,member_ids:ids,owner_id:owner})}));onSaved(d.id??room!.id);}catch(e){setError(e instanceof Error?e.message:"Chưa lưu được nhóm.");}finally{setBusy(false);}}
+ async function save(e:React.FormEvent){e.preventDefault();if(busy||!canEdit)return;setBusy(true);setError("");try{const d=await data(await chatFetch(member.id,"/api/chat",{method:mode==="new"?"POST":"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(mode==="new"?{kind,title,member_ids:ids,request_id:requestId}:{id:room!.id,version:room!.version,title,member_ids:ids,owner_id:owner})}));onSaved(d.id??room!.id);}catch(e){setError(e instanceof Error?e.message:"Chưa lưu được nhóm.");}finally{setBusy(false);}}
  return <Drawer title={mode==="new"?"Cuộc trò chuyện mới":canEdit?"Quản lý nhóm":"Thành viên cuộc trò chuyện"} description="Chat nhóm chỉ hiển thị tin nhắn từ lúc mỗi người được thêm vào." onClose={()=>{if(!busy)onClose();}}><form className="account-form chat-editor" onSubmit={save}>
   {error&&<Notice>{error}</Notice>}
   {mode==="new"&&<div className="chat-kind-switch" aria-label="Loại cuộc trò chuyện"><button type="button" aria-pressed={kind==="direct"} onClick={()=>{setKind("direct");setIds([member.id]);}}>Nhắn riêng</button><button type="button" aria-pressed={kind==="group"} onClick={()=>{setKind("group");setIds([member.id]);}}>Tạo nhóm</button></div>}

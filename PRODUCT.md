@@ -73,3 +73,5 @@ Chat nhanh: nút nổi góc phải trên các trang nội bộ, số tin chưa �
 Quyền thao tác KPI và xoá công việc: chỉ `lead_marketing` được tạo/sửa/import/xoá KPI và xoá công việc đơn lẻ/hàng loạt, kể cả Giám đốc cũng không có các thao tác này. Trưởng phòng, nhân viên và thực tập tiếp tục tạo việc cho mình và trả kết quả theo phạm vi hiện có. Quyền quản lý kênh của Trưởng phòng giữ nguyên.
 
 Chat hỗ trợ tải lên/dán ảnh, video và file vào ô soạn; xem trước và bỏ file trước gửi, 5 file/tin, 3 MB/file, 100 MB/cuộc trò chuyện. File được lưu riêng tư trong PostgreSQL và kiểm tra tư cách/mốc gia nhập nhóm mỗi lần truy cập. Nút chuông cạnh Chat dẫn tới bật và thử hiển thị thông báo trên thiết bị.
+
+Thông báo chat: chỉ Web Push phát thông báo Chrome/OS, không phát từ từng tab. Chỉ thành viên nhận tin (loại tác giả) được xếp hàng; Leader ngoài cuộc trò chuyện không được nhận. Tab gửi kèm danh tính đang hiển thị để chặn cookie đổi tài khoản. Tin tự gửi và lịch sử lúc tải trang không tạo nhắc mới.

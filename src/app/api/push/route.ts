@@ -7,15 +7,17 @@ import {pushConfig} from '../../../lib/push-config';
 import {parsePushSubscription,validPushEndpoint} from '../../../lib/push-subscription';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
-export async function GET(){try{const actor=await getMember();if(!actor)throw new RequestError('Vui lòng đăng nhập.',401);const config=pushConfig();return NextResponse.json({configured:Boolean(config),publicKey:config?.publicKey??null,backgroundRemindersConfigured:Boolean(process.env.CRON_SECRET)},{headers});}catch(e){return apiError(e);}}
+function expectedActor(req:NextRequest,id:string){const expected=req.headers.get('X-Haco-Member');if(expected&&expected!==id)throw new RequestError('Tài khoản đã thay đổi. Tải lại trang.',401);}
+
+export async function GET(req:NextRequest){try{const actor=await getMember();if(!actor)throw new RequestError('Vui lòng đăng nhập.',401);expectedActor(req,actor.id);const config=pushConfig();return NextResponse.json({viewer_id:actor.id,configured:Boolean(config),publicKey:config?.publicKey??null,backgroundRemindersConfigured:Boolean(process.env.CRON_SECRET)},{headers});}catch(e){return apiError(e);}}
 export async function POST(req:NextRequest){try{
  checkOrigin(req);const actor=await getMember(),token=(await cookies()).get(SESSION_COOKIE)?.value;
- if(!actor||!token)throw new RequestError('Vui lòng đăng nhập lại.',401);
+ if(!actor||!token)throw new RequestError('Vui lòng đăng nhập lại.',401);expectedActor(req,actor.id);
  const b=await req.json(),session=digest(token),sql=database();
  if(b.action==='status'){
   if(!validPushEndpoint(b.endpoint))throw new RequestError('Thiết bị không hợp lệ.');
   const rows=await sql`SELECT id FROM app_push_subscriptions WHERE endpoint=${b.endpoint} AND member_id=${actor.id} AND session_hash=${session}`;
-  return NextResponse.json({enabled:rows.length>0},{headers});
+  return NextResponse.json({viewer_id:actor.id,enabled:rows.length>0},{headers});
  }
  if(!pushConfig())throw new RequestError('Máy chủ chưa cấu hình khóa Web Push. Liên hệ quản trị viên.',503);
  const subscription=parsePushSubscription(b.subscription);if(!subscription)throw new RequestError('Đăng ký thông báo không hợp lệ hoặc dịch vụ đẩy chưa được hỗ trợ.');
@@ -31,7 +33,7 @@ export async function POST(req:NextRequest){try{
  return NextResponse.json({ok:true},{headers});
 }catch(e){return apiError(e);}}
 export async function DELETE(req:NextRequest){try{
- checkOrigin(req);const actor=await getMember(),token=(await cookies()).get(SESSION_COOKIE)?.value;if(!actor||!token)throw new RequestError('Vui lòng đăng nhập.',401);
+ checkOrigin(req);const actor=await getMember(),token=(await cookies()).get(SESSION_COOKIE)?.value;if(!actor||!token)throw new RequestError('Vui lòng đăng nhập.',401);expectedActor(req,actor.id);
  const b=await req.json();if(!validPushEndpoint(b.endpoint))throw new RequestError('Thiết bị không hợp lệ.');
  await database()`DELETE FROM app_push_subscriptions WHERE endpoint=${b.endpoint} AND member_id=${actor.id} AND session_hash=${digest(token)}`;
  return NextResponse.json({ok:true},{headers});

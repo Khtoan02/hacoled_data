@@ -6,24 +6,24 @@ export const dynamic="force-dynamic";
 const noStore={"Cache-Control":"no-store, private"};
 export async function GET(){
  try{
-  const actor=await chatActor(),sql=database();
+  const actor=await chatActor(true),sql=database();
   const [rooms,people]=await Promise.all([
    sql`SELECT r.id,r.kind,r.title,r.owner_id,r.version,r.created_at,
     (SELECT jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,'active',m.active) ORDER BY p.joined_at,m.id) FROM app_chat_members p JOIN app_members m ON m.id=p.member_id WHERE p.room_id=r.id) AS members,
     (SELECT COUNT(*)::int FROM app_chat_messages msg WHERE msg.room_id=r.id AND msg.seq>GREATEST(mine.last_read_seq,mine.joined_after_seq) AND msg.author_id<>${actor.id}) AS unread,
-    incoming.seq::text AS last_incoming_seq,incoming.author_name AS last_incoming_author_name,incoming.body AS last_incoming_body,latest.author_id AS last_author_id,latest.body AS last_body,latest.created_at AS last_at
+    incoming.seq::text AS last_incoming_seq,incoming.author_id AS last_incoming_author_id,incoming.author_name AS last_incoming_author_name,incoming.body AS last_incoming_body,latest.author_id AS last_author_id,latest.body AS last_body,latest.created_at AS last_at
     FROM app_chat_rooms r JOIN app_chat_members mine ON mine.room_id=r.id AND mine.member_id=${actor.id}
     LEFT JOIN LATERAL(SELECT body,created_at,author_id FROM app_chat_messages WHERE room_id=r.id AND seq>mine.joined_after_seq ORDER BY seq DESC LIMIT 1) latest ON true
-    LEFT JOIN LATERAL(SELECT msg.seq,msg.body,author.name AS author_name FROM app_chat_messages msg JOIN app_members author ON author.id=msg.author_id WHERE msg.room_id=r.id AND msg.seq>mine.joined_after_seq AND msg.author_id<>${actor.id} ORDER BY msg.seq DESC LIMIT 1) incoming ON true
+    LEFT JOIN LATERAL(SELECT msg.seq,msg.body,msg.author_id,author.name AS author_name FROM app_chat_messages msg JOIN app_members author ON author.id=msg.author_id WHERE msg.room_id=r.id AND msg.seq>mine.joined_after_seq AND msg.author_id<>${actor.id} ORDER BY msg.seq DESC LIMIT 1) incoming ON true
     ORDER BY COALESCE(latest.created_at,r.created_at) DESC,r.id`,
    sql`SELECT id,name,role,active FROM app_members WHERE active=true ORDER BY name,id`,
   ]);
-  return NextResponse.json({rooms,people},{headers:noStore});
+  return NextResponse.json({viewer_id:actor.id,rooms,people},{headers:noStore});
  }catch(e){return apiError(e);}
 }
 export async function POST(req:NextRequest){
  try{
-  checkOrigin(req);const actor=await chatActor(),b=await req.json();
+  checkOrigin(req);const actor=await chatActor(true),b=await req.json();
   if(!b||!["direct","group"].includes(b.kind)||Object.keys(b).some(k=>!["kind","title","member_ids","request_id"].includes(k)))throw new RequestError("Thông tin cuộc trò chuyện không hợp lệ.");
   chatId(b.request_id);
   const ids=chatMemberIds(b.member_ids);
@@ -48,7 +48,7 @@ export async function POST(req:NextRequest){
 }
 export async function PATCH(req:NextRequest){
  try{
-  checkOrigin(req);const actor=await chatActor(),b=await req.json();
+  checkOrigin(req);const actor=await chatActor(true),b=await req.json();
   if(!b||Object.keys(b).some(k=>!["id","version","title","member_ids","owner_id"].includes(k)))throw new RequestError("Thông tin nhóm không hợp lệ.");
   chatId(b.id);chatId(b.owner_id);const ids=chatMemberIds(b.member_ids);
   if(!ids.includes(b.owner_id)||!Number.isSafeInteger(b.version)||b.version<0||typeof b.title!=="string"||!b.title.trim()||b.title.trim().length>100)throw new RequestError("Điền tên nhóm và giữ trưởng nhóm trong danh sách thành viên.");

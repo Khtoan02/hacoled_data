@@ -7,7 +7,7 @@ export const maxDuration=60;
 const headers={"Cache-Control":"no-store, private"};
 export async function GET(req:NextRequest){
  try{
-  const actor=await chatActor(),id=req.nextUrl.searchParams.get("room"),before=req.nextUrl.searchParams.get("before"),after=req.nextUrl.searchParams.get("after");chatId(id);
+  const actor=await chatActor(true),id=req.nextUrl.searchParams.get("room"),before=req.nextUrl.searchParams.get("before"),after=req.nextUrl.searchParams.get("after");chatId(id);
   if(before!==null&&(!/^\d{1,18}$/.test(before)||BigInt(before)<BigInt(1)))throw new RequestError("Mốc tin nhắn không hợp lệ.");
   if(after!==null&&(!/^\d{1,18}$/.test(after)||before!==null))throw new RequestError("Mốc tin nhắn mới không hợp lệ.");
   const room=await visibleChatRoom(id,actor.id);
@@ -15,12 +15,12 @@ export async function GET(req:NextRequest){
    FROM app_chat_messages msg JOIN app_members m ON m.id=msg.author_id JOIN app_chat_members mine ON mine.room_id=msg.room_id AND mine.member_id=${actor.id}
    WHERE msg.room_id=${id} AND msg.seq>mine.joined_after_seq AND (${before}::bigint IS NULL OR msg.seq<${before}::bigint) AND (${after}::bigint IS NULL OR msg.seq>${after}::bigint) ORDER BY CASE WHEN ${after}::bigint IS NOT NULL THEN msg.seq END ASC,msg.seq DESC LIMIT 51`;
   const has_more=messages.length>50;
-  return NextResponse.json({room,messages:after===null?messages.slice(0,50).reverse():messages.slice(0,50),has_more},{headers});
+  return NextResponse.json({viewer_id:actor.id,room,messages:after===null?messages.slice(0,50).reverse():messages.slice(0,50),has_more},{headers});
  }catch(e){return apiError(e);}
 }
 export async function POST(req:NextRequest){
  try{
-  checkOrigin(req);const actor=await chatActor(),b=await req.json();
+  checkOrigin(req);const actor=await chatActor(true),b=await req.json();
   if(!b||Object.keys(b).some(k=>!["id","room_id","body","attachment_ids"].includes(k)))throw new RequestError("Tin nhắn không hợp lệ.");
   chatId(b.id);chatId(b.room_id);
   const ids=b.attachment_ids??[];if(!Array.isArray(ids)||ids.length>5||new Set(ids).size!==ids.length)throw new RequestError("Tối đa 5 file mỗi tin nhắn.");ids.forEach(chatId);
@@ -42,7 +42,7 @@ export async function POST(req:NextRequest){
 }
 export async function PATCH(req:NextRequest){
  try{
-  checkOrigin(req);const actor=await chatActor(),b=await req.json();
+  checkOrigin(req);const actor=await chatActor(true),b=await req.json();
   if(!b||Object.keys(b).some(k=>!["room_id","last_seen_seq"].includes(k)))throw new RequestError("Mốc đã đọc không hợp lệ.");
   chatId(b.room_id);
   if(typeof b.last_seen_seq!=="string"||!/^\d{1,18}$/.test(b.last_seen_seq))throw new RequestError("Mốc đã đọc không hợp lệ.");

@@ -3,11 +3,10 @@ import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {useEffect,useRef,useState} from "react";
 import {Maximize2,MessageCircle,Minus,X,BellRing} from "lucide-react";
-import {pushDisabled} from "../../lib/push-client";
 import {PushSettings} from "./push-settings";
 import {ChatPage} from "./chat";
 import {useMember} from "./session";
-import {chatNotification,roomTitle,type ChatRoom} from "../../lib/chat";
+import {roomTitle,type ChatRoom} from "../../lib/chat";
 
 /** Persistent across workspace navigation; only announces newly observed unread messages. */
 export function FloatingChat(){
@@ -20,43 +19,29 @@ export function FloatingChat(){
   const refresh=async()=>{
    if(busy)return;busy=true;
    try{
-    const response=await fetch("/api/chat",{cache:"no-store",signal:controller.signal});
-    if(!response.ok){if([401,403].includes(response.status)){setUnread(0);setToast(null);setOpen(false);previous.current=null;}return;}
-    const data=await response.json();if(controller.signal.aborted)return;const rooms:ChatRoom[]=data.rooms;
-    const stamp=(r:ChatRoom)=>r.last_incoming_seq??r.last_at??"";
+    const response=await fetch("/api/chat",{cache:"no-store",signal:controller.signal,headers:{"X-Haco-Member":member.id}});
+    if(!response.ok){if([401,403].includes(response.status)){setUnread(0);setToast(null);setOpen(false);previous.current=null;setMounted(false);controller.abort();}return;}
+    const data=await response.json();if(controller.signal.aborted)return;
+    if(data.viewer_id!==member.id){setUnread(0);setToast(null);setOpen(false);setMounted(false);controller.abort();return;}
+    const rooms:ChatRoom[]=data.rooms;
+    const stamp=(r:ChatRoom)=>typeof r.last_incoming_seq==="string"&&/^[1-9]\d*$/.test(r.last_incoming_seq)?r.last_incoming_seq:"";
     const next=new Map(rooms.map(r=>[r.id,stamp(r)]));
-    const fresh=rooms.find(r=>{
-     if(!stamp(r)||(r.last_incoming_seq===undefined&&r.last_author_id===member.id))return false;
-     const known=previous.current?.has(r.id)??false;
-     let seen=previous.current?.get(r.id);if(previous.current===null){try{seen=sessionStorage.getItem(`haco-chat-seen:${member.id}:${r.id}`)??undefined;}catch{}}
-     // An open conversation can acknowledge the message before this poll runs.
-     // Its incoming sequence still proves a new message arrived; unread alone cannot.
-     return seen!==stamp(r)&&(r.unread>0||(known&&r.last_incoming_seq!==undefined));
+    const fresh=previous.current===null?undefined:rooms.find(r=>{
+     const incoming=stamp(r),seen=previous.current?.get(r.id);
+     return Boolean(incoming&&r.last_incoming_author_id&&r.last_incoming_author_id!==member.id&&r.members.some(m=>m.id===member.id)&&((seen!==undefined&&BigInt(incoming)>BigInt(seen||"0"))||(seen===undefined&&r.unread>0)));
     });
-    for(const r of rooms){try{sessionStorage.setItem(`haco-chat-seen:${member.id}:${r.id}`,stamp(r));}catch{}}
     setUnread(rooms.reduce((sum,r)=>sum+r.unread,0));
     setToast(old=>old&&rooms.some(r=>r.id===old.id&&r.unread>0)?old:null);
     previous.current=next;
-    if(fresh){
-     setToast(fresh);
-     if(!pushDisabled(member.id)&&"Notification" in window&&Notification.permission==="granted"){
-      const registration=await navigator.serviceWorker?.getRegistration();
-      // Web Push owns OS alerts when subscribed. Fall back while a tab is open otherwise.
-      const subscription=await registration?.pushManager?.getSubscription();
-      let pushActive=false;
-      if(subscription){const status=await fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status",endpoint:subscription.endpoint})});if(status.ok)pushActive=Boolean((await status.json()).enabled);}
-      if(!pushActive||(document.visibilityState==="visible"&&document.hasFocus())){const preview=chatNotification(fresh.last_incoming_author_name??fresh.members.find(m=>m.id===fresh.last_author_id)?.name??roomTitle(fresh,member.id),fresh.last_incoming_body??fresh.last_body??""),title=preview.title,options={body:preview.body,tag:`chat:${fresh.id}`,renotify:true,icon:"/icon.png",data:{url:`/admin/chat?room=${fresh.id}`}};
-       if(registration)await registration.showNotification(title,options);
-       else {const alert=new Notification(title,options);alert.onclick=()=>{window.focus();window.location.assign(`/admin/chat?room=${fresh.id}`);alert.close();};}
-      }
-     }
-    }
+    // Only the focused visible tab shows an in-app hint. OS notifications come solely from Web Push.
+    if(fresh&&document.visibilityState==="visible"&&document.hasFocus())setToast(fresh);
+
    }catch{/* Keep the existing state during a temporary connection failure. */}
    finally{busy=false;}
   };
   void refresh();const timer=setInterval(()=>void refresh(),5000);
-  const wake=()=>void refresh();window.addEventListener("focus",wake);window.addEventListener("haco-chat-read",wake);document.addEventListener("visibilitychange",wake);
-  return()=>{controller.abort();clearInterval(timer);window.removeEventListener("focus",wake);window.removeEventListener("haco-chat-read",wake);document.removeEventListener("visibilitychange",wake);};
+  const wake=()=>{if(document.visibilityState!=="visible"||!document.hasFocus())setToast(null);void refresh();};window.addEventListener("blur",wake);window.addEventListener("focus",wake);window.addEventListener("haco-chat-read",wake);document.addEventListener("visibilitychange",wake);
+  return()=>{controller.abort();clearInterval(timer);window.removeEventListener("blur",wake);window.removeEventListener("focus",wake);window.removeEventListener("haco-chat-read",wake);document.removeEventListener("visibilitychange",wake);};
  },[member.id]);
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(null),8000);return()=>clearTimeout(timer);},[toast]);
  useEffect(()=>{if(fullPage){setOpen(false);setToast(null);}},[fullPage]);

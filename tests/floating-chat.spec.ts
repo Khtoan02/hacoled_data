@@ -10,7 +10,7 @@ test('Quick chat announces new messages, replies, preserves drafts and works on 
  const room=(await(await root.post('/api/chat',{data:{kind:'direct',member_ids:[peerId],request_id:randomUUID()}})).json()).id;
  await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'Old unread message'}});
  const context=await browser.newContext({storageState:await root.storageState()}),page=await context.newPage();
- await page.goto('/admin/profile');await expect(page.getByRole('button',{name:/Mở chat nhanh · 1 tin chưa đọc/})).toBeVisible();await expect(page.locator('.chat-toast')).toBeVisible();await page.getByRole('button',{name:'Ẩn thông báo tin nhắn'}).click();
+ await page.goto('/admin/profile');await expect(page.getByRole('button',{name:/Mở chat nhanh · 1 tin chưa đọc/})).toBeVisible();await expect(page.locator('.chat-toast')).toHaveCount(0);
  await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'New message for popup'}});
  await expect(page.locator('.chat-toast')).toBeVisible({timeout:15000});await expect(page.locator('.chat-launcher')).toHaveClass(/has-unread/);
  await page.locator('.chat-toast-open').click();const panel=page.getByRole('region',{name:'Chat nhanh'});await expect(panel.getByRole('log').getByText('New message for popup',{exact:true})).toBeVisible();
@@ -24,12 +24,12 @@ test('Quick chat announces new messages, replies, preserves drafts and works on 
  await panel.getByRole('link',{name:'Mở chat toàn màn hình'}).click();await expect(page).toHaveURL(new RegExp(`/admin/chat\\?room=${room}`));await expect(page.locator('.floating-chat')).toHaveCount(0);
  await context.close();await peer.dispose();await root.dispose();
 });
-test('Chat alerts survive immediate read acknowledgement and fall back to browser alerts on a background tab',async({playwright,browser})=>{
+test('In-app chat hints survive read acknowledgement without generating a second OS notification',async({playwright,browser})=>{
  const baseURL='http://127.0.0.1:3100',root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.236'}});await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});
  const me=(await(await root.get('/api/members')).json()).members.find((m:any)=>m.email==='owner@example.test');const context=await browser.newContext({storageState:await root.storageState()}),page=await context.newPage();
  await page.addInitScript(()=>{(window as any).__alerts=[];Object.defineProperty(window,'Notification',{value:class{static permission='granted';constructor(title:string,options:unknown){(window as any).__alerts.push({title,options});}}});Object.defineProperty(navigator,'serviceWorker',{value:{getRegistration:async()=>undefined}});});
- let fresh=false,calls=0;const roomId='00000000-0000-4000-8000-000000000001';await page.route('**/api/chat',route=>{calls++;return route.fulfill({json:{rooms:[{id:roomId,kind:'group',title:'Incoming test group',members:[{id:me.id,name:me.name}],unread:0,last_incoming_seq:fresh?'2':'1',last_at:fresh?'2026-10-30T02:00:00Z':null,last_author_id:'other',last_incoming_author_name:'Hải',last_incoming_body:'Incoming',last_body:'Incoming',owner_id:me.id,version:0,created_at:'2026-10-29T00:00:00Z'}],people:[]}});});
- await page.goto('/admin/chat');await expect(page.getByRole('heading',{name:'Cuộc trò chuyện',exact:true})).toBeVisible();await expect.poll(()=>calls,{timeout:10000}).toBeGreaterThanOrEqual(3);await page.evaluate(()=>Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'}));fresh=true;
- await expect.poll(async()=>({calls,alerts:await page.evaluate(()=>(window as any).__alerts.length),toast:await page.locator('.chat-toast').count()}),{timeout:15000}).toMatchObject({alerts:1,toast:1});
- expect((await page.evaluate(()=>(window as any).__alerts[0])).title).toBe('Haco | Hải: Incoming');await context.close();await root.dispose();
+ let fresh=false,calls=0;const roomId='00000000-0000-4000-8000-000000000001';await page.route('**/api/chat',route=>{calls++;return route.fulfill({json:{viewer_id:me.id,rooms:[{id:roomId,kind:'group',title:'Incoming test group',members:[{id:me.id,name:me.name}],unread:0,last_incoming_seq:fresh?'2':'1',last_at:fresh?'2026-10-30T02:00:00Z':null,last_author_id:'other',last_incoming_author_id:'other',last_incoming_author_name:'Hải',last_incoming_body:'Incoming',last_body:'Incoming',owner_id:me.id,version:0,created_at:'2026-10-29T00:00:00Z'}],people:[]}});});
+ await page.goto('/admin/chat');await expect(page.getByRole('heading',{name:'Cuộc trò chuyện',exact:true})).toBeVisible();await expect.poll(()=>calls,{timeout:10000}).toBeGreaterThanOrEqual(3);fresh=true;
+ await expect.poll(async()=>({calls,alerts:await page.evaluate(()=>(window as any).__alerts.length),toast:await page.locator('.chat-toast').count()}),{timeout:15000}).toMatchObject({alerts:0,toast:1});
+ await expect(page.locator('.chat-toast')).toContainText('Haco | Hải:');await expect(page.locator('.chat-toast')).toContainText('Incoming');await context.close();await root.dispose();
 });
