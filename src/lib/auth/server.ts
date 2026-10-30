@@ -111,3 +111,10 @@ export async function requireManager() {
     throw new RequestError("Bạn không có quyền quản lý thành viên.", 403);
   return member;
 }
+
+export async function requireLeader() {
+ const member=await getMember();
+ if(!member)throw new RequestError("Vui lòng đăng nhập lại.",401);
+ if(member.role!=="lead_marketing")throw new RequestError("Chỉ Leader Marketing được quản lý KPI hoặc xoá công việc.",403);
+ return member;
+}

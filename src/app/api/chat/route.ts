@@ -11,9 +11,9 @@ export async function GET(){
    sql`SELECT r.id,r.kind,r.title,r.owner_id,r.version,r.created_at,
     (SELECT jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,'active',m.active) ORDER BY p.joined_at,m.id) FROM app_chat_members p JOIN app_members m ON m.id=p.member_id WHERE p.room_id=r.id) AS members,
     (SELECT COUNT(*)::int FROM app_chat_messages msg WHERE msg.room_id=r.id AND msg.seq>GREATEST(mine.last_read_seq,mine.joined_after_seq) AND msg.author_id<>${actor.id}) AS unread,
-    latest.body AS last_body,latest.created_at AS last_at
+    latest.author_id AS last_author_id,latest.body AS last_body,latest.created_at AS last_at
     FROM app_chat_rooms r JOIN app_chat_members mine ON mine.room_id=r.id AND mine.member_id=${actor.id}
-    LEFT JOIN LATERAL(SELECT body,created_at FROM app_chat_messages WHERE room_id=r.id AND seq>mine.joined_after_seq ORDER BY seq DESC LIMIT 1) latest ON true
+    LEFT JOIN LATERAL(SELECT body,created_at,author_id FROM app_chat_messages WHERE room_id=r.id AND seq>mine.joined_after_seq ORDER BY seq DESC LIMIT 1) latest ON true
     ORDER BY COALESCE(latest.created_at,r.created_at) DESC,r.id`,
    sql`SELECT id,name,role,active FROM app_members WHERE active=true ORDER BY name,id`,
   ]);

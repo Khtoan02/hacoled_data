@@ -7,7 +7,7 @@ import {
   database,
   getMember,
   RequestError,
-  requireManager,
+  requireLeader,
 } from "../../../lib/auth/server";
 import { ROLE_POLICIES } from "../../../lib/security/rbac";
 import { isUuid } from "../../../lib/social";
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 async function save(req: NextRequest, create: boolean) {
   try {
     checkOrigin(req);
-    const actor = await requireManager(),
+    const actor = await requireLeader(),
       b = await req.json();
     if (
       !b ||
@@ -120,7 +120,7 @@ export const PATCH = (req: NextRequest) => save(req, false);
 export async function DELETE(req: NextRequest) {
   try {
     checkOrigin(req);
-    const actor = await requireManager();
+    const actor = await requireLeader();
     const id = req.nextUrl.searchParams.get("id");
     if (!isUuid(id)) throw new RequestError("Mã KPI không hợp lệ.");
     const version = req.nextUrl.searchParams.get("version");

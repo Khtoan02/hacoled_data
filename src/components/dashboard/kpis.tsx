@@ -61,7 +61,7 @@ type Draft = {
 };
 export function KpisPage() {
   const member = useMember(),
-    full = isFullAccess(member.role),
+    full = member.role === "lead_marketing",
     params = useSearchParams();
   const [month, setMonth] = useState(validMonth(params.get("month") ?? "") ? params.get("month")! : currentMonth()),
     [kpis, setKpis] = useState<Kpi[]>([]),

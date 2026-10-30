@@ -69,3 +69,5 @@ Mẫu kế hoạch CSV được tạo từ nhân sự/kênh/KPI hiện tại the
 Thông báo thiết bị bằng Web Push: người dùng tự bật quyền từ hồ sơ/chuông trên từng thiết bị. Chat, công việc và KPI có outbox chống trùng, kiểm tra quyền lại khi gửi và khi hiện; nội dung OS chỉ là lời nhắc chung, không hiện nội dung chat riêng. Đăng ký gắn với phiên, dừng khi thu hồi/hết hạn. Cần khóa VAPID ổn định (có thể suy ra riêng từ master key hiện tại) và CRON_SECRET trên Vercel cho lịch nhắc KPI hằng ngày khi không mở ứng dụng. Chi tiết giới hạn và thiết lập: docs/WEB_PUSH.md.
 
 Chat nhanh: nút nổi góc phải trên các trang nội bộ, số tin chưa đọc/viền đỏ nhấp nhẹ và thông báo nổi khi phát hiện tin mới; mở trả lời tại chỗ, giữ bản nháp khi thu gọn. Trang chat đầy đủ không hiển thị widget trùng lặp.
+
+Quyền thao tác KPI và xoá công việc: chỉ `lead_marketing` được tạo/sửa/import/xoá KPI và xoá công việc đơn lẻ/hàng loạt, kể cả Giám đốc cũng không có các thao tác này. Trưởng phòng, nhân viên và thực tập tiếp tục tạo việc cho mình và trả kết quả theo phạm vi hiện có. Quyền quản lý kênh của Trưởng phòng giữ nguyên.

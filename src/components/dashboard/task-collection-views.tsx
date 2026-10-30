@@ -7,14 +7,14 @@ import {Avatar,StatusBadge} from './ui';
 import {ChannelIdentity} from './channel-picker';
 import type {TaskSort} from "../../lib/task-views";
 export type CollectionProps={
- tasks:Task[];full:boolean;memberId:string;busy:boolean;selecting:boolean;selected:string[];
+ tasks:Task[];full:boolean;canDelete:boolean;memberId:string;busy:boolean;selecting:boolean;selected:string[];
  onSelect:(id:string)=>void;onOpen:(task:Task)=>void;onResult:(task:Task)=>void;onDelete:(task:Task)=>void;
 };
 function TaskSelection({task,props}:{task:Task;props:CollectionProps}){
  return <input className="task-select" type="checkbox" aria-label={`Chọn công việc ${task.title}`} checked={props.selected.includes(task.id)} disabled={props.busy||(!props.selected.includes(task.id)&&props.selected.length>=100)} onChange={()=>props.onSelect(task.id)}/>;
 }
 function RowActions({task,props}:{task:Task;props:CollectionProps}){
- return <div className="collection-actions"><button type="button" className="icon-button" aria-label={`Kết quả ${task.title}`} title={props.full||props.memberId===task.assignee_id?'Trả kết quả':'Xem kết quả'} onClick={()=>props.onResult(task)}><MessageSquareText size={17}/></button><button type="button" className="icon-button" aria-label={`Mở chi tiết ${task.title}`} title="Mở chi tiết" onClick={()=>props.onOpen(task)}><ChevronRight size={17}/></button>{props.full&&!props.selecting&&<button type="button" className="icon-button danger" aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" disabled={props.busy} onClick={()=>props.onDelete(task)}><Trash2 size={16}/></button>}</div>;
+ return <div className="collection-actions"><button type="button" className="icon-button" aria-label={`Kết quả ${task.title}`} title={props.full||props.memberId===task.assignee_id?'Trả kết quả':'Xem kết quả'} onClick={()=>props.onResult(task)}><MessageSquareText size={17}/></button><button type="button" className="icon-button" aria-label={`Mở chi tiết ${task.title}`} title="Mở chi tiết" onClick={()=>props.onOpen(task)}><ChevronRight size={17}/></button>{props.canDelete&&!props.selecting&&<button type="button" className="icon-button danger" aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" disabled={props.busy} onClick={()=>props.onDelete(task)}><Trash2 size={16}/></button>}</div>;
 }
 export function TaskListView(props:CollectionProps){
  return <div className="work-list" role="list" aria-label="Danh sách công việc dạng List">{props.tasks.map(t=><article role="listitem" className={`work-list-row ${props.selected.includes(t.id)?'is-selected':''}`} key={t.id}>

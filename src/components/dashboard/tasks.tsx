@@ -92,6 +92,7 @@ type Draft = {
 export function TasksPage() {
   const member = useMember(),
     full = isFullAccess(member.role),
+    canDelete = member.role === "lead_marketing",
     router = useRouter(),
     params = useSearchParams();
   const view = ["list", "table", "board", "todo"].includes(params.get("view") || "")
@@ -464,7 +465,7 @@ export function TasksPage() {
       >
         <div className="kanban-card-top">
           {full && selecting ? selectBox(task) : <span className="task-output-label">{OUTPUT_TYPES[task.output_type].label} · {task.planned_quantity} {OUTPUT_TYPES[task.output_type].unit}</span>}
-          {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
+          {canDelete && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
           {full && !selecting && (
             <GripVertical size={16} className="drag-grip" aria-hidden="true" />
           )}
@@ -512,7 +513,7 @@ export function TasksPage() {
       </article>
     );
   }
-  const collectionProps={tasks:visible,full,memberId:member.id,busy,selecting,selected,onSelect:toggleSelected,onOpen:(task:Task)=>open(task),onResult:(task:Task)=>{open(task);setDetailTab("result");},onDelete:(task:Task)=>void remove(task)};
+  const collectionProps={tasks:visible,full,canDelete,memberId:member.id,busy,selecting,selected,onSelect:toggleSelected,onOpen:(task:Task)=>open(task),onResult:(task:Task)=>{open(task);setDetailTab("result");},onDelete:(task:Task)=>void remove(task)};
   return (
     <DashboardShell
       title="Công việc"
@@ -558,7 +559,7 @@ export function TasksPage() {
         className="tasks-panel work-collection"
         title="Danh sách công việc"
         description={loading?"Đang tải công việc…":`${filtered.length} công việc${filtered.length!==tasks.length?` / ${tasks.length} trong phạm vi của bạn`:" trong phạm vi của bạn"}`}
-        action={<div className="task-panel-actions">{full&&<button className="secondary-button" disabled={busy||loading} aria-pressed={selecting} onClick={()=>{setSelecting(!selecting);setSelected([]);}}> {selecting?"Hủy chọn":"Chọn nhiều"}</button>}
+        action={<div className="task-panel-actions">{canDelete&&<button className="secondary-button" disabled={busy||loading} aria-pressed={selecting} onClick={()=>{setSelecting(!selecting);setSelected([]);}}> {selecting?"Hủy chọn":"Chọn nhiều"}</button>}
           <button
             className="secondary-button"
             onClick={() => void load()}
@@ -661,7 +662,7 @@ export function TasksPage() {
 
 
         </div>}
-        {selecting&&full&&<div className="task-selection-bar">
+        {selecting&&canDelete&&<div className="task-selection-bar">
           <label><input type="checkbox" aria-label={paginatedView?"Chọn tất cả trên trang":"Chọn các công việc đang hiển thị"} checked={(paginatedView?visible:filtered).slice(0,100).length>0&&(paginatedView?visible:filtered).slice(0,100).every(t=>selected.includes(t.id))} disabled={busy||loading||!filtered.length} onChange={e=>{const ids=(paginatedView?visible:filtered).slice(0,100).map(t=>t.id);setSelected(current=>e.target.checked?[...new Set([...current,...ids])].slice(0,100):current.filter(id=>!ids.includes(id)));}}/>{paginatedView?"Chọn trang này":"Chọn tối đa 100 việc"}</label>
           <span aria-live="polite">Đã chọn <strong>{selected.length}</strong> công việc</span>
           <button className="secondary-button" disabled={!selected.length||busy} onClick={()=>setSelected([])}>Bỏ chọn</button>
@@ -779,7 +780,7 @@ export function TasksPage() {
                       </span>
                       <StatusBadge status={t.status}/>
                       <button type="button" className="task-result-link" aria-label={`Kết quả ${t.title}`} onClick={()=>{open(t);setDetailTab("result");}}><MessageSquareText size={16}/><span>Kết quả</span></button>
-                      {full && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
+                      {canDelete && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${t.title}`} title="Xóa công việc" onClick={()=>void remove(t)}><Trash2 size={16}/></button>}
                     </div>
                   ))}
                 </details>
@@ -1155,7 +1156,7 @@ export function TasksPage() {
                 </div>
               </section>
               <footer className="task-editor-footer">
-                {opened !== "new" && (
+                {canDelete && opened !== "new" && (
                   <button
                     className="icon-button danger"
                     type="button"

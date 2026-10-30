@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { apiError,checkOrigin,database,requireManager,RequestError } from "../../../../lib/auth/server";
+import { apiError,checkOrigin,database,requireLeader,RequestError } from "../../../../lib/auth/server";
 import { isUuid } from "../../../../lib/social";
 export async function POST(req:NextRequest){
  try{
-  checkOrigin(req);const actor=await requireManager(),body=await req.json();
+  checkOrigin(req);const actor=await requireLeader(),body=await req.json();
   if(!body||!Array.isArray(body.items)||body.items.length<1||body.items.length>100||body.items.some((v:unknown)=>!v||typeof v!=='object'||!isUuid((v as {id:unknown}).id)||!Number.isSafeInteger((v as {version:unknown}).version)||Number((v as {version:unknown}).version)<0)||new Set(body.items.map((v:{id:string})=>v.id)).size!==body.items.length)throw new RequestError('Chọn từ 1 đến 100 công việc khác nhau và tải lại danh sách trước khi xóa.');
   const rows=await database()`WITH input AS(SELECT * FROM jsonb_to_recordset(${JSON.stringify(body.items)}::jsonb) AS x(id uuid,version int)),
    locked AS MATERIALIZED(SELECT t.* FROM app_tasks t JOIN input i ON i.id=t.id ORDER BY t.id FOR UPDATE OF t),

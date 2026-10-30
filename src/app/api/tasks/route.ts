@@ -10,6 +10,7 @@ import {
   getMember,
   RequestError,
   requireManager,
+  requireLeader,
 } from "../../../lib/auth/server";
 import { ROLE_POLICIES, isFullAccess } from "../../../lib/security/rbac";
 import {
@@ -295,7 +296,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     checkOrigin(req);
-    const actor = await requireManager();
+    const actor = await requireLeader();
     const id = req.nextUrl.searchParams.get("id");
     if (!isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
     const sql = database();

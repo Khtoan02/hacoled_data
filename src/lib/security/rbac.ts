@@ -69,7 +69,7 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     label: "Giám đốc",
     badgeCode: "DIRECTOR",
     taskScope: "all",
-    summary: "Toàn quyền hệ thống, tài khoản và công việc.",
+    summary: "Quản lý hệ thống, tài khoản và theo dõi công việc; tạo/sửa/xoá KPI và xoá công việc dành riêng cho Leader Marketing.",
     guardrail: "Thao tác tài khoản được ghi nhật ký.",
   },
   lead_marketing: {
@@ -98,7 +98,7 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     label: "Nhân viên Marketing",
     badgeCode: "STAFF",
     summary:
-      "Theo dõi tiến độ và báo cáo kết quả công việc được giao cho mình.",
+      "Tạo công việc cho mình, theo dõi tiến độ và báo cáo kết quả; không tạo KPI hoặc xoá công việc.",
     guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
   },
   marketing_intern: {
@@ -107,7 +107,7 @@ export const ROLE_POLICIES: Record<SystemRoleId, RolePolicy> = {
     label: "Thực tập Marketing",
     badgeCode: "INTERN",
     summary:
-      "Theo dõi và báo cáo công việc được giao cho mình; quyền giống nhân viên Marketing.",
+      "Tạo công việc cho mình, theo dõi và báo cáo kết quả; quyền giống nhân viên Marketing.",
     guardrail: "Không xem công việc của người khác hoặc quản lý tài khoản.",
   },
   ai_assistant: {

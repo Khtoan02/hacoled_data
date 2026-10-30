@@ -5,7 +5,7 @@ import {
   checkOrigin,
   database,
   RequestError,
-  requireManager,
+  requireLeader,
 } from "../../../../lib/auth/server";
 import {
   KPI_IMPORT_COLUMNS,
@@ -17,7 +17,7 @@ import { isUuid } from "../../../../lib/social";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
-    await requireManager();
+    await requireLeader();
     return new NextResponse("\uFEFF" + KPI_IMPORT_COLUMNS.join(",") + "\r\n", {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     checkOrigin(req);
-    const actor = await requireManager(),
+    const actor = await requireLeader(),
       b = await req.json();
     if (
       !b ||

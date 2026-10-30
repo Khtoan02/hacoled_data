@@ -24,3 +24,12 @@ test('Quick chat announces new messages, replies, preserves drafts and works on 
  await panel.getByRole('link',{name:'Mở chat toàn màn hình'}).click();await expect(page).toHaveURL(new RegExp(`/admin/chat\\?room=${room}`));await expect(page.locator('.floating-chat')).toHaveCount(0);
  await context.close();await peer.dispose();await root.dispose();
 });
+test('Chat alerts remain available on the chat page and fall back to browser alerts on a background tab',async({playwright,browser})=>{
+ const baseURL='http://127.0.0.1:3100',root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.236'}});await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});
+ const me=(await(await root.get('/api/members')).json()).members.find((m:any)=>m.email==='owner@example.test');const context=await browser.newContext({storageState:await root.storageState()}),page=await context.newPage();
+ await page.addInitScript(()=>{(window as any).__alerts=[];Object.defineProperty(window,'Notification',{value:class{static permission='granted';constructor(title:string,options:unknown){(window as any).__alerts.push({title,options});}}});Object.defineProperty(navigator,'serviceWorker',{value:{getRegistration:async()=>undefined}});});
+ let fresh=false,calls=0;const roomId='00000000-0000-4000-8000-000000000001';await page.route('**/api/chat',route=>{calls++;return route.fulfill({json:{rooms:[{id:roomId,kind:'group',title:'Incoming test group',members:[{id:me.id,name:me.name}],unread:fresh?1:0,last_at:fresh?'2026-10-30T02:00:00Z':null,last_author_id:'other',last_body:'Incoming',owner_id:me.id,version:0,created_at:'2026-10-29T00:00:00Z'}],people:[]}});});
+ await page.goto('/admin/chat');await expect(page.getByRole('heading',{name:'Cuộc trò chuyện',exact:true})).toBeVisible();await expect.poll(()=>calls,{timeout:10000}).toBeGreaterThanOrEqual(3);await page.evaluate(()=>Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'}));fresh=true;
+ await expect.poll(async()=>({calls,alerts:await page.evaluate(()=>(window as any).__alerts.length),toast:await page.locator('.chat-toast').count()}),{timeout:15000}).toMatchObject({alerts:1,toast:1});
+ expect((await page.evaluate(()=>(window as any).__alerts[0])).options.body).not.toContain('Incoming');await context.close();await root.dispose();
+});
