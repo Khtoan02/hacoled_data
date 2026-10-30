@@ -24,9 +24,13 @@ export function FloatingChat(){
     const data=await response.json();if(controller.signal.aborted)return;const rooms:ChatRoom[]=data.rooms;
     const stamp=(r:ChatRoom)=>r.last_incoming_seq??r.last_at??"";
     const next=new Map(rooms.map(r=>[r.id,stamp(r)]));
-    const fresh=rooms.find(r=>{if(r.unread<=0||!stamp(r)||(r.last_incoming_seq===undefined&&r.last_author_id===member.id))return false;
+    const fresh=rooms.find(r=>{
+     if(!stamp(r)||(r.last_incoming_seq===undefined&&r.last_author_id===member.id))return false;
+     const known=previous.current?.has(r.id)??false;
      let seen=previous.current?.get(r.id);if(previous.current===null){try{seen=sessionStorage.getItem(`haco-chat-seen:${member.id}:${r.id}`)??undefined;}catch{}}
-     return seen!==stamp(r);
+     // An open conversation can acknowledge the message before this poll runs.
+     // Its incoming sequence still proves a new message arrived; unread alone cannot.
+     return seen!==stamp(r)&&(r.unread>0||(known&&r.last_incoming_seq!==undefined));
     });
     for(const r of rooms){try{sessionStorage.setItem(`haco-chat-seen:${member.id}:${r.id}`,stamp(r));}catch{}}
     setUnread(rooms.reduce((sum,r)=>sum+r.unread,0));
