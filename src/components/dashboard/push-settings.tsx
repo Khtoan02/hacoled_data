@@ -2,25 +2,29 @@
 import {useEffect,useState} from 'react';
 import {BellRing,BellOff,ChevronDown} from 'lucide-react';
 import {Notice} from './ui';
+import {useMember} from './session';
+import {setPushDisabled,waitForPushSetup} from '../../lib/push-client';
 function applicationKey(value:string){const raw=atob(value.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-value.length%4)%4));return Uint8Array.from(raw,c=>c.charCodeAt(0));}
 function matchesKey(subscription:PushSubscription,key:string){const existing=subscription.options.applicationServerKey;if(!existing)return false;const expected=applicationKey(key),actual=new Uint8Array(existing);return actual.length===expected.length&&actual.every((v,i)=>v===expected[i]);}
 export function PushSettings({compact=false}:{compact?:boolean}){
+ const member=useMember();
  const [supported,setSupported]=useState<boolean|null>(null),[permission,setPermission]=useState<NotificationPermission>('default'),[enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[testResult,setTestResult]=useState('');
  const [config,setConfig]=useState<{configured:boolean;publicKey:string|null;backgroundRemindersConfigured:boolean}|null>(null);
  useEffect(()=>{
   let alive=true;const available=window.isSecureContext&&'Notification'in window&&'serviceWorker'in navigator&&'PushManager'in window;setSupported(available);
   if(!available){setLoading(false);return;}
   setPermission(Notification.permission);
-  (async()=>{try{const r=await fetch('/api/push',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error(data.error);if(!alive)return;setConfig(data);
+  const refresh=()=>{setPermission(Notification.permission);void (async()=>{try{const r=await fetch('/api/push',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error(data.error);if(!alive)return;setConfig(data);
    const registration=data.configured?await navigator.serviceWorker.register('/sw.js',{scope:'/'}):await navigator.serviceWorker.getRegistration('/'),subscription=await registration?.pushManager.getSubscription();
    if(subscription&&data.publicKey&&matchesKey(subscription,data.publicKey)){const status=await fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',endpoint:subscription.endpoint})});const s=await status.json();if(!status.ok)throw Error(s.error);if(alive)setEnabled(s.enabled);}
-  }catch(e){if(alive)setError(e instanceof Error?e.message:'Chưa kiểm tra được thiết bị.');}finally{if(alive)setLoading(false);}})();return()=>{alive=false;};
+  }catch(e){if(alive)setError(e instanceof Error?e.message:'Chưa kiểm tra được thiết bị.');}finally{if(alive)setLoading(false);}})();};refresh();window.addEventListener('haco-push-state',refresh);return()=>{alive=false;window.removeEventListener('haco-push-state',refresh);};
  },[]);
  async function enable(){
   if(!config?.publicKey||busy)return;setBusy(true);setError('');
   try{
    // The browser prompt must follow the person's own click.
    const permission=await Notification.requestPermission();setPermission(permission);if(permission!=='granted')return;
+   await waitForPushSetup(member.id);
    await navigator.serviceWorker.register('/sw.js',{scope:'/'});const registration=await navigator.serviceWorker.ready;
    let subscription=await registration.pushManager.getSubscription();
    if(subscription){
@@ -29,10 +33,11 @@ export function PushSettings({compact=false}:{compact?:boolean}){
     if(!data.enabled||!matchesKey(subscription,config.publicKey)){await subscription.unsubscribe();subscription=null;}
    }
    if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:applicationKey(config.publicKey)});
-   const r=await fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:subscription.toJSON()})}),d=await r.json();if(!r.ok)throw Error(d.error);setEnabled(true);
+   const r=await fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:subscription.toJSON()})}),d=await r.json();if(!r.ok)throw Error(d.error);setEnabled(true);setPushDisabled(member.id,false);
   }catch(e){setError(e instanceof Error?e.message:'Chưa bật được thông báo. Kiểm tra kết nối rồi thử lại.');}finally{setBusy(false);}
  }
- async function disable(){setBusy(true);setError('');try{
+ async function disable(){setBusy(true);setError('');setPushDisabled(member.id,true);try{
+  await waitForPushSetup(member.id);
   const registration=await navigator.serviceWorker.getRegistration('/'),subscription=await registration?.pushManager.getSubscription();
   if(subscription){const r=await fetch('/api/push',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:subscription.endpoint})});if(!r.ok)throw Error('Chưa tắt được thông báo. Vui lòng thử lại.');await subscription.unsubscribe();}
   setEnabled(false);

@@ -1,3 +1,4 @@
+import { PushBootstrap } from "../../components/dashboard/push-bootstrap";
 import { Suspense } from "react";
 import { FloatingChat } from "../../components/dashboard/floating-chat";
 import { redirect } from "next/navigation";
@@ -15,6 +16,7 @@ export default async function AdminLayout({
   return (
     <SessionProvider member={JSON.parse(JSON.stringify(member))}>
       {children}
+      <PushBootstrap />
       <Suspense fallback={null}><FloatingChat /></Suspense>
     </SessionProvider>
   );

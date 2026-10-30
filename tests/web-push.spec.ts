@@ -53,20 +53,39 @@ test('Subscription parser prevents arbitrary server requests and invalid key mat
  for(const value of ['http://fcm.googleapis.com/test','https://localhost/test','https://fcm.googleapis.com.attacker.test/test','https://user:pass@fcm.googleapis.com/test','https://fcm.googleapis.com:8443/test'])expect(validPushEndpoint(value)).toBe(false);
  expect(parsePushSubscription(subscription())).not.toBeNull();expect(parsePushSubscription({endpoint:'https://fcm.googleapis.com/test',keys:{p256dh:'abc',auth:'abc'}})).toBeNull();
 });
-test('Device settings ask permission only on click and allow disabling the current device',async({playwright,browser})=>{
+test('Notifications request permission on load, auto-subscribe and preserve explicit opt-out after reload',async({playwright,browser})=>{
  const root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.228'}});expect((await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}})).status()).toBe(200);
  const config=await(await root.get('/api/push')).json(),sub=subscription(),context=await browser.newContext({storageState:await root.storageState()});
  await context.addInitScript(({sub,key})=>{
-  let registered=false,active:any=null,permission='default';(window as any).__pushRequests=0;(window as any).__testNotifications=0;(window as any).__testTags=[];
-  Object.defineProperty(window,'Notification',{configurable:true,value:class{static get permission(){return permission;}static async requestPermission(){(window as any).__pushRequests++;permission='granted';return permission;}}});
+  let registered=false,active:any=null,permission=localStorage.getItem('test-push-permission')??'default';(window as any).__pushRequests=0;(window as any).__testNotifications=0;(window as any).__testTags=[];
+  Object.defineProperty(window,'Notification',{configurable:true,value:class{static get permission(){return permission;}static async requestPermission(){(window as any).__pushRequests++;permission='granted';localStorage.setItem('test-push-permission',permission);return permission;}}});
   Object.defineProperty(window,'PushManager',{configurable:true,value:class{}});
   const bytes=Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')+'='),c=>c.charCodeAt(0));
   const registration={showNotification:async(_title:string,options:any)=>{(window as any).__testNotifications++;(window as any).__testTags.push(options.tag);if(!options.renotify||!options.requireInteraction)throw Error('Test must request visible re-alert');},getNotifications:async()=>[{tag:'haco-notification-test:stub',close:()=>{}}],pushManager:{getSubscription:async()=>active,subscribe:async()=>{active={endpoint:sub.endpoint,options:{applicationServerKey:bytes.buffer},toJSON:()=>sub,unsubscribe:async()=>{active=null;return true;}};return active;}}};
   Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{getRegistration:async()=>registered?registration:undefined,register:async()=>{registered=true;return registration;},ready:Promise.resolve(registration)}});
  },{sub,key:config.publicKey});
- const page=await context.newPage();await page.goto(`${baseURL}/admin/profile`);const enable=page.getByRole('button',{name:'Bật thông báo trên thiết bị này',exact:true});await expect(enable).toBeEnabled();expect(await page.evaluate(()=>(window as any).__pushRequests)).toBe(0);
- await enable.click();await expect(page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true})).toBeEnabled();expect(await page.evaluate(()=>(window as any).__pushRequests)).toBe(1);expect((await(await root.post('/api/push',{data:{action:'status',endpoint:sub.endpoint}})).json()).enabled).toBe(true);
+ const page=await context.newPage();await page.goto(`${baseURL}/admin/profile`);const enable=page.getByRole('button',{name:'Bật thông báo trên thiết bị này',exact:true});
+ await expect(page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true})).toBeEnabled();expect(await page.evaluate(()=>(window as any).__pushRequests)).toBe(1);expect((await(await root.post('/api/push',{data:{action:'status',endpoint:sub.endpoint}})).json()).enabled).toBe(true);
  await page.getByRole('button',{name:'Thử thông báo trên máy',exact:true}).click();await expect(page.getByRole('status')).toContainText('Trình duyệt đã tạo và lưu');expect(await page.evaluate(()=>(window as any).__testNotifications)).toBe(1);await page.getByRole('button',{name:'Thử thông báo trên máy',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).__testNotifications)).toBe(2);expect(new Set(await page.evaluate(()=>(window as any).__testTags)).size).toBe(2);
  await page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true}).click();await expect(enable).toBeEnabled();expect(Number((await db('SELECT count(*) FROM app_push_subscriptions WHERE endpoint=$1',[sub.endpoint])).rows[0][0])).toBe(0);
+ await page.reload();await expect(enable).toBeEnabled();expect(await page.evaluate(()=>(window as any).__pushRequests)).toBe(0);expect((await(await root.post('/api/push',{data:{action:'status',endpoint:sub.endpoint}})).json()).enabled).toBe(false);
+ await enable.click();await expect(page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true})).toBeEnabled();await page.reload();await expect(page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true})).toBeEnabled();expect(await page.evaluate(()=>(window as any).__pushRequests)).toBe(0);
  await context.close();await root.dispose();
+});
+test('Browsers blocking on-load prompts get a click fallback; denied permission is never requested again',async({playwright,browser})=>{
+ const root=await playwright.request.newContext({baseURL,extraHTTPHeaders:{Origin:baseURL,'x-real-ip':'198.51.100.246'}});await root.post('/api/auth/login',{data:{password:'Test-only-password-2026!'}});const config=await(await root.get('/api/push')).json();
+ for(const denied of [false,true]){
+  const sub=subscription(),context=await browser.newContext({storageState:await root.storageState()});
+  await context.addInitScript(({denied,sub,key})=>{
+   let permission=denied?'denied':'default',active:any=null;(window as any).__autoRequests=0;
+   Object.defineProperty(window,'Notification',{configurable:true,value:class{static get permission(){return permission;}static async requestPermission(){(window as any).__autoRequests++;if((window as any).__autoRequests>1&&navigator.userActivation.isActive)permission='granted';return permission;}}});Object.defineProperty(window,'PushManager',{configurable:true,value:class{}});
+   const bytes=Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')+'='),c=>c.charCodeAt(0));const registration={pushManager:{getSubscription:async()=>active,subscribe:async()=>active={endpoint:sub.endpoint,options:{applicationServerKey:bytes.buffer},toJSON:()=>sub,unsubscribe:async()=>{active=null;return true;}}}};
+   Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{register:async()=>registration,getRegistration:async()=>registration,ready:Promise.resolve(registration)}});
+  },{denied,sub,key:config.publicKey});
+  const page=await context.newPage();await page.goto(`${baseURL}/admin/profile`);
+  if(denied){await expect(page.getByText('Thông báo đang bị chặn.',{exact:false})).toBeVisible();expect(await page.evaluate(()=>(window as any).__autoRequests)).toBe(0);await expect(page.getByRole('complementary',{name:'Cho phép thông báo'})).toHaveCount(0);}
+  else{const reminder=page.getByRole('complementary',{name:'Cho phép thông báo'});await expect(reminder).toBeVisible();expect(await page.evaluate(()=>(window as any).__autoRequests)).toBe(1);await page.screenshot({path:'.impeccable/review/auto-push-desktop.png'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.impeccable/review/auto-push-mobile.png'});await reminder.getByRole('button',{name:'Cho phép thông báo',exact:true}).click();await expect(page.getByRole('button',{name:'Tắt trên thiết bị này',exact:true})).toBeEnabled();await expect(reminder).toHaveCount(0);}
+  await context.close();
+ }
+ await root.dispose();
 });

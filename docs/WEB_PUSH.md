@@ -2,7 +2,7 @@
 
 ## Bật cho từng người
 
-Vào Hồ sơ cá nhân, hoặc Chuông thông báo → mở Thông báo trên thiết bị → Bật thông báo trên thiết bị này. Người dùng tự bấm Cho phép ở hộp quyền của trình duyệt. Không yêu cầu quyền tự động khi tải trang. Mỗi thiết bị/trình duyệt cần bật riêng; có nút tắt trên thiết bị đó. Không thể bỏ qua quyền trình duyệt hoặc cài đặt Không làm phiền của hệ điều hành.
+Mặc định ứng dụng tự đăng ký Web Push trên mọi trang nội bộ nếu thiết bị đã cấp quyền. Nếu chưa chọn quyền, ứng dụng tự gọi yêu cầu khi tải trang (một lần mỗi lần tải, không lặp khi đổi focus). Người dùng vẫn phải tự chọn Allow; trình duyệt có thể chặn yêu cầu không có thao tác bấm, khi đó có lời nhắc “Cho phép thông báo” để bấm. Có thể tắt/bật lại từ Hồ sơ cá nhân hoặc chuông thông báo. Lựa chọn tắt được lưu theo thành viên trên thiết bị trong localStorage, không tự bật lại khi tải trang. Không thể bỏ qua quyền trình duyệt hoặc cài đặt Không làm phiền của hệ điều hành.
 
 Web Push nhận được khi không có tab HacoLED mở, nếu trình duyệt/hệ điều hành hỗ trợ hoạt động nền và còn phiên đăng nhập hợp lệ. Tắt hẳn trình duyệt, hạn chế pin, Không làm phiền hoặc chặn thông báo có thể ngăn hiển thị. iPhone/iPad cần cài ứng dụng web vào màn hình chính và mở từ đó trên phiên bản hỗ trợ Web Push. Manifest và metadata hỗ trợ thêm vào màn hình chính; đăng nhập trong ứng dụng đã thêm rồi mới bật quyền. Hệ thống không hứa thay thế email/SMS hoặc giao nhận tuyệt đối.
 
@@ -26,11 +26,11 @@ Sau các API ghi chat/công việc/import/kết quả hoặc lấy thông báo, 
 
 Service worker chỉ xử lý push/click, không cache trang/API/ảnh/quyền đăng nhập. Payload push mã hóa chỉ chứa ID sự kiện và ID thiết bị. Trước khi hiện OS notification, worker gọi server để kiểm tra lại phiên, thiết bị, membership chat, join/read cursor, trạng thái đã đọc và phạm vi công việc hiện tại. Mất quyền/đăng xuất sẽ không hiển thị nội dung từ hàng đợi cũ. Khi không xác minh được, không dùng nội dung lưu cũ; một số trình duyệt có thể hiển thị lời nhắc nền mặc định của trình duyệt.
 
-Đăng xuất/thu hồi phiên xóa đăng ký trên server bằng FK cascade. Hết hạn phiên cũng chặn gửi và kiểm tra hiển thị. Sau lần đăng nhập mới cần bật lại trên thiết bị; đăng ký cũ của tài khoản khác không được tự nhận sang tài khoản mới. Endpoint phải HTTPS trên các push provider được hỗ trợ (Google, Mozilla, Apple, Windows), chặn localhost/IP/host giả để không biến API thành proxy HTTP. Không log endpoint token, auth key, private VAPID hoặc nội dung tin nhắn.
+Đăng xuất/thu hồi phiên xóa đăng ký trên server bằng FK cascade. Hết hạn phiên cũng chặn gửi và kiểm tra hiển thị. Sau lần đăng nhập mới, hệ thống tự đăng ký lại nếu đã Allow và chưa chủ động tắt trên thiết bị; đăng ký cũ của tài khoản khác không được tự nhận sang tài khoản mới. Endpoint phải HTTPS trên các push provider được hỗ trợ (Google, Mozilla, Apple, Windows), chặn localhost/IP/host giả để không biến API thành proxy HTTP. Không log endpoint token, auth key, private VAPID hoặc nội dung tin nhắn.
 
 ## Kiểm thử và giới hạn xác minh
 
-`tests/web-push.spec.ts` kiểm tra đăng ký, quyền, session cascade, chat queue, retry, endpoint 410, khóa không hợp lệ, mẫu tên người gửi/nội dung chat và service worker xác minh trước khi hiện. HTTPS transport fixture trong test chặn đường dẫn riêng `/hacoled-test/` để **không gửi ra Internet**; phần mã hóa/VAPID thật vẫn chạy. UI test mô phỏng quyền/PushManager để xác nhận không tự hỏi quyền và bật/tắt đúng theo click. Đây không phải bằng chứng thiết bị production đã nhận thông báo OS thật; cần người dùng bật quyền trên thiết bị thực sau khi deploy/cấu hình.
+`tests/web-push.spec.ts` kiểm tra đăng ký, quyền, session cascade, chat queue, retry, endpoint 410, khóa không hợp lệ, mẫu tên người gửi/nội dung chat và service worker xác minh trước khi hiện. HTTPS transport fixture trong test chặn đường dẫn riêng `/hacoled-test/` để **không gửi ra Internet**; phần mã hóa/VAPID thật vẫn chạy. UI test mô phỏng quyền/PushManager để xác nhận tự hỏi quyền, tự đăng ký khi được Allow, giữ lựa chọn tắt qua reload và có nút dự phòng khi trình duyệt chặn yêu cầu tự động. Đây không phải bằng chứng thiết bị production đã nhận thông báo OS thật; cần người dùng bật quyền trên thiết bị thực sau khi deploy/cấu hình.
 
 Tài liệu: https://github.com/web-push-libs/web-push · https://developer.mozilla.org/en-US/docs/Web/API/Push_API · https://vercel.com/docs/cron-jobs/usage-and-pricing
 

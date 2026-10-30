@@ -3,6 +3,7 @@ import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {useEffect,useRef,useState} from "react";
 import {Maximize2,MessageCircle,Minus,X,BellRing} from "lucide-react";
+import {pushDisabled} from "../../lib/push-client";
 import {PushSettings} from "./push-settings";
 import {ChatPage} from "./chat";
 import {useMember} from "./session";
@@ -38,7 +39,7 @@ export function FloatingChat(){
     previous.current=next;
     if(fresh){
      setToast(fresh);
-     if("Notification" in window&&Notification.permission==="granted"){
+     if(!pushDisabled(member.id)&&"Notification" in window&&Notification.permission==="granted"){
       const registration=await navigator.serviceWorker?.getRegistration();
       // Web Push owns OS alerts when subscribed. Fall back while a tab is open otherwise.
       const subscription=await registration?.pushManager?.getSubscription();
