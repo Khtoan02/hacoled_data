@@ -4,22 +4,23 @@ import {after} from 'next/server';
 import {randomUUID} from 'node:crypto';
 import {database} from './auth/server';
 import {pushConfig} from './push-config';
-export type PushEvent={id:string;member_id:string;kind:string|null;task_id:string|null;kpi_id:string|null;month:string|null;room_id:string|null;created_at:string};
+import {chatNotification} from './chat';
+export type PushEvent={id:string;member_id:string;kind:string|null;task_id:string|null;kpi_id:string|null;month:string|null;room_id:string|null;created_at:string;author_name?:string|null;message_body?:string|null};
 export async function visiblePushEvents(ids:string[]){
- return await database()`SELECT e.id::text,e.member_id,e.created_at,n.kind,n.task_id,n.kpi_id,to_char(k.month,'YYYY-MM') AS month,msg.room_id
+ return await database()`SELECT e.id::text,e.member_id,e.created_at,n.kind,n.task_id,n.kpi_id,to_char(k.month,'YYYY-MM') AS month,msg.room_id,author.name AS author_name,msg.body AS message_body
  FROM app_push_events e JOIN app_members m ON m.id=e.member_id
  LEFT JOIN app_notifications n ON n.id=e.notification_id LEFT JOIN app_tasks t ON t.id=n.task_id LEFT JOIN app_kpis k ON k.id=n.kpi_id LEFT JOIN app_members owner ON owner.id=COALESCE(t.assignee_id,k.assignee_id)
- LEFT JOIN app_chat_messages msg ON msg.id=e.message_id LEFT JOIN app_chat_members mine ON mine.room_id=msg.room_id AND mine.member_id=e.member_id
+ LEFT JOIN app_chat_messages msg ON msg.id=e.message_id LEFT JOIN app_members author ON author.id=msg.author_id LEFT JOIN app_chat_members mine ON mine.room_id=msg.room_id AND mine.member_id=e.member_id
  WHERE e.id IN(SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::bigint) AND e.created_at>now()-interval '24 hours' AND m.active=true
  AND ((n.id IS NOT NULL AND n.read_at IS NULL AND owner.id IS NOT NULL AND (m.role IN ('lead_marketing','executive') OR (m.role<>'sales_hotline' AND owner.id=m.id) OR (m.role='marketing_manager' AND owner.role IN ('marketing_staff','marketing_intern'))))
  OR (msg.id IS NOT NULL AND mine.member_id IS NOT NULL AND msg.author_id<>m.id AND msg.seq>GREATEST(mine.joined_after_seq,mine.last_read_seq))) ORDER BY e.id` as PushEvent[];
 }
 export function pushPayload(events:PushEvent[]){
- const event=events[0],chat=Boolean(event.room_id),count=events.length;
+ const event=events[events.length-1],chat=Boolean(event.room_id),count=events.length;
  const title=chat?'HacoLED · Tin nhắn mới':event.kind==='kpi_reminder'?'HacoLED · Nhắc tiến độ KPI':event.kind==='task_completed'?'HacoLED · Công việc hoàn thành':'HacoLED · Công việc mới';
  const body=chat?`Bạn có ${count>1?count+' tin nhắn':'tin nhắn'} mới trong chat nội bộ.`:event.kind==='kpi_reminder'?'Bạn có chỉ tiêu cần theo dõi tiến độ. Mở ứng dụng để xem.':`${count>1?count+' cập nhật':'Có cập nhật'} công việc dành cho bạn. Mở ứng dụng để xem chi tiết.`;
  const url=chat?`/admin/chat?room=${event.room_id}`:count===1&&event.task_id?`/admin/tasks?task=${event.task_id}`:count===1&&event.month?`/admin/kpis?month=${event.month}`:'/admin/tasks';
- return {title,body,url,tag:chat?`chat:${event.room_id}`:`work:${event.kind}`};
+ return {...(chat?chatNotification(event.author_name??"",event.message_body??""):{title,body}),url,tag:chat?`chat:${event.room_id}`:`work:${event.kind}`};
 }
 type Send=(subscription:webpush.PushSubscription,payload:string,options:webpush.RequestOptions)=>Promise<unknown>;
 export async function flushPush(send:Send=webpush.sendNotification){

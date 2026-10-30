@@ -6,7 +6,7 @@ Vào Hồ sơ cá nhân, hoặc Chuông thông báo → mở Thông báo trên t
 
 Web Push nhận được khi không có tab HacoLED mở, nếu trình duyệt/hệ điều hành hỗ trợ hoạt động nền và còn phiên đăng nhập hợp lệ. Tắt hẳn trình duyệt, hạn chế pin, Không làm phiền hoặc chặn thông báo có thể ngăn hiển thị. iPhone/iPad cần cài ứng dụng web vào màn hình chính và mở từ đó trên phiên bản hỗ trợ Web Push. Manifest và metadata hỗ trợ thêm vào màn hình chính; đăng nhập trong ứng dụng đã thêm rồi mới bật quyền. Hệ thống không hứa thay thế email/SMS hoặc giao nhận tuyệt đối.
 
-Nhận tin nhắn trực tiếp/nhóm, công việc mới/chuyển người thực hiện, công việc hoàn thành và nhắc KPI. Không đẩy tin nhắn do chính mình gửi. Đẩy OS chỉ có lời nhắc chung; không chứa nội dung chat, tên nhóm riêng tư, mật khẩu hoặc kết quả công việc. Bấm để mở đúng chat/công việc; vẫn yêu cầu đăng nhập và kiểm tra quyền.
+Nhận tin nhắn trực tiếp/nhóm, công việc mới/chuyển người thực hiện, công việc hoàn thành và nhắc KPI. Không đẩy tin nhắn do chính mình gửi. Theo yêu cầu hiển thị của chủ hệ thống, thông báo chat dùng “Haco | Tên người gửi: nội dung”, lấy tin đến mới nhất trong lô và rút gọn nội dung tối đa 180 ký tự. Công việc/KPI vẫn dùng lời nhắc chung. Bấm để mở đúng chat/công việc; vẫn yêu cầu đăng nhập và kiểm tra quyền.
 
 ## Cấu hình Vercel Production
 
@@ -30,7 +30,7 @@ Service worker chỉ xử lý push/click, không cache trang/API/ảnh/quyền �
 
 ## Kiểm thử và giới hạn xác minh
 
-`tests/web-push.spec.ts` kiểm tra đăng ký, quyền, session cascade, chat queue, retry, endpoint 410, khóa không hợp lệ, nội dung OS chung và service worker xác minh trước khi hiện. HTTPS transport fixture trong test chặn đường dẫn riêng `/hacoled-test/` để **không gửi ra Internet**; phần mã hóa/VAPID thật vẫn chạy. UI test mô phỏng quyền/PushManager để xác nhận không tự hỏi quyền và bật/tắt đúng theo click. Đây không phải bằng chứng thiết bị production đã nhận thông báo OS thật; cần người dùng bật quyền trên thiết bị thực sau khi deploy/cấu hình.
+`tests/web-push.spec.ts` kiểm tra đăng ký, quyền, session cascade, chat queue, retry, endpoint 410, khóa không hợp lệ, mẫu tên người gửi/nội dung chat và service worker xác minh trước khi hiện. HTTPS transport fixture trong test chặn đường dẫn riêng `/hacoled-test/` để **không gửi ra Internet**; phần mã hóa/VAPID thật vẫn chạy. UI test mô phỏng quyền/PushManager để xác nhận không tự hỏi quyền và bật/tắt đúng theo click. Đây không phải bằng chứng thiết bị production đã nhận thông báo OS thật; cần người dùng bật quyền trên thiết bị thực sau khi deploy/cấu hình.
 
 Tài liệu: https://github.com/web-push-libs/web-push · https://developer.mozilla.org/en-US/docs/Web/API/Push_API · https://vercel.com/docs/cron-jobs/usage-and-pricing
 

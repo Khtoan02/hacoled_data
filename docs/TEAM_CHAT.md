@@ -72,3 +72,5 @@ Migration 016 lưu byte trong PostgreSQL. Mọi lần tải file kiểm tra phi�
 Nút chuông cạnh nút Chat mở cài đặt thiết bị và nút **Thử thông báo trên máy**. Phép thử dùng `showNotification` trên trình duyệt, không phải kiểm tra giao nhận Web Push từ máy chủ. Lần đầu vào trang, tin chưa đọc hiện lời nhắc một lần theo trình duyệt/session; dùng mốc tin đến riêng, không phụ thuộc người gửi tin cuối cùng. Trạng thái “Chưa bật” có nghĩa thiết bị chưa đăng ký Web Push cho phiên hiện tại; cần người dùng bấm Bật và Cho phép.
 
 Bộ nhắc tin đến dùng `last_incoming_seq` cả khi số chưa đọc đã về 0 vì cửa sổ chat đang mở. Kiểm tra số chưa đọc trước đây có thể bỏ sót tin do API đánh dấu đã đọc chạy trước lượt polling; nay lượt polling vẫn nhận biết mã tin đến vừa thay đổi. Chỉ nhắc tin đến mới đã quan sát, không nhắc lại tin đã đọc ở lần tải đầu.
+
+Thông báo chat (Web Push, dự phòng trình duyệt và thông báo nổi) hiện tên người gửi + nội dung theo mẫu “Haco | Hải: nội dung”. Luồng dự phòng lấy riêng tin đến mới nhất, tránh hiển thị nhầm tin do người xem vừa gửi. Web Push vẫn lấy nội dung sau bước xác minh phiên và tư cách thành viên.

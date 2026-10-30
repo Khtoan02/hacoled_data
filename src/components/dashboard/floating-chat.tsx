@@ -6,7 +6,7 @@ import {Maximize2,MessageCircle,Minus,X,BellRing} from "lucide-react";
 import {PushSettings} from "./push-settings";
 import {ChatPage} from "./chat";
 import {useMember} from "./session";
-import {roomTitle,type ChatRoom} from "../../lib/chat";
+import {chatNotification,roomTitle,type ChatRoom} from "../../lib/chat";
 
 /** Persistent across workspace navigation; only announces newly observed unread messages. */
 export function FloatingChat(){
@@ -44,7 +44,7 @@ export function FloatingChat(){
       const subscription=await registration?.pushManager?.getSubscription();
       let pushActive=false;
       if(subscription){const status=await fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status",endpoint:subscription.endpoint})});if(status.ok)pushActive=Boolean((await status.json()).enabled);}
-      if(!pushActive||(document.visibilityState==="visible"&&document.hasFocus())){const title="HacoLED · Tin nhắn mới",options={body:"Bạn có tin nhắn mới trong chat nội bộ.",tag:`chat:${fresh.id}`,renotify:true,icon:"/icon.png",data:{url:`/admin/chat?room=${fresh.id}`}};
+      if(!pushActive||(document.visibilityState==="visible"&&document.hasFocus())){const preview=chatNotification(fresh.last_incoming_author_name??fresh.members.find(m=>m.id===fresh.last_author_id)?.name??roomTitle(fresh,member.id),fresh.last_incoming_body??fresh.last_body??""),title=preview.title,options={body:preview.body,tag:`chat:${fresh.id}`,renotify:true,icon:"/icon.png",data:{url:`/admin/chat?room=${fresh.id}`}};
        if(registration)await registration.showNotification(title,options);
        else {const alert=new Notification(title,options);alert.onclick=()=>{window.focus();window.location.assign(`/admin/chat?room=${fresh.id}`);alert.close();};}
       }
@@ -66,7 +66,7 @@ export function FloatingChat(){
  if(fullPage&&!toast)return null;
  return <div className="floating-chat">
   {settings&&<div className="chat-device-settings"><button className="icon-button" aria-label="Đóng cài đặt thông báo chat" onClick={()=>setSettings(false)}><X size={17}/></button><PushSettings/></div>}
-  {toast&&<div className="chat-toast" role="status"><button className="chat-toast-open" onClick={()=>{if(fullPage)window.location.assign(`/admin/chat?room=${toast.id}`);else show(toast.id);}}><MessageCircle size={20}/><span><strong>{roomTitle(toast,member.id)}</strong><small>Có tin nhắn mới · Bấm để trả lời</small></span></button><button className="icon-button" aria-label="Ẩn thông báo tin nhắn" onClick={()=>setToast(null)}><X size={16}/></button></div>}
+  {toast&&<div className="chat-toast" role="status"><button className="chat-toast-open" onClick={()=>{if(fullPage)window.location.assign(`/admin/chat?room=${toast.id}`);else show(toast.id);}}><MessageCircle size={20}/><span><strong>Haco | {toast.last_incoming_author_name??roomTitle(toast,member.id)}:</strong><small>{toast.last_incoming_body??toast.last_body??"📎 Tệp đính kèm"}</small></span></button><button className="icon-button" aria-label="Ẩn thông báo tin nhắn" onClick={()=>setToast(null)}><X size={16}/></button></div>}
   {!fullPage&&mounted&&<section hidden={!open} ref={panel} tabIndex={-1} className="mini-chat-panel" role="region" aria-label="Chat nhanh" onKeyDown={e=>{if(e.key==="Escape"){e.stopPropagation();close();}}}>
    <header className="mini-chat-header"><div><MessageCircle size={19}/><strong>Chat nội bộ</strong></div><div><Link className="icon-button" aria-label="Mở chat toàn màn hình" href={room?`/admin/chat?room=${encodeURIComponent(room)}`:"/admin/chat"}><Maximize2 size={17}/></Link><button className="icon-button" aria-label="Thu gọn chat" onClick={close}><Minus size={19}/></button></div></header>
    <div className="mini-chat-body"><ChatPage compact initialRoom={room} active={open} onSelect={setRoom}/></div>
