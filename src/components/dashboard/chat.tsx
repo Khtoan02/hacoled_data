@@ -1,12 +1,12 @@
 "use client";
 import { useCallback,useEffect,useRef,useState } from "react";
 import { useRouter,useSearchParams } from "next/navigation";
-import { ArrowLeft,Check,MessageCircle,Plus,Search,Send,Settings2,Users } from "lucide-react";
+import { ArrowLeft,Check,MessageCircle,Plus,Search,Send,Settings2,Users,Paperclip,X,Download } from "lucide-react";
 import { DashboardShell } from "./shell";
 import { useMember } from "./session";
 import { Avatar,Drawer,EmptyState,LoadingState,Notice } from "./ui";
 import { ROLE_POLICIES } from "../../lib/security/rbac";
-import { mergeMessages,roomTitle,type ChatMessage,type ChatPerson,type ChatRoom } from "../../lib/chat";
+import { mergeMessages,roomTitle,type ChatAttachment,type ChatMessage,type ChatPerson,type ChatRoom } from "../../lib/chat";
 function clock(value:string){return new Date(value).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Ho_Chi_Minh"});}
 function day(value:string){return new Date(value).toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"Asia/Ho_Chi_Minh"});}
 async function data(response:Response){const d=await response.json().catch(()=>({error:"Máy chủ chưa phản hồi đúng. Hãy thử lại."}));if(!response.ok)throw Object.assign(new Error(d.error||"Chưa tải được cuộc trò chuyện."),{status:response.status});return d;}
@@ -18,6 +18,16 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
  const [rooms,setRooms]=useState<ChatRoom[]>([]),[people,setPeople]=useState<ChatPerson[]>([]),[loading,setLoading]=useState(true),[inboxError,setInboxError]=useState("");
  const [room,setRoom]=useState<ChatRoom|null>(null),[messages,setMessages]=useState<ChatMessage[]>([]),[hasMore,setHasMore]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[chatLoading,setChatLoading]=useState(false),[chatError,setChatError]=useState("");
  const [drafts,setDrafts]=useState<Record<string,string>>({}),[sending,setSending]=useState(false),[sendError,setSendError]=useState("");
+ type PendingFile={id:string;file:File;url:string;uploaded?:ChatAttachment};
+ const [files,setFiles]=useState<Record<string,PendingFile[]>>({}),fileRef=useRef<HTMLInputElement>(null),allUrls=useRef<string[]>([]);
+ useEffect(()=>()=>{allUrls.current.forEach(URL.revokeObjectURL);},[]);
+ function addFiles(input:File[]){
+  if(sending)return;const current=files[selected]??[];
+  if(current.length+input.length>5){setSendError("Tối đa 5 file mỗi tin nhắn.");return;}
+  if(input.some(f=>!f.size||f.size>3*1024*1024)){setSendError("Mỗi file tối đa 3 MB. File lớn hơn cần gửi bằng link chia sẻ.");return;}
+  const next=input.map(file=>{const url=URL.createObjectURL(file);allUrls.current.push(url);return{id:crypto.randomUUID(),file,url};});
+  setFiles(old=>({...old,[selected]:[...(old[selected]??[]),...next]}));setSendError("");delete pending.current[selected];
+ }
  const [revision,setRevision]=useState(0);
  const fetchedCursor=useRef<Record<string,string>>({});
  const [query,setQuery]=useState(""),[editor,setEditor]=useState<"new"|"manage"|null>(null);
@@ -62,13 +72,15 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
   catch(e){setChatError(e instanceof Error?e.message:"Chưa tải được tin cũ.");}finally{setHistoryBusy(false);}
  }
  async function send(){
-  const id=selected,text=(drafts[id]??"").trim();if(!room||room.id!==id||!text||sendLock.current)return;
+  const id=selected,text=(drafts[id]??"").trim();if(!room||room.id!==id||(!text&&!(files[id]?.length))||sendLock.current)return;
   sendLock.current=true;setSending(true);setSendError("");
   const batch=pending.current[id]?.text===text?pending.current[id]:{text,id:crypto.randomUUID()};pending.current[id]=batch;
   try{
-   const d=await data(await fetch("/api/chat/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:batch.id,room_id:id,body:text})}));
+   const attachments=files[id]??[];
+   for(const item of attachments){if(!item.uploaded){const form=new FormData();form.set("id",item.id);form.set("room_id",id);form.set("file",item.file);const uploaded=await data(await fetch("/api/chat/attachments",{method:"POST",body:form}));item.uploaded=uploaded.attachment;}}
+   const d=await data(await fetch("/api/chat/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:batch.id,room_id:id,body:text,attachment_ids:attachments.map(f=>f.id)})}));
    if(selectedRef.current===id){nearBottom.current=true;setMessages(old=>mergeMessages(old,[d.message]));}
-   setDrafts(old=>(old[id]??"").trim()===text?{...old,[id]:""}:old);delete pending.current[id];void inbox();
+   setDrafts(old=>(old[id]??"").trim()===text?{...old,[id]:""}:old);delete pending.current[id];setFiles(old=>({...old,[id]:[]}));attachments.forEach(f=>URL.revokeObjectURL(f.url));void inbox();
   }catch(e){if(selectedRef.current===id)setSendError(e instanceof Error?e.message:"Chưa gửi được. Bấm gửi lại để thử với cùng tin nhắn.");}
   finally{sendLock.current=false;setSending(false);}
  }
@@ -97,13 +109,15 @@ export function ChatPage({compact=false,initialRoom="",active=true,onSelect}:{co
       {room&&!messages.length&&!chatError&&<EmptyState title="Chưa có tin nhắn" description={room.kind==="group"?"Thành viên mới xem được tin nhắn từ lúc được thêm vào nhóm.":"Gửi lời nhắn đầu tiên để bắt đầu trao đổi."} icon={MessageCircle}/>}
       {messages.map((m,i)=><div key={m.id}>
        {(i===0||day(messages[i-1].created_at)!==day(m.created_at))&&<div className="chat-day">{day(m.created_at)}</div>}
-       <article className={`chat-message ${m.author_id===member.id?"mine":""}`} aria-label={`Tin nhắn của ${m.author_name}`}><div className="chat-bubble"><strong>{m.author_id===member.id?"Bạn":m.author_name}</strong><p><MessageText body={m.body}/></p><time dateTime={m.created_at}>{clock(m.created_at)}</time></div></article>
+       <article className={`chat-message ${m.author_id===member.id?"mine":""}`} aria-label={`Tin nhắn của ${m.author_name}`}><div className="chat-bubble"><strong>{m.author_id===member.id?"Bạn":m.author_name}</strong><p><MessageText body={m.body}/></p>{m.attachments?.map(a=><div className="chat-attachment" key={a.id}>{a.content_type.startsWith("image/")?<a href={`/api/chat/attachments?id=${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/chat/attachments?id=${a.id}`} alt={a.name} loading="lazy"/></a>:a.content_type.startsWith("video/")?<video controls preload="metadata" src={`/api/chat/attachments?id=${a.id}`} aria-label={a.name}/>:null}<a href={`/api/chat/attachments?id=${a.id}`} download={a.name}><Download size={14}/>{a.name} · {(a.size/1024).toFixed(0)} KB</a></div>)}<time dateTime={m.created_at}>{clock(m.created_at)}</time></div></article>
       </div>)}
      </div>
      {room&&<form className="chat-composer" onSubmit={e=>{e.preventDefault();void send();}}>
       {sendError&&<Notice>{sendError} Nội dung vẫn được giữ; bạn có thể gửi lại.</Notice>}
-      <div className="chat-composer-row"><textarea aria-label="Nội dung tin nhắn" placeholder="Nhập tin nhắn…" rows={2} maxLength={4000} value={text} disabled={sending} onChange={e=>setDrafts(old=>({...old,[selected]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}}/><button className="primary-button" disabled={!text.trim()||sending} aria-label="Gửi tin nhắn" type="submit"><Send size={18}/><span>{sending?"Đang gửi…":"Gửi"}</span></button></div>
-      <div className="chat-composer-hint"><span>Enter để gửi · Shift + Enter để xuống dòng</span><span>{text.length}/4000</span></div>
+      {!!files[selected]?.length&&<div className="chat-pending-files">{files[selected].map(f=><div key={f.id}>{f.file.type.startsWith("image/")?<img src={f.url} alt={f.file.name}/>:f.file.type.startsWith("video/")?<video src={f.url} controls preload="metadata"/>:<Paperclip size={20}/>}<span>{f.file.name}</span><button type="button" disabled={sending} aria-label={`Bỏ file ${f.file.name}`} onClick={()=>{URL.revokeObjectURL(f.url);setFiles(old=>({...old,[selected]:old[selected].filter(item=>item.id!==f.id)}));delete pending.current[selected];}}><X size={15}/></button></div>)}</div>}
+      <input ref={fileRef} type="file" multiple hidden onChange={e=>{addFiles(Array.from(e.target.files??[]));e.target.value="";}}/>
+      <div className="chat-composer-row"><button type="button" className="icon-button" aria-label="Đính kèm ảnh, video hoặc file" disabled={sending} onClick={()=>fileRef.current?.click()}><Paperclip size={19}/></button><textarea onPaste={e=>{const pasted=Array.from(e.clipboardData.files);if(pasted.length){e.preventDefault();addFiles(pasted);}}} aria-label="Nội dung tin nhắn" placeholder="Nhập tin nhắn…" rows={2} maxLength={4000} value={text} disabled={sending} onChange={e=>setDrafts(old=>({...old,[selected]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}}/><button className="primary-button" disabled={(!text.trim()&&!files[selected]?.length)||sending} aria-label="Gửi tin nhắn" type="submit"><Send size={18}/><span>{sending?"Đang gửi…":"Gửi"}</span></button></div>
+      <div className="chat-composer-hint"><span>Dán ảnh/file · Tối đa 3 MB/file · Enter để gửi</span><span>{text.length}/4000</span></div>
      </form>}
     </>}
    </section>

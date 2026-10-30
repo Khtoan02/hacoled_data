@@ -62,3 +62,11 @@ Các trang nội bộ có nút Chat ở góc phải dưới. Nút hiện số ti
 Cửa sổ nhỏ dùng chung API, kiểm tra thành viên, gửi lại chống trùng và phân trang với trang chat đầy đủ. Có tạo nhóm/nhắn riêng, thu gọn giữ bản nháp, nút mở toàn màn hình và Escape để thu gọn. Thu gọn không đánh dấu đã đọc. Trên trang chat đầy đủ sẽ ẩn nút nổi để tránh trùng giao diện. Dữ liệu mới kiểm tra mỗi 5 giây khi tab hiện; Web Push vẫn phụ trách nhắc thiết bị khi tab đóng theo cấu hình riêng.
 
 Thông báo nổi cũng hiển thị khi đang ở trang chat đầy đủ. Bộ phát hiện tin mới tiếp tục kiểm tra khi chuyển tab (tần suất có thể bị trình duyệt giới hạn). Nếu đã cấp quyền Notification nhưng chưa đăng ký Web Push, tab đang mở có thể gửi thông báo trình duyệt dự phòng; khi đã có đăng ký push, Web Push đảm nhiệm để tránh gửi trùng. Không nhắc cho tin do chính mình gửi.
+
+## Ảnh, video và file đính kèm
+
+Bấm biểu tượng kẹp giấy hoặc dán ảnh/file vào ô soạn tin. Có xem trước, bỏ file trước khi gửi và gửi kèm hoặc không kèm chữ. Tối đa 5 file/tin, 3 MB/file; file lớn hơn gửi bằng link chia sẻ. Ảnh PNG/JPEG/WebP/GIF và video MP4/WebM/QuickTime hiển thị trong cuộc trò chuyện; khả năng phát video phụ thuộc codec trình duyệt. File khác tải xuống, không chạy inline. Giới hạn tổng dung lượng 100 MB/cuộc trò chuyện để kiểm soát database; chưa dùng kho Blob công khai cho chat.
+
+Migration 016 lưu byte trong PostgreSQL. Mọi lần tải file kiểm tra phiên và tư cách thành viên, cả mốc gia nhập nhóm: người mới không xem file lịch sử trước khi tham gia. File đang tải chưa gửi chỉ người tải lên được đọc. Tin gửi lại cùng ID phải giữ nguyên nội dung và danh sách file để tránh tạo trùng/đổi nội dung âm thầm. File chưa gắn tin quá một ngày được dọn ở lần tải tiếp theo. API trả private/no-store, nosniff, sandbox; file tài liệu buộc tải xuống.
+
+Nút chuông cạnh nút Chat mở cài đặt thiết bị và nút **Thử thông báo trên máy**. Phép thử dùng `showNotification` trên trình duyệt, không phải kiểm tra giao nhận Web Push từ máy chủ. Lần đầu vào trang, tin chưa đọc hiện lời nhắc một lần theo trình duyệt/session; dùng mốc tin đến riêng, không phụ thuộc người gửi tin cuối cùng. Trạng thái “Chưa bật” có nghĩa thiết bị chưa đăng ký Web Push cho phiên hiện tại; cần người dùng bấm Bật và Cho phép.

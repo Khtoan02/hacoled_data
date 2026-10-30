@@ -10,7 +10,7 @@ test('Quick chat announces new messages, replies, preserves drafts and works on 
  const room=(await(await root.post('/api/chat',{data:{kind:'direct',member_ids:[peerId],request_id:randomUUID()}})).json()).id;
  await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'Old unread message'}});
  const context=await browser.newContext({storageState:await root.storageState()}),page=await context.newPage();
- await page.goto('/admin/profile');await expect(page.getByRole('button',{name:/Mở chat nhanh · 1 tin chưa đọc/})).toBeVisible();await expect(page.locator('.chat-toast')).toHaveCount(0);
+ await page.goto('/admin/profile');await expect(page.getByRole('button',{name:/Mở chat nhanh · 1 tin chưa đọc/})).toBeVisible();await expect(page.locator('.chat-toast')).toBeVisible();await page.getByRole('button',{name:'Ẩn thông báo tin nhắn'}).click();
  await peer.post('/api/chat/messages',{data:{id:randomUUID(),room_id:room,body:'New message for popup'}});
  await expect(page.locator('.chat-toast')).toBeVisible({timeout:15000});await expect(page.locator('.chat-launcher')).toHaveClass(/has-unread/);
  await page.locator('.chat-toast-open').click();const panel=page.getByRole('region',{name:'Chat nhanh'});await expect(panel.getByRole('log').getByText('New message for popup',{exact:true})).toBeVisible();

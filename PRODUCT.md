@@ -71,3 +71,5 @@ Thông báo thiết bị bằng Web Push: người dùng tự bật quyền từ
 Chat nhanh: nút nổi góc phải trên các trang nội bộ, số tin chưa đọc/viền đỏ nhấp nhẹ và thông báo nổi khi phát hiện tin mới; mở trả lời tại chỗ, giữ bản nháp khi thu gọn. Trang chat đầy đủ không hiển thị widget trùng lặp.
 
 Quyền thao tác KPI và xoá công việc: chỉ `lead_marketing` được tạo/sửa/import/xoá KPI và xoá công việc đơn lẻ/hàng loạt, kể cả Giám đốc cũng không có các thao tác này. Trưởng phòng, nhân viên và thực tập tiếp tục tạo việc cho mình và trả kết quả theo phạm vi hiện có. Quyền quản lý kênh của Trưởng phòng giữ nguyên.
+
+Chat hỗ trợ tải lên/dán ảnh, video và file vào ô soạn; xem trước và bỏ file trước gửi, 5 file/tin, 3 MB/file, 100 MB/cuộc trò chuyện. File được lưu riêng tư trong PostgreSQL và kiểm tra tư cách/mốc gia nhập nhóm mỗi lần truy cập. Nút chuông cạnh Chat dẫn tới bật và thử hiển thị thông báo trên thiết bị.

@@ -5,7 +5,7 @@ import {Notice} from './ui';
 function applicationKey(value:string){const raw=atob(value.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-value.length%4)%4));return Uint8Array.from(raw,c=>c.charCodeAt(0));}
 function matchesKey(subscription:PushSubscription,key:string){const existing=subscription.options.applicationServerKey;if(!existing)return false;const expected=applicationKey(key),actual=new Uint8Array(existing);return actual.length===expected.length&&actual.every((v,i)=>v===expected[i]);}
 export function PushSettings({compact=false}:{compact?:boolean}){
- const [supported,setSupported]=useState<boolean|null>(null),[permission,setPermission]=useState<NotificationPermission>('default'),[enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ const [supported,setSupported]=useState<boolean|null>(null),[permission,setPermission]=useState<NotificationPermission>('default'),[enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[testResult,setTestResult]=useState('');
  const [config,setConfig]=useState<{configured:boolean;publicKey:string|null;backgroundRemindersConfigured:boolean}|null>(null);
  useEffect(()=>{
   let alive=true;const available=window.isSecureContext&&'Notification'in window&&'serviceWorker'in navigator&&'PushManager'in window;setSupported(available);
@@ -37,6 +37,13 @@ export function PushSettings({compact=false}:{compact?:boolean}){
   if(subscription){const r=await fetch('/api/push',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:subscription.endpoint})});if(!r.ok)throw Error('Chưa tắt được thông báo. Vui lòng thử lại.');await subscription.unsubscribe();}
   setEnabled(false);
  }catch(e){setError(e instanceof Error?e.message:'Chưa tắt được thông báo.');}finally{setBusy(false);}}
+ async function testNotification(){setTestResult('');setError('');try{
+  const permission=await Notification.requestPermission();setPermission(permission);
+  if(permission!=='granted')throw Error('Trình duyệt chưa cho phép thông báo. Hãy mở quyền thông báo của trang và kiểm tra cài đặt thông báo của hệ điều hành.');
+  await navigator.serviceWorker.register('/sw.js',{scope:'/'});const registration=await navigator.serviceWorker.ready;
+  await registration.showNotification('HacoLED · Thông báo thử',{body:'Nếu bạn thấy thông báo này, trình duyệt đã gửi được thông báo tới thiết bị.',tag:'haco-notification-test',icon:'/icon.png'});
+  setTestResult('Đã yêu cầu trình duyệt hiện thông báo thử. Nếu không thấy, kiểm tra quyền thông báo của trình duyệt trong cài đặt hệ điều hành và chế độ Không làm phiền. Đây là kiểm tra hiển thị trên máy, chưa xác nhận Web Push từ máy chủ.');
+ }catch(e){setError(e instanceof Error?e.message:'Chưa hiện được thông báo thử.');}}
  const Container=compact?'details':'section',Heading=compact?'summary':'div';
  return <Container className={`push-settings ${compact?'compact':''}`}><Heading><BellRing size={18}/><h3>Thông báo trên thiết bị</h3><span className={enabled?'push-active':''}>{enabled?'Đang bật':'Chưa bật'}</span>{compact&&<ChevronDown size={15}/>}</Heading>
  {supported===false?<p>Trình duyệt này chưa hỗ trợ Web Push. Với iPhone/iPad, hãy thêm HacoLED vào màn hình chính và mở từ biểu tượng đó.</p>:<>
@@ -45,6 +52,8 @@ export function PushSettings({compact=false}:{compact?:boolean}){
  {permission==='denied'&&<Notice tone="info">Thông báo đang bị chặn. Mở cài đặt quyền của trang trong trình duyệt để cho phép, rồi tải lại trang.</Notice>}
  {error&&<Notice>{error}</Notice>}
  <button type="button" className="secondary-button" disabled={loading||busy||!config?.configured||(!enabled&&permission==='denied')} onClick={()=>void(enabled?disable():enable())}>{enabled?<BellOff size={16}/>:<BellRing size={16}/>}{loading?'Đang kiểm tra…':busy?'Đang cập nhật…':enabled?'Tắt trên thiết bị này':'Bật thông báo trên thiết bị này'}</button>
+ <button type="button" className="secondary-button" disabled={busy||supported!==true} onClick={()=>void testNotification()}><BellRing size={16}/>Thử thông báo trên máy</button>
+ {testResult&&<p role="status">{testResult}</p>}
  {config?.configured&&!config.backgroundRemindersConfigured&&<p className="push-config-note">Chat và công việc có thể đẩy ngay. Nhắc KPI tự động khi mọi người đóng ứng dụng cần quản trị viên bật lịch nền.</p>}
  </>}
  </Container>;
