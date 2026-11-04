@@ -9,7 +9,7 @@ export const PREVIEW_WORKSPACE_IDS = new Set([
 ]);
 export function canViewWorkspaceItem(role: MemberRoleId, id: string) {
   if (PREVIEW_WORKSPACE_IDS.has(id)) return role === "lead_marketing";
-  if (id === "profile" || id === "chat") return true;
+  if (id === "profile" || id === "chat" || id === "knowledge") return true;
   if (["tasks", "channels", "kpis"].includes(id)) return ROLE_POLICIES[role].taskScope !== "none";
   if (["executive", "members", "team_survey"].includes(id)) return isFullAccess(role);
   return false;

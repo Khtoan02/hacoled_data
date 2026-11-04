@@ -10,10 +10,13 @@ const headers={"Cache-Control":"no-store, private"};
 // Resolve permissions on every read: reassignment or role changes revoke old event visibility.
 async function visible(){
  const actor=await chatActor(),scope=ROLE_POLICIES[actor.role].taskScope;
- const rows=await database()`SELECT n.id::text,n.kind,n.title,n.body,n.created_at,n.read_at,n.task_id,n.kpi_id,to_char(k.month,'YYYY-MM') AS month
- FROM app_notifications n LEFT JOIN app_tasks t ON t.id=n.task_id LEFT JOIN app_kpis k ON k.id=n.kpi_id
- JOIN app_members owner ON owner.id=COALESCE(t.assignee_id,k.assignee_id)
- WHERE n.member_id=${actor.id} AND (${scope}='all' OR (${scope}<>'none' AND owner.id=${actor.id}) OR (${scope}='marketing_team' AND owner.role IN ('marketing_staff','marketing_intern')))
+ const rows=await database()`SELECT n.id::text,n.kind,n.title,n.body,n.created_at,n.read_at,n.task_id,n.kpi_id,n.post_id,to_char(k.month,'YYYY-MM') AS month
+ FROM app_notifications n LEFT JOIN app_tasks t ON t.id=n.task_id LEFT JOIN app_kpis k ON k.id=n.kpi_id LEFT JOIN app_knowledge_posts p ON p.id=n.post_id
+ LEFT JOIN app_members owner ON owner.id=COALESCE(t.assignee_id,k.assignee_id)
+ WHERE n.member_id=${actor.id} AND (
+  p.id IS NOT NULL
+  OR (owner.id IS NOT NULL AND (${scope}='all' OR (${scope}<>'none' AND owner.id=${actor.id}) OR (${scope}='marketing_team' AND owner.role IN ('marketing_staff','marketing_intern'))))
+ )
  ORDER BY n.id DESC LIMIT 100`;
  return {actor,rows};
 }

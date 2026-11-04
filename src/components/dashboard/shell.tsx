@@ -60,6 +60,13 @@ export const workspaceItems = [
   },
   { id: "chat", label: "Chat nội bộ", icon: MessageCircle, href: "/admin/chat", group: "" },
   {
+    id: "knowledge",
+    label: "Quy trình & thông báo",
+    icon: BookOpen,
+    href: "/admin/knowledge",
+    group: "",
+  },
+  {
     id: "solutions_proof",
     label: "Giải pháp & bằng chứng",
     icon: BookOpen,
@@ -488,7 +495,9 @@ export function DashboardShell({
               {actions}
               <span className="workspace-breadcrumb">
                 HacoLED <ChevronRight size={13} />{" "}
-                {pathname.includes("chat") ? "Chat nội bộ" : pathname.includes("members")
+                {pathname.includes("knowledge")
+                  ? "Quy trình & thông báo"
+                  : pathname.includes("chat") ? "Chat nội bộ" : pathname.includes("members")
                   ? "Phân quyền"
                   : pathname.includes("survey")
                     ? "Kết quả khảo sát"

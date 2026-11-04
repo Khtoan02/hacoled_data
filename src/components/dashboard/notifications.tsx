@@ -2,9 +2,9 @@
 import {PushSettings} from "./push-settings";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
-import {Bell,CheckCheck,ChevronRight,ClipboardList,RefreshCw,Target} from "lucide-react";
+import {Bell,BookOpen,CheckCheck,ChevronRight,ClipboardList,RefreshCw,Target} from "lucide-react";
 import {Drawer,EmptyState,LoadingState,Notice} from "./ui";
-type Item={id:string;kind:'task_assigned'|'task_completed'|'kpi_reminder';title:string;body:string;created_at:string;read_at:string|null;task_id:string|null;month:string|null};
+type Item={id:string;kind:'task_assigned'|'task_completed'|'kpi_reminder'|'knowledge_post';title:string;body:string;created_at:string;read_at:string|null;task_id:string|null;post_id:string|null;month:string|null};
 const dateKey=(value:string)=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 function dayLabel(key:string){
  const today=dateKey(new Date().toISOString()),yesterday=new Date(`${today}T12:00:00Z`);yesterday.setUTCDate(yesterday.getUTCDate()-1);
@@ -46,12 +46,13 @@ export function NotificationBell(){
    <div className="notification-body">
     <PushSettings compact/>
     <div className="notification-toolbar"><span className="notification-inbox-count" aria-live="polite"><strong>{unread}</strong> chưa đọc</span><button className="secondary-button" disabled={loading||reading} onClick={()=>void refresh()}><RefreshCw size={15} className={loading?'animate-spin':''}/>Tải lại</button><button className="secondary-button" disabled={!unread||reading||loading} onClick={()=>void read('all')}><CheckCheck size={16}/>{reading?'Đang cập nhật…':'Đánh dấu tất cả đã đọc'}</button></div>
-    <div className="notification-filters"><button className={`notification-filter-button ${unreadOnly?'active':''}`} aria-pressed={unreadOnly} onClick={()=>setUnreadOnly(!unreadOnly)}>Chỉ hiện chưa đọc</button><select aria-label="Lọc loại thông báo" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Tất cả thông báo</option><option value="task_assigned">Công việc mới</option><option value="task_completed">Đã hoàn thành</option><option value="kpi_reminder">Nhắc tiến độ KPI</option></select></div>
+    <div className="notification-filters"><button className={`notification-filter-button ${unreadOnly?'active':''}`} aria-pressed={unreadOnly} onClick={()=>setUnreadOnly(!unreadOnly)}>Chỉ hiện chưa đọc</button><select aria-label="Lọc loại thông báo" value={kind} onChange={e=>setKind(e.target.value)}><option value="all">Tất cả thông báo</option><option value="knowledge_post">Thông báo & quy trình</option><option value="task_assigned">Công việc mới</option><option value="task_completed">Đã hoàn thành</option><option value="kpi_reminder">Nhắc tiến độ KPI</option></select></div>
     {error&&<Notice>{error}</Notice>}
     {loading&&!items.length&&!error?<LoadingState label="Đang tải thông báo…"/>:!visible.length&&!error?<EmptyState title={unreadOnly?'Không còn thông báo chưa đọc':'Chưa có thông báo phù hợp'} description={items.length?'Thử đổi loại thông báo hoặc bỏ lọc chưa đọc.':'Thông báo công việc mới và nhắc KPI sẽ xuất hiện tại đây.'}/>:null}
     <div className="notification-groups">{Array.from(groups,([key,notifications])=><section key={key} aria-label={`Thông báo ${dayLabel(key)}`}><h3>{dayLabel(key)}<span>{notifications.length}</span></h3><div className="notification-list">{notifications.map(n=>{
-     const Icon=n.kind==='task_completed'?CheckCheck:n.kind==='kpi_reminder'?Target:ClipboardList;
-     return <Link key={n.id} className={`notification-item ${n.read_at?'':'unread'}`} href={n.task_id?`/admin/tasks?task=${n.task_id}`:`/admin/kpis?month=${n.month}`} onClick={()=>{void read(n.id);setOpen(false);}}>
+     const Icon=n.kind==='knowledge_post'?BookOpen:n.kind==='task_completed'?CheckCheck:n.kind==='kpi_reminder'?Target:ClipboardList;
+     const href=n.post_id?`/admin/knowledge?post=${n.post_id}`:n.task_id?`/admin/tasks?task=${n.task_id}`:`/admin/kpis?month=${n.month}`;
+     return <Link key={n.id} className={`notification-item ${n.read_at?'':'unread'}`} href={href} onClick={()=>{void read(n.id);setOpen(false);}}>
       <span className={`notification-kind-icon ${n.kind}`} aria-hidden="true"><Icon size={18}/></span><div className="notification-item-content"><strong>{n.title}{!n.read_at&&<span className="notification-unread-dot" role="img" aria-label="Chưa đọc"/>}</strong><p>{n.body}</p><time dateTime={n.created_at} title={new Date(n.created_at).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}>{new Date(n.created_at).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}</time></div><ChevronRight size={16} className="notification-open-icon" aria-hidden="true"/>
      </Link>;
     })}</div></section>)}</div>
