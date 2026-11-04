@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Leader Marketing publishes SOP/Announcements, team receives notifications, and readership is tracked accurately", async ({
+test("Leader Marketing publishes SOP/Announcements, team receives notifications, and readership/comprehension analytics are strictly Leader-only", async ({
   playwright,
 }) => {
   const baseURL = "http://127.0.0.1:3100";
@@ -87,7 +87,8 @@ test("Leader Marketing publishes SOP/Announcements, team receives notifications,
       title: "Quy trình chuẩn bàn giao Lead chiến dịch HacoLED",
       category: "sop",
       summary: "Các bước kiểm tra và bàn giao lead trong 15 phút.",
-      content: "## Bước 1\nKiểm tra thông tin SĐT\n## Bước 2\nCập nhật CRM",
+      content:
+        "## Bước 1\nKiểm tra thông tin SĐT\n\n| Thời gian | Lời dẫn | Hình ảnh |\n|---|---|---|\n| 0–4s | Mở đầu | Phòng họp |\n\n## Bước 2\nCập nhật CRM",
       links: [{ label: "File biểu mẫu SOP", url: "https://hacoled.com/sop" }],
       pinned: true,
       require_ack: true,
@@ -108,13 +109,24 @@ test("Leader Marketing publishes SOP/Announcements, team receives notifications,
     ),
   ).toBe(true);
 
-  // Staff views the post
+  // Staff fetches post: must NOT receive team readership analytics (`readers`, `viewed_count`, etc.)
+  const staffList = await (await staff.get(`/api/knowledge?id=${postId}`)).json();
+  expect(staffList.can_manage).toBe(false);
+  expect(staffList.posts[0].readers).toBeUndefined();
+  expect(staffList.posts[0].viewed_count).toBeUndefined();
+
+  // Staff views the post and sends reading progress (time + scroll depth)
   const viewRes = await staff.patch("/api/knowledge", {
-    data: { id: postId, action: "view" },
+    data: { id: postId, action: "view", read_seconds_delta: 5, scroll_percent: 45 },
   });
   expect(viewRes.status()).toBe(200);
 
-  // Check readership before staff acknowledges: staff has viewed=true, acknowledged=false; manager has viewed=false
+  const progRes = await staff.patch("/api/knowledge", {
+    data: { id: postId, action: "progress", read_seconds_delta: 18, scroll_percent: 90 },
+  });
+  expect(progRes.status()).toBe(200);
+
+  // Check readership as Leader before staff acknowledges
   const listAfterView = await (await leader.get(`/api/knowledge?id=${postId}`)).json();
   const postAfterView = listAfterView.posts[0];
   const staffReader1 = postAfterView.readers.find(
@@ -125,12 +137,16 @@ test("Leader Marketing publishes SOP/Announcements, team receives notifications,
   );
   expect(staffReader1.viewed).toBe(true);
   expect(staffReader1.view_count).toBe(1);
+  expect(staffReader1.total_read_seconds).toBe(23);
+  expect(staffReader1.max_scroll_percent).toBe(90);
+  expect(staffReader1.comprehension_percent).toBeGreaterThan(50);
   expect(staffReader1.acknowledged).toBe(false);
   expect(managerReader1.viewed).toBe(false);
+  expect(managerReader1.comprehension_percent).toBe(0);
 
   // Staff acknowledges the post
   const ackRes = await staff.patch("/api/knowledge", {
-    data: { id: postId, action: "acknowledge" },
+    data: { id: postId, action: "acknowledge", read_seconds_delta: 4, scroll_percent: 100 },
   });
   expect(ackRes.status()).toBe(200);
 
@@ -141,6 +157,7 @@ test("Leader Marketing publishes SOP/Announcements, team receives notifications,
   );
   expect(staffReader2.acknowledged).toBe(true);
   expect(staffReader2.is_current_version_ack).toBe(true);
+  expect(staffReader2.comprehension_percent).toBeGreaterThanOrEqual(85);
 
   // Non-leader cannot delete post
   expect((await manager.delete(`/api/knowledge?id=${postId}`)).status()).toBe(403);

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Activity,
+  ArrowLeft,
   Bell,
   BookOpen,
   CheckCheck,
@@ -20,6 +22,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Timer,
   Trash2,
   Users,
   X,
@@ -66,9 +69,9 @@ const QUICK_TEMPLATES: Record<
     title: "Thông báo: [Nhập chủ đề thông báo]",
     summary: "Tóm tắt nội dung chính cần toàn bộ thành viên nắm bắt và thực hiện.",
     content: `## 1. Nội dung thông báo
-- Mục tiêu / lý do áp dụng:
-- Thời gian bắt đầu hiệu lực:
-- Đối tượng áp dụng: Toàn bộ đội ngũ Marketing & Sales HacoLED.
+- **Mục tiêu / lý do áp dụng:**
+- **Thời gian bắt đầu hiệu lực:**
+- **Đối tượng áp dụng:** Toàn bộ đội ngũ Marketing & Sales HacoLED.
 
 ## 2. Những điểm cần lưu ý thực hiện
 - Bước 1:
@@ -82,8 +85,8 @@ const QUICK_TEMPLATES: Record<
     title: "Quy trình (SOP): [Tên quy trình vận hành]",
     summary: "Quy trình chuẩn hóa các bước thực thi và bàn giao giữa các vị trí trong team.",
     content: `## 1. Mục đích & Phạm vi áp dụng
-- Mục đích chuẩn hóa quy trình:
-- Nhân sự chịu trách nhiệm thực thi:
+- **Mục đích chuẩn hóa quy trình:**
+- **Nhân sự chịu trách nhiệm thực thi:**
 
 ## 2. Các bước thực hiện chi tiết (SOP)
 1. **Bước 1 — Tiếp nhận & Chuẩn bị:**
@@ -102,13 +105,14 @@ const QUICK_TEMPLATES: Record<
     title: "Kiến thức & Tài liệu: [Chủ đề kiến thức / sản phẩm]",
     summary: "Tài liệu tổng hợp kiến thức chuyên môn, thông số kỹ thuật và kinh nghiệm triển khai.",
     content: `## 1. Tổng quan kiến thức
-- Bối cảnh & ứng dụng thực tế tại HacoLED:
-- Giá trị cốt lõi cần nhớ:
+- **Bối cảnh & ứng dụng thực tế tại HacoLED:**
+- **Giá trị cốt lõi cần nhớ:**
 
-## 2. Nội dung trọng tâm
-- Điểm chính 1:
-- Điểm chính 2:
-- Điểm chính 3:
+## 2. Bảng tóm tắt nội dung / Kịch bản
+| Hạng mục | Nội dung chi tiết | Lưu ý triển khai |
+|---|---|---|
+| Hạng mục 1 | Mô tả nội dung 1 | Ghi chú thực tế |
+| Hạng mục 2 | Mô tả nội dung 2 | Ghi chú thực tế |
 
 ## 3. Lưu ý thường gặp & Cách xử lý
 - Tình huống 1:
@@ -150,6 +154,15 @@ function formatRelativeDate(iso: string | null | undefined) {
   }
 }
 
+function formatDurationSeconds(seconds: number | null | undefined): string {
+  const s = Math.max(0, Math.round(Number(seconds ?? 0)));
+  if (s === 0) return "0 giây";
+  if (s < 60) return `${s} giây`;
+  const mins = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem > 0 ? `${mins}p ${rem}s` : `${mins} phút`;
+}
+
 function CategoryIcon({
   category,
   size = 16,
@@ -171,7 +184,7 @@ function stripMarkdownPreview(raw: string): string {
     .replace(/[*_~`#>|]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 190);
+    .slice(0, 210);
 }
 
 function renderInlineMarkdown(text: string): React.ReactNode[] {
@@ -269,7 +282,6 @@ function parseTableCells(line: string): string[] {
 function FormattedContent({ content }: { content: string }) {
   const rawLines = content.split(/\r?\n/);
 
-  // Pre-merge broken table lines if a line starts with '|' but didn't close with '|' before the next line
   const lines: string[] = [];
   for (let i = 0; i < rawLines.length; i++) {
     const curr = rawLines[i];
@@ -320,7 +332,7 @@ function FormattedContent({ content }: { content: string }) {
         codeLines.push(lines[i]);
         i++;
       }
-      if (i < lines.length) i++; // skip closing ```
+      if (i < lines.length) i++;
       elements.push(
         <pre key={`pre-${i}`} className="knowledge-code-block">
           <code>{codeLines.join("\n")}</code>
@@ -329,14 +341,13 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 2. Markdown Table (supports blank lines between pipe rows!)
+    // 2. Markdown Table
     if (isTableRowLine(trimmed)) {
       const tableLines: string[] = [trimmed];
       let cursor = i + 1;
       while (cursor < lines.length) {
         const nextTrimmed = lines[cursor].trim();
         if (!nextTrimmed) {
-          // Look ahead across blank lines to see if the table continues
           let lookahead = cursor + 1;
           while (lookahead < lines.length && !lines[lookahead].trim()) {
             lookahead++;
@@ -401,14 +412,14 @@ function FormattedContent({ content }: { content: string }) {
       }
     }
 
-    // 3. Horizontal Rule (---, ***, ___)
+    // 3. Horizontal Rule
     if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
       elements.push(<hr key={`hr-${i}`} className="knowledge-hr" />);
       i++;
       continue;
     }
 
-    // 4. Headings (#, ##, ###, ####)
+    // 4. Headings
     const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
@@ -436,7 +447,7 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 5. Blockquote (> ...)
+    // 5. Blockquote
     if (trimmed.startsWith(">")) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith(">")) {
@@ -453,7 +464,7 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 6. Checklist (- [ ] or - [x])
+    // 6. Checklist
     if (/^[-*•]\s*\[[ xX]\]\s+/.test(trimmed)) {
       const checked = /^[-*•]\s*\[[xX]\]/.test(trimmed);
       const text = trimmed.replace(/^[-*•]\s*\[[ xX]\]\s+/, "");
@@ -472,7 +483,7 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 7. Bullet list (-, *, +, •)
+    // 7. Bullet list
     if (/^[-*+•]\s+/.test(trimmed)) {
       const text = trimmed.replace(/^[-*+•]\s+/, "");
       const indent = rawLine.match(/^\s*/)?.[0].length ?? 0;
@@ -489,7 +500,7 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 8. Numbered list (1. or 1))
+    // 8. Numbered list
     const numMatch = trimmed.match(/^(\d+[.)])\s+(.+)$/);
     if (numMatch) {
       elements.push(
@@ -502,7 +513,7 @@ function FormattedContent({ content }: { content: string }) {
       continue;
     }
 
-    // 9. Regular Paragraph with inline markdown
+    // 9. Paragraph
     elements.push(
       <p key={`p-${i}`} className="knowledge-content-paragraph">
         {renderInlineMarkdown(trimmed)}
@@ -512,6 +523,12 @@ function FormattedContent({ content }: { content: string }) {
   }
 
   return <div className="knowledge-formatted-content">{elements}</div>;
+}
+
+function comprehensionTone(percent: number): "high" | "medium" | "low" {
+  if (percent >= 75) return "high";
+  if (percent >= 45) return "medium";
+  return "low";
 }
 
 export function KnowledgePage() {
@@ -534,10 +551,16 @@ export function KnowledgePage() {
   >("all");
   const [search, setSearch] = useState("");
 
-  // Active post detail drawer
+  // Active full-page document reader
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [readerTab, setReaderTab] = useState<"all" | "viewed" | "unviewed">("all");
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+
+  // Live reading telemetry state for the currently opened post
+  const articleRef = useRef<HTMLDivElement | null>(null);
+  const pendingReadSecondsRef = useRef(0);
+  const maxScrollPercentRef = useRef(30);
+  const viewedRecordedRef = useRef<Set<string>>(new Set());
 
   // Create / Edit drawer (Leader only)
   const [editorOpen, setEditorOpen] = useState(false);
@@ -545,8 +568,6 @@ export function KnowledgePage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
-  const viewedRecordedRef = useRef<Set<string>>(new Set());
 
   const loadPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -557,7 +578,9 @@ export function KnowledgePage() {
         throw new Error(data.error || "Chưa tải được danh sách thông báo & quy trình.");
       }
       setPosts(Array.isArray(data.posts) ? data.posts : []);
-      setTotalMembers(Number(data.total_members ?? 0));
+      if (data.total_members != null) {
+        setTotalMembers(Number(data.total_members));
+      }
       setError("");
     } catch (e) {
       setError(
@@ -586,52 +609,156 @@ export function KnowledgePage() {
     [posts, selectedPostId],
   );
 
-  // Automatically record view when a post detail drawer is opened
-  useEffect(() => {
-    if (!selectedPostId) return;
-    const key = `${selectedPostId}`;
-    if (viewedRecordedRef.current.has(key)) return;
-    viewedRecordedRef.current.add(key);
+  // Calculate current scroll depth of the article element in the viewport
+  const updateArticleScrollDepth = useCallback(() => {
+    const el = articleRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.height <= 0) return;
 
-    void (async () => {
+    // How far down the bottom of the viewport has reached relative to the article
+    const seenPixels = viewportHeight - rect.top;
+    const rawPct = Math.round((seenPixels / rect.height) * 100);
+    const clamped = Math.max(25, Math.min(100, rawPct));
+    if (clamped > maxScrollPercentRef.current) {
+      maxScrollPercentRef.current = clamped;
+    }
+  }, []);
+
+  // Flush reading progress (time + scroll depth) to the server
+  const flushReadingProgress = useCallback(
+    async (postId: string, refreshAfter = false) => {
+      const delta = pendingReadSecondsRef.current;
+      const scroll = maxScrollPercentRef.current;
+      if (delta <= 0 && scroll <= 25) return;
+      pendingReadSecondsRef.current = 0;
       try {
-        const res = await fetch("/api/knowledge", {
+        await fetch("/api/knowledge", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: selectedPostId, action: "view" }),
+          body: JSON.stringify({
+            id: postId,
+            action: "progress",
+            read_seconds_delta: delta,
+            scroll_percent: scroll,
+          }),
         });
-        if (res.ok) {
+        if (refreshAfter) {
           await loadPosts(true);
         }
       } catch {
-        // Ignore transient view tracking network error
+        // Ignore transient network errors
       }
-    })();
-  }, [selectedPostId, loadPosts]);
+    },
+    [loadPosts],
+  );
+
+  // Record initial view + track active reading seconds and scroll depth while selectedPostId is open
+  useEffect(() => {
+    if (!selectedPostId) return;
+
+    pendingReadSecondsRef.current = 0;
+    maxScrollPercentRef.current = 30;
+
+    // Scroll to top of workspace when opening a document
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Record view once per open
+    if (!viewedRecordedRef.current.has(selectedPostId)) {
+      viewedRecordedRef.current.add(selectedPostId);
+      void (async () => {
+        try {
+          updateArticleScrollDepth();
+          const res = await fetch("/api/knowledge", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: selectedPostId,
+              action: "view",
+              read_seconds_delta: 2,
+              scroll_percent: maxScrollPercentRef.current,
+            }),
+          });
+          if (res.ok) {
+            await loadPosts(true);
+          }
+        } catch {
+          // Ignore transient error
+        }
+      })();
+    }
+
+    const onScroll = () => {
+      updateArticleScrollDepth();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const initialTimer = setTimeout(updateArticleScrollDepth, 300);
+
+    // 1-second active reading clock + periodic sync every 6 seconds
+    let ticks = 0;
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      pendingReadSecondsRef.current += 1;
+      updateArticleScrollDepth();
+      // If article is short enough to fit on screen and user read >= 5s, mark 100% scroll depth
+      const el = articleRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.height <= window.innerHeight * 0.95 && pendingReadSecondsRef.current >= 4) {
+          maxScrollPercentRef.current = 100;
+        }
+      }
+      ticks++;
+      if (ticks % 6 === 0) {
+        void flushReadingProgress(selectedPostId, true);
+      }
+    }, 1000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+      window.removeEventListener("scroll", onScroll);
+      void flushReadingProgress(selectedPostId, false);
+    };
+  }, [selectedPostId, loadPosts, updateArticleScrollDepth, flushReadingProgress]);
 
   function openPostDetail(post: KnowledgePost) {
     viewedRecordedRef.current.delete(post.id);
     setReaderTab("all");
     setConfirmDeleteId(null);
     setSelectedPostId(post.id);
+    router.replace(`/admin/knowledge?post=${encodeURIComponent(post.id)}`, {
+      scroll: false,
+    });
   }
 
-  function closePostDetail() {
+  async function closePostDetail() {
+    const closingId = selectedPostId;
     setSelectedPostId(null);
     setConfirmDeleteId(null);
-    if (queryPostId) {
-      router.replace("/admin/knowledge", { scroll: false });
+    router.replace("/admin/knowledge", { scroll: false });
+    if (closingId) {
+      await flushReadingProgress(closingId, true);
     }
   }
 
   async function handleAcknowledge(post: KnowledgePost) {
     setAcknowledgingId(post.id);
     setError("");
+    const delta = pendingReadSecondsRef.current;
+    pendingReadSecondsRef.current = 0;
+    updateArticleScrollDepth();
     try {
       const res = await fetch("/api/knowledge", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: post.id, action: "acknowledge" }),
+        body: JSON.stringify({
+          id: post.id,
+          action: "acknowledge",
+          read_seconds_delta: Math.max(3, delta),
+          scroll_percent: Math.max(90, maxScrollPercentRef.current),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -745,6 +872,9 @@ export function KnowledgePage() {
       await loadPosts(true);
       if (data.id) {
         setSelectedPostId(String(data.id));
+        router.replace(`/admin/knowledge?post=${encodeURIComponent(String(data.id))}`, {
+          scroll: false,
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chưa lưu được bài viết.");
@@ -766,7 +896,8 @@ export function KnowledgePage() {
         throw new Error(data.error || "Không thể xóa bài viết.");
       }
       if (selectedPostId === post.id) {
-        closePostDetail();
+        setSelectedPostId(null);
+        router.replace("/admin/knowledge", { scroll: false });
       }
       setNotice(`Đã xóa bài viết "${post.title}".`);
       await loadPosts(true);
@@ -792,12 +923,29 @@ export function KnowledgePage() {
 
     let avgViewRate = 0;
     let avgAckRate = 0;
-    if (posts.length > 0 && totalMembers > 0) {
+    let avgComprehension = 0;
+    let avgReadSec = 0;
+
+    if (isLeader && posts.length > 0 && totalMembers > 0) {
       const totalPossible = posts.length * totalMembers;
-      const sumViews = posts.reduce((acc, p) => acc + p.viewed_count, 0);
-      const sumAcks = posts.reduce((acc, p) => acc + p.acknowledged_count, 0);
+      const sumViews = posts.reduce((acc, p) => acc + (p.viewed_count ?? 0), 0);
+      const sumAcks = posts.reduce((acc, p) => acc + (p.acknowledged_count ?? 0), 0);
       avgViewRate = Math.round((sumViews / totalPossible) * 100);
       avgAckRate = Math.round((sumAcks / totalPossible) * 100);
+
+      const postsWithViews = posts.filter((p) => (p.viewed_count ?? 0) > 0);
+      if (postsWithViews.length > 0) {
+        avgComprehension = Math.round(
+          postsWithViews.reduce(
+            (acc, p) => acc + (p.avg_comprehension_percent ?? 0),
+            0,
+          ) / postsWithViews.length,
+        );
+        avgReadSec = Math.round(
+          postsWithViews.reduce((acc, p) => acc + (p.avg_read_seconds ?? 0), 0) /
+            postsWithViews.length,
+        );
+      }
     }
 
     return {
@@ -809,8 +957,10 @@ export function KnowledgePage() {
       myNeedAck,
       avgViewRate,
       avgAckRate,
+      avgComprehension,
+      avgReadSec,
     };
-  }, [posts, totalMembers]);
+  }, [posts, totalMembers, isLeader]);
 
   const filteredPosts = useMemo(() => {
     const q = search.trim().toLocaleLowerCase("vi");
@@ -848,15 +998,26 @@ export function KnowledgePage() {
       description="Trung tâm thông báo nội bộ, quy trình vận hành chuẩn (SOP) và tài liệu kiến thức chung cho toàn đội ngũ HacoLED."
       actions={
         <div className="knowledge-top-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void loadPosts()}
-            disabled={loading}
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            Tải lại
-          </button>
+          {selectedPost ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void closePostDetail()}
+            >
+              <ArrowLeft size={15} />
+              Quay lại danh sách
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void loadPosts()}
+              disabled={loading}
+            >
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              Tải lại
+            </button>
+          )}
           {isLeader && (
             <button
               type="button"
@@ -873,428 +1034,21 @@ export function KnowledgePage() {
       {error && <Notice tone="error">{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
 
-      {/* KPI Summary Strip */}
-      <section className="knowledge-kpi-grid" aria-label="Thống kê thông báo và quy trình">
-        <div className="knowledge-kpi-card">
-          <div className="knowledge-kpi-icon brand">
-            <BookOpen size={20} />
-          </div>
-          <div className="knowledge-kpi-body">
-            <span>Tổng nội dung đã ban hành</span>
-            <strong>{stats.total} bài đăng</strong>
-            <small>
-              {stats.announcements} Thông báo · {stats.sops} Quy trình · {stats.docs} Kiến thức
-            </small>
-          </div>
-        </div>
-
-        <div className="knowledge-kpi-card">
-          <div
-            className={`knowledge-kpi-icon ${
-              stats.myNeedAck > 0 || stats.myUnread > 0 ? "warning" : "success"
-            }`}
-          >
-            <CheckCircle2 size={20} />
-          </div>
-          <div className="knowledge-kpi-body">
-            <span>Trạng thái nắm bắt của bạn</span>
-            <strong>
-              {stats.myNeedAck > 0
-                ? `${stats.myNeedAck} bài cần xác nhận`
-                : "Đã nắm bắt đầy đủ"}
-            </strong>
-            <small>
-              {stats.myUnread > 0
-                ? `Bạn có ${stats.myUnread} bài mới chưa mở xem`
-                : "Bạn đã mở xem tất cả thông báo & quy trình"}
-            </small>
-          </div>
-        </div>
-
-        <div className="knowledge-kpi-card">
-          <div className="knowledge-kpi-icon info">
-            <Users size={20} />
-          </div>
-          <div className="knowledge-kpi-body">
-            <span>Đo lường độ phủ toàn đội ngũ ({totalMembers} thành viên)</span>
-            <strong>
-              {stats.avgViewRate}% đã xem · {stats.avgAckRate}% xác nhận
-            </strong>
-            <small>
-              Theo dõi trực tiếp ai đã xem và ai chưa xem từng quy trình
-            </small>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Content Panel */}
-      <Panel
-        title="Kho thông báo, quy trình (SOP) & tài liệu nội bộ"
-        description={
-          isLeader
-            ? "Bạn đang đăng nhập với quyền Leader Marketing: có thể đăng mới, ghim, chỉnh sửa và đo lường chi tiết từng thành viên đã xem hay chưa."
-            : "Mở từng bài viết để đọc chi tiết và bấm “Xác nhận đã nắm bắt” sau khi nắm rõ thông báo hoặc quy trình."
-        }
-      >
-        {/* Filter Bar */}
-        <div className="knowledge-toolbar">
-          <div className="knowledge-category-tabs" role="tablist" aria-label="Phân loại nội dung">
+      {/* FULL-PAGE DOCUMENT READER VIEW (Không nằm trong sidebar/drawer hẹp) */}
+      {selectedPost ? (
+        <div className="knowledge-reader-view">
+          {/* Reader Top Navigation Bar */}
+          <div className="knowledge-reader-topbar">
             <button
               type="button"
-              role="tab"
-              aria-selected={categoryFilter === "all"}
-              className={`knowledge-tab-btn ${categoryFilter === "all" ? "active" : ""}`}
-              onClick={() => setCategoryFilter("all")}
+              className="secondary-button"
+              onClick={() => void closePostDetail()}
             >
-              Tất cả <span>{stats.total}</span>
+              <ArrowLeft size={16} />
+              Quay lại danh sách ({posts.length} bài)
             </button>
-            {KNOWLEDGE_CATEGORIES.map((cat) => {
-              const count =
-                cat.id === "announcement"
-                  ? stats.announcements
-                  : cat.id === "sop"
-                    ? stats.sops
-                    : stats.docs;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={categoryFilter === cat.id}
-                  className={`knowledge-tab-btn ${categoryFilter === cat.id ? "active" : ""}`}
-                  onClick={() => setCategoryFilter(cat.id)}
-                >
-                  <CategoryIcon category={cat.id} size={15} />
-                  {cat.label}
-                  <span>{count}</span>
-                </button>
-              );
-            })}
-          </div>
 
-          <div className="knowledge-search-controls">
-            <div className="knowledge-search-box">
-              <Search size={16} />
-              <input
-                type="search"
-                aria-label="Tìm kiếm thông báo, quy trình, kiến thức"
-                placeholder="Tìm theo tiêu đề, nội dung, người đăng…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search && (
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Xóa từ khóa"
-                  onClick={() => setSearch("")}
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            <select
-              aria-label="Lọc theo trạng thái đọc"
-              className="knowledge-status-select"
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(
-                  e.target.value as "all" | "unread" | "unacknowledged" | "pinned",
-                )
-              }
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="unread">Chưa mở xem ({stats.myUnread})</option>
-              <option value="unacknowledged">
-                Cần xác nhận nắm bắt ({stats.myNeedAck})
-              </option>
-              <option value="pinned">Đã ghim quan trọng</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Posts List */}
-        {loading ? (
-          <LoadingState label="Đang tải thông báo, quy trình & tài liệu…" />
-        ) : !filteredPosts.length ? (
-          <EmptyState
-            icon={BookOpen}
-            title={
-              posts.length === 0
-                ? "Chưa có thông báo hoặc quy trình nào được đăng"
-                : "Không tìm thấy bài viết phù hợp bộ lọc"
-            }
-            description={
-              posts.length === 0
-                ? isLeader
-                  ? "Hãy bấm “Đăng thông báo / quy trình” để chia sẻ thông báo đầu tiên, quy trình SOP hoặc tài liệu kiến thức cho toàn đội ngũ."
-                  : "Khi Leader Marketing đăng thông báo, quy trình hoặc tài liệu mới, bạn sẽ nhận được chuông thông báo và xem tại đây."
-                : "Thử chuyển sang tab danh mục “Tất cả” hoặc xóa từ khóa tìm kiếm."
-            }
-            action={
-              isLeader && posts.length === 0 ? (
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => openCreateModal("announcement")}
-                >
-                  <Plus size={16} />
-                  Đăng bài đầu tiên
-                </button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <div className="knowledge-cards-grid">
-            {filteredPosts.map((post) => {
-              const catMeta = getKnowledgeCategoryMeta(post.category);
-              const viewPercent =
-                post.total_members > 0
-                  ? Math.round((post.viewed_count / post.total_members) * 100)
-                  : 0;
-              const isCurrentAck =
-                post.my_acknowledged &&
-                (post.my_acknowledged_version ?? 1) >= post.version;
-              const isOutdatedAck =
-                post.my_acknowledged &&
-                (post.my_acknowledged_version ?? 1) < post.version;
-              const unviewedCount = Math.max(0, post.total_members - post.viewed_count);
-              const viewedReaders = (post.readers ?? []).filter((r) => r.viewed);
-
-              return (
-                <article
-                  key={post.id}
-                  className={`knowledge-card ${post.pinned ? "is-pinned" : ""} ${
-                    !post.my_viewed ? "is-unread" : ""
-                  }`}
-                >
-                  <div className="knowledge-card-top">
-                    <div className="knowledge-card-badges">
-                      {post.pinned && (
-                        <span className="knowledge-badge pinned">
-                          <Pin size={12} />
-                          Đã ghim
-                        </span>
-                      )}
-                      <span className={`knowledge-badge category-${post.category}`}>
-                        <CategoryIcon category={post.category} size={13} />
-                        {catMeta.label}
-                      </span>
-                      {post.version > 1 && (
-                        <span className="knowledge-badge version">
-                          v{post.version}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="knowledge-card-my-status">
-                      {!post.my_viewed ? (
-                        <span className="knowledge-read-pill unread">
-                          ● Mới · Chưa xem
-                        </span>
-                      ) : isCurrentAck ? (
-                        <span className="knowledge-read-pill acknowledged">
-                          <CheckCheck size={13} />
-                          Đã nắm bắt
-                        </span>
-                      ) : isOutdatedAck ? (
-                        <span className="knowledge-read-pill pending">
-                          Cập nhật v{post.version} · Cần xác nhận lại
-                        </span>
-                      ) : post.require_ack ? (
-                        <span className="knowledge-read-pill pending">
-                          Đã xem · Chờ xác nhận
-                        </span>
-                      ) : (
-                        <span className="knowledge-read-pill viewed">
-                          <Eye size={13} />
-                          Đã xem
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    className="knowledge-card-main"
-                    onClick={() => openPostDetail(post)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openPostDetail(post);
-                      }
-                    }}
-                  >
-                    <h3 className="knowledge-card-title">{post.title}</h3>
-                    <p className="knowledge-card-summary">
-                      {post.summary || stripMarkdownPreview(post.content)}
-                    </p>
-                  </div>
-
-                  {post.links.length > 0 && (
-                    <div className="knowledge-card-links">
-                      {post.links.slice(0, 3).map((link, idx) => (
-                        <a
-                          key={idx}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="knowledge-link-chip"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Link2 size={13} />
-                          <span>{link.label}</span>
-                          <ExternalLink size={11} />
-                        </a>
-                      ))}
-                      {post.links.length > 3 && (
-                        <span className="knowledge-link-more">
-                          +{post.links.length - 3} tài liệu
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Readership Tracking Bar */}
-                  <div className="knowledge-card-metrics">
-                    <div className="knowledge-metric-header">
-                      <span className="knowledge-metric-label">
-                        <Eye size={14} />
-                        <strong>
-                          {post.viewed_count}/{post.total_members}
-                        </strong>{" "}
-                        đã xem ({viewPercent}%)
-                        {unviewedCount > 0 && (
-                          <em className="knowledge-unviewed-tag">
-                            · Còn {unviewedCount} người chưa xem
-                          </em>
-                        )}
-                      </span>
-                      <span className="knowledge-metric-ack">
-                        <CheckCheck size={14} />
-                        <strong>
-                          {post.acknowledged_count}/{post.total_members}
-                        </strong>{" "}
-                        đã xác nhận nắm bắt
-                      </span>
-                    </div>
-
-                    <div
-                      className="knowledge-progress-track"
-                      aria-label={`Đã xem ${viewPercent}%`}
-                    >
-                      <div
-                        className="knowledge-progress-fill viewed"
-                        style={{ width: `${viewPercent}%` }}
-                      />
-                    </div>
-
-                    <div className="knowledge-card-footer">
-                      <div className="knowledge-author-meta">
-                        <Avatar name={post.author_name} size="small" tone="brand" />
-                        <span>
-                          Đăng bởi <strong>{post.author_name}</strong> ·{" "}
-                          <time dateTime={post.updated_at}>
-                            {formatRelativeDate(post.updated_at)}
-                          </time>
-                        </span>
-                      </div>
-
-                      <div className="knowledge-card-actions">
-                        {viewedReaders.length > 0 && (
-                          <div
-                            className="knowledge-reader-avatars"
-                            title={`Đã xem: ${viewedReaders
-                              .map((r) => r.member_name)
-                              .join(", ")}`}
-                          >
-                            {viewedReaders.slice(0, 4).map((r) => (
-                              <Avatar
-                                key={r.member_id}
-                                name={r.member_name}
-                                size="small"
-                              />
-                            ))}
-                            {viewedReaders.length > 4 && (
-                              <span className="knowledge-avatar-more">
-                                +{viewedReaders.length - 4}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {isLeader && (
-                          <>
-                            <button
-                              type="button"
-                              className="secondary-button compact"
-                              onClick={() => void handleTogglePin(post)}
-                              title={post.pinned ? "Bỏ ghim" : "Ghim lên đầu"}
-                            >
-                              <Pin size={14} />
-                              {post.pinned ? "Bỏ ghim" : "Ghim"}
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary-button compact"
-                              onClick={() => openEditModal(post)}
-                            >
-                              <Edit3 size={14} />
-                              Sửa
-                            </button>
-                          </>
-                        )}
-
-                        <button
-                          type="button"
-                          className="primary-button compact"
-                          onClick={() => openPostDetail(post)}
-                        >
-                          <FileText size={14} />
-                          Xem chi tiết
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </Panel>
-
-      {/* Post Detail + Readership Measurement Drawer */}
-      {selectedPost && (
-        <Drawer
-          title={selectedPost.title}
-          description={`${getKnowledgeCategoryMeta(selectedPost.category).label} · Phiên bản v${
-            selectedPost.version
-          } · Cập nhật ${formatDateTime(selectedPost.updated_at)}`}
-          onClose={closePostDetail}
-        >
-          <div className="knowledge-detail-drawer">
-            {/* Header Meta & Leader Controls */}
-            <div className="knowledge-detail-meta-bar">
-              <div className="knowledge-card-badges">
-                {selectedPost.pinned && (
-                  <span className="knowledge-badge pinned">
-                    <Pin size={12} />
-                    Đã ghim đầu trang
-                  </span>
-                )}
-                <span
-                  className={`knowledge-badge category-${selectedPost.category}`}
-                >
-                  <CategoryIcon category={selectedPost.category} size={13} />
-                  {getKnowledgeCategoryMeta(selectedPost.category).label}
-                </span>
-                <span className="knowledge-badge version">
-                  Phiên bản v{selectedPost.version}
-                </span>
-              </div>
-
+            <div className="knowledge-reader-topbar-right">
               {isLeader && (
                 <div className="knowledge-leader-actions">
                   <button
@@ -1303,7 +1057,7 @@ export function KnowledgePage() {
                     onClick={() => void handleTogglePin(selectedPost)}
                   >
                     <Pin size={14} />
-                    {selectedPost.pinned ? "Bỏ ghim" : "Ghim bài"}
+                    {selectedPost.pinned ? "Bỏ ghim" : "Ghim đầu trang"}
                   </button>
                   <button
                     type="button"
@@ -1311,7 +1065,7 @@ export function KnowledgePage() {
                     onClick={() => openEditModal(selectedPost)}
                   >
                     <Edit3 size={14} />
-                    Chỉnh sửa
+                    Chỉnh sửa nội dung
                   </button>
                   {confirmDeleteId === selectedPost.id ? (
                     <div className="knowledge-delete-confirm">
@@ -1339,21 +1093,79 @@ export function KnowledgePage() {
                       onClick={() => setConfirmDeleteId(selectedPost.id)}
                     >
                       <Trash2 size={14} />
-                      Xóa
+                      Xóa bài
                     </button>
                   )}
                 </div>
               )}
             </div>
+          </div>
 
-            {selectedPost.summary && (
-              <div className="knowledge-detail-summary">
-                <strong>Tóm tắt trọng tâm:</strong> {selectedPost.summary}
+          {/* Main Large Article Document */}
+          <article className="knowledge-document-paper" ref={articleRef}>
+            <header className="knowledge-document-header">
+              <div className="knowledge-card-badges">
+                {selectedPost.pinned && (
+                  <span className="knowledge-badge pinned">
+                    <Pin size={13} />
+                    Đã ghim quan trọng
+                  </span>
+                )}
+                <span className={`knowledge-badge category-${selectedPost.category}`}>
+                  <CategoryIcon category={selectedPost.category} size={14} />
+                  {getKnowledgeCategoryMeta(selectedPost.category).label}
+                </span>
+                <span className="knowledge-badge version">
+                  Phiên bản v{selectedPost.version}
+                </span>
+                <span className="knowledge-badge read-time">
+                  <Timer size={13} />
+                  Thời lượng đọc dự kiến: ~
+                  {formatDurationSeconds(selectedPost.expected_read_seconds)}
+                </span>
               </div>
-            )}
 
-            {/* Main Article Body */}
-            <div className="knowledge-detail-body">
+              <h2 className="knowledge-document-title">{selectedPost.title}</h2>
+
+              <div className="knowledge-document-byline">
+                <div className="knowledge-author-meta">
+                  <Avatar name={selectedPost.author_name} size="small" tone="brand" />
+                  <div>
+                    <strong>{selectedPost.author_name}</strong>
+                    <small>
+                      Ban hành: {formatDateTime(selectedPost.created_at)}
+                      {selectedPost.updated_at !== selectedPost.created_at
+                        ? ` · Cập nhật: ${formatDateTime(selectedPost.updated_at)}`
+                        : ""}
+                    </small>
+                  </div>
+                </div>
+
+                <div className="knowledge-my-status-banner">
+                  {selectedPost.my_acknowledged &&
+                  (selectedPost.my_acknowledged_version ?? 1) >=
+                    selectedPost.version ? (
+                    <span className="knowledge-read-pill acknowledged">
+                      <CheckCheck size={14} />
+                      Bạn đã xác nhận nắm bắt
+                    </span>
+                  ) : (
+                    <span className="knowledge-read-pill pending">
+                      <Clock size={14} />
+                      Cần xác nhận sau khi đọc xong
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {selectedPost.summary && (
+                <div className="knowledge-document-summary">
+                  <strong>Tóm tắt trọng tâm:</strong> {selectedPost.summary}
+                </div>
+              )}
+            </header>
+
+            <div className="knowledge-document-content">
               <FormattedContent content={selectedPost.content} />
             </div>
 
@@ -1361,7 +1173,7 @@ export function KnowledgePage() {
             {selectedPost.links.length > 0 && (
               <div className="knowledge-detail-links">
                 <h3>
-                  <Link2 size={16} />
+                  <Link2 size={17} />
                   Tài liệu, biểu mẫu & liên kết đính kèm ({selectedPost.links.length})
                 </h3>
                 <div className="knowledge-detail-links-list">
@@ -1392,12 +1204,12 @@ export function KnowledgePage() {
                   (selectedPost.my_acknowledged_version ?? 1) >=
                     selectedPost.version ? (
                     <span className="ack-done-title">
-                      <CheckCircle2 size={18} />
+                      <CheckCircle2 size={20} />
                       Bạn đã xác nhận nắm bắt nội dung này
                     </span>
                   ) : (
                     <span className="ack-pending-title">
-                      <ClipboardCheck size={18} />
+                      <ClipboardCheck size={20} />
                       Xác nhận đã đọc & nắm bắt nội dung
                     </span>
                   )}
@@ -1410,8 +1222,8 @@ export function KnowledgePage() {
                         selectedPost.my_acknowledged_at,
                       )} (Phiên bản v${
                         selectedPost.my_acknowledged_version ?? 1
-                      }) · Bạn đã mở xem ${Math.max(1, selectedPost.my_view_count)} lần.`
-                    : "Bấm nút xác nhận bên cạnh sau khi bạn đã đọc kỹ để hệ thống ghi nhận bạn đã nắm bắt thông báo / quy trình này."}
+                      }). Hệ thống đã ghi nhận bạn hoàn tất đọc tài liệu này.`
+                    : "Sau khi đọc kỹ toàn bộ nội dung trên, hãy bấm nút xác nhận bên cạnh để hoàn tất việc nắm bắt thông báo / quy trình."}
                 </p>
               </div>
 
@@ -1424,27 +1236,37 @@ export function KnowledgePage() {
                   disabled={acknowledgingId === selectedPost.id}
                   onClick={() => void handleAcknowledge(selectedPost)}
                 >
-                  <CheckCheck size={16} />
+                  <CheckCheck size={17} />
                   {acknowledgingId === selectedPost.id
                     ? "Đang ghi nhận…"
                     : "Xác nhận đã nắm bắt"}
                 </button>
               )}
             </div>
+          </article>
 
-            {/* Readership Measurement Section ("Đo lường xem ai đã xem quy trình đó") */}
+          {/* LEADER-ONLY READERSHIP & COMPREHENSION ANALYTICS SECTION */}
+          {isLeader && selectedPost.readers && (
             <section
-              className="knowledge-readers-section"
-              aria-label="Đo lường người xem và nắm bắt"
+              className="knowledge-leader-analytics-panel"
+              aria-label="Đo lường thành viên đã xem và mức độ nắm bắt"
             >
-              <div className="knowledge-readers-header">
+              <div className="knowledge-analytics-head">
                 <div>
+                  <span className="knowledge-leader-only-badge">
+                    🔒 Chỉ hiển thị với Leader Marketing
+                  </span>
                   <h3>
-                    <Users size={17} />
-                    Đo lường thành viên đã xem & nắm bắt
+                    <Activity size={19} />
+                    Đo lường thành viên đã xem, thời gian đọc & % nắm bắt nội dung
                   </h3>
                   <p>
-                    Hệ thống tự động ghi nhận thời điểm mở xem, số lần xem và trạng thái xác nhận của từng thành viên.
+                    Điểm <strong>% Nắm bắt nội dung</strong> được hệ thống tự động tính toán cho từng người dựa trên 4 chỉ số thực tế:{" "}
+                    <strong>Thời gian đọc thực tế (40%)</strong> so với thời lượng chuẩn (~
+                    {formatDurationSeconds(selectedPost.expected_read_seconds)}),{" "}
+                    <strong>Độ sâu cuộn đọc bài viết (30%)</strong>,{" "}
+                    <strong>Xác nhận nắm bắt (20%)</strong> và{" "}
+                    <strong>Lượt mở xem / ôn lại (10%)</strong>.
                   </p>
                 </div>
 
@@ -1454,7 +1276,7 @@ export function KnowledgePage() {
                     className={`knowledge-subtab ${readerTab === "all" ? "active" : ""}`}
                     onClick={() => setReaderTab("all")}
                   >
-                    Tất cả ({selectedPost.total_members})
+                    Tất cả ({selectedPost.total_members ?? 0})
                   </button>
                   <button
                     type="button"
@@ -1463,7 +1285,7 @@ export function KnowledgePage() {
                     }`}
                     onClick={() => setReaderTab("viewed")}
                   >
-                    Đã xem ({selectedPost.viewed_count})
+                    Đã mở xem ({selectedPost.viewed_count ?? 0})
                   </button>
                   <button
                     type="button"
@@ -1473,74 +1295,638 @@ export function KnowledgePage() {
                     onClick={() => setReaderTab("unviewed")}
                   >
                     Chưa xem (
-                    {Math.max(0, selectedPost.total_members - selectedPost.viewed_count)}
+                    {Math.max(
+                      0,
+                      (selectedPost.total_members ?? 0) -
+                        (selectedPost.viewed_count ?? 0),
+                    )}
                     )
                   </button>
                 </div>
               </div>
 
-              <div className="knowledge-readers-list">
-                {(selectedPost.readers ?? [])
-                  .filter((r) => {
-                    if (readerTab === "viewed") return r.viewed;
-                    if (readerTab === "unviewed") return !r.viewed;
-                    return true;
-                  })
-                  .map((reader) => (
-                    <div
-                      key={reader.member_id}
-                      className={`knowledge-reader-row ${
-                        reader.viewed ? "is-viewed" : "is-unviewed"
+              {/* 4 Summary Analytics Cards for This Document */}
+              <div className="knowledge-doc-metrics-grid">
+                <div className="knowledge-doc-metric-box">
+                  <span>Số thành viên đã mở xem</span>
+                  <strong>
+                    {selectedPost.viewed_count ?? 0} /{" "}
+                    {selectedPost.total_members ?? 0} người
+                  </strong>
+                  <small>
+                    Còn{" "}
+                    {Math.max(
+                      0,
+                      (selectedPost.total_members ?? 0) -
+                        (selectedPost.viewed_count ?? 0),
+                    )}{" "}
+                    thành viên chưa mở bài viết
+                  </small>
+                </div>
+
+                <div className="knowledge-doc-metric-box">
+                  <span>Thời gian xem trung bình</span>
+                  <strong>
+                    {formatDurationSeconds(selectedPost.avg_read_seconds ?? 0)}
+                  </strong>
+                  <small>
+                    Thời lượng đọc chuẩn dự kiến: ~
+                    {formatDurationSeconds(selectedPost.expected_read_seconds)}
+                  </small>
+                </div>
+
+                <div className="knowledge-doc-metric-box">
+                  <span>Mức độ nắm bắt trung bình</span>
+                  <strong>{selectedPost.avg_comprehension_percent ?? 0}%</strong>
+                  <small>
+                    Độ sâu cuộn đọc TB: {selectedPost.avg_scroll_percent ?? 0}% chiều dài bài
+                  </small>
+                </div>
+
+                <div className="knowledge-doc-metric-box">
+                  <span>Đã bấm xác nhận nắm bắt</span>
+                  <strong>
+                    {selectedPost.acknowledged_count ?? 0} /{" "}
+                    {selectedPost.total_members ?? 0} người
+                  </strong>
+                  <small>
+                    Xác nhận đúng phiên bản hiện hành (v{selectedPost.version})
+                  </small>
+                </div>
+              </div>
+
+              {/* Detailed Per-Member Table */}
+              <div className="knowledge-readers-table-wrap">
+                <table className="knowledge-readers-table">
+                  <thead>
+                    <tr>
+                      <th>Thành viên</th>
+                      <th>Lượt mở & Thời điểm xem</th>
+                      <th>Thời gian đọc & Độ sâu</th>
+                      <th>Đánh giá % Nắm bắt nội dung</th>
+                      <th>Trạng thái xác nhận</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPost.readers
+                      .filter((r) => {
+                        if (readerTab === "viewed") return r.viewed;
+                        if (readerTab === "unviewed") return !r.viewed;
+                        return true;
+                      })
+                      .map((reader) => {
+                        const tone = comprehensionTone(reader.comprehension_percent);
+                        return (
+                          <tr
+                            key={reader.member_id}
+                            className={reader.viewed ? "is-viewed" : "is-unviewed"}
+                          >
+                            <td>
+                              <div className="knowledge-reader-identity">
+                                <Avatar
+                                  name={reader.member_name}
+                                  size="small"
+                                  tone={reader.viewed ? "brand" : "neutral"}
+                                />
+                                <div>
+                                  <strong>{reader.member_name}</strong>
+                                  <small>{reader.member_title}</small>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td>
+                              {reader.viewed ? (
+                                <div className="knowledge-table-cell-stack">
+                                  <strong>{reader.view_count} lượt mở xem</strong>
+                                  <small>
+                                    Gần nhất: {formatDateTime(reader.last_viewed_at)}
+                                  </small>
+                                </div>
+                              ) : (
+                                <span className="knowledge-muted-dash">
+                                  Chưa mở xem lần nào
+                                </span>
+                              )}
+                            </td>
+
+                            <td>
+                              {reader.viewed ? (
+                                <div className="knowledge-table-cell-stack">
+                                  <strong>
+                                    <Timer size={13} style={{ display: "inline", marginRight: 4 }} />
+                                    {formatDurationSeconds(reader.total_read_seconds)}
+                                  </strong>
+                                  <small>
+                                    Đã cuộn đọc tới {reader.max_scroll_percent}% nội dung
+                                  </small>
+                                </div>
+                              ) : (
+                                <span className="knowledge-muted-dash">0 giây · 0%</span>
+                              )}
+                            </td>
+
+                            <td>
+                              <div className="knowledge-comprehension-cell">
+                                <div className="knowledge-comprehension-head">
+                                  <strong className={`comp-text ${tone}`}>
+                                    {reader.comprehension_percent}% nắm bắt
+                                  </strong>
+                                  <span className={`comp-tag ${tone}`}>
+                                    {!reader.viewed
+                                      ? "Chưa tiếp cận"
+                                      : reader.comprehension_percent >= 75
+                                        ? "Nắm bắt tốt"
+                                        : reader.comprehension_percent >= 45
+                                          ? "Đang đọc / Khá"
+                                          : "Đọc lướt"}
+                                  </span>
+                                </div>
+                                <div className="knowledge-comp-bar-track">
+                                  <div
+                                    className={`knowledge-comp-bar-fill ${tone}`}
+                                    style={{
+                                      width: `${reader.comprehension_percent}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            <td>
+                              {reader.is_current_version_ack ? (
+                                <span className="knowledge-read-pill acknowledged">
+                                  <CheckCheck size={13} />
+                                  Đã xác nhận ({formatRelativeDate(reader.acknowledged_at)})
+                                </span>
+                              ) : reader.acknowledged ? (
+                                <span className="knowledge-read-pill pending">
+                                  Xác nhận bản cũ (v{reader.acknowledged_version})
+                                </span>
+                              ) : reader.viewed ? (
+                                <span className="knowledge-read-pill viewed">
+                                  Đã xem · Chưa xác nhận
+                                </span>
+                              ) : (
+                                <span className="knowledge-read-pill unread">
+                                  <Clock size={13} />
+                                  Chưa mở xem
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+      ) : (
+        /* MAIN LIST VIEW */
+        <>
+          {/* KPI Summary Strip */}
+          <section
+            className={`knowledge-kpi-grid ${isLeader ? "cols-3" : "cols-2"}`}
+            aria-label="Thống kê thông báo và quy trình"
+          >
+            <div className="knowledge-kpi-card">
+              <div className="knowledge-kpi-icon brand">
+                <BookOpen size={20} />
+              </div>
+              <div className="knowledge-kpi-body">
+                <span>Tổng nội dung đã ban hành</span>
+                <strong>{stats.total} bài đăng</strong>
+                <small>
+                  {stats.announcements} Thông báo · {stats.sops} Quy trình ·{" "}
+                  {stats.docs} Kiến thức
+                </small>
+              </div>
+            </div>
+
+            <div className="knowledge-kpi-card">
+              <div
+                className={`knowledge-kpi-icon ${
+                  stats.myNeedAck > 0 || stats.myUnread > 0 ? "warning" : "success"
+                }`}
+              >
+                <CheckCircle2 size={20} />
+              </div>
+              <div className="knowledge-kpi-body">
+                <span>Trạng thái nắm bắt của bạn</span>
+                <strong>
+                  {stats.myNeedAck > 0
+                    ? `${stats.myNeedAck} bài cần xác nhận`
+                    : "Đã nắm bắt đầy đủ"}
+                </strong>
+                <small>
+                  {stats.myUnread > 0
+                    ? `Bạn có ${stats.myUnread} bài mới chưa mở xem`
+                    : "Bạn đã mở xem tất cả thông báo & quy trình"}
+                </small>
+              </div>
+            </div>
+
+            {/* Only Leader Marketing sees the team-wide readership & comprehension KPI card */}
+            {isLeader && (
+              <div className="knowledge-kpi-card">
+                <div className="knowledge-kpi-icon info">
+                  <Users size={20} />
+                </div>
+                <div className="knowledge-kpi-body">
+                  <span>
+                    Đo lường toàn đội ngũ ({totalMembers} thành viên · Chỉ Leader thấy)
+                  </span>
+                  <strong>
+                    {stats.avgViewRate}% đã xem · Nắm bắt TB {stats.avgComprehension}%
+                  </strong>
+                  <small>
+                    Thời gian đọc TB: {formatDurationSeconds(stats.avgReadSec)} / bài ·{" "}
+                    {stats.avgAckRate}% đã bấm xác nhận
+                  </small>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Main Content Panel */}
+          <Panel
+            title="Kho thông báo, quy trình (SOP) & tài liệu nội bộ"
+            description={
+              isLeader
+                ? "Bấm vào bất kỳ bài viết nào để mở trang đọc toàn màn hình và xem bảng đo lường thời gian đọc, % nắm bắt của từng thành viên."
+                : "Bấm vào bài viết để mở trang đọc chi tiết và bấm “Xác nhận đã nắm bắt” sau khi nắm rõ nội dung."
+            }
+          >
+            {/* Filter Bar */}
+            <div className="knowledge-toolbar">
+              <div
+                className="knowledge-category-tabs"
+                role="tablist"
+                aria-label="Phân loại nội dung"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={categoryFilter === "all"}
+                  className={`knowledge-tab-btn ${
+                    categoryFilter === "all" ? "active" : ""
+                  }`}
+                  onClick={() => setCategoryFilter("all")}
+                >
+                  Tất cả <span>{stats.total}</span>
+                </button>
+                {KNOWLEDGE_CATEGORIES.map((cat) => {
+                  const count =
+                    cat.id === "announcement"
+                      ? stats.announcements
+                      : cat.id === "sop"
+                        ? stats.sops
+                        : stats.docs;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryFilter === cat.id}
+                      className={`knowledge-tab-btn ${
+                        categoryFilter === cat.id ? "active" : ""
+                      }`}
+                      onClick={() => setCategoryFilter(cat.id)}
+                    >
+                      <CategoryIcon category={cat.id} size={15} />
+                      {cat.label}
+                      <span>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="knowledge-search-controls">
+                <div className="knowledge-search-box">
+                  <Search size={16} />
+                  <input
+                    type="search"
+                    aria-label="Tìm kiếm thông báo, quy trình, kiến thức"
+                    placeholder="Tìm theo tiêu đề, nội dung, người đăng…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Xóa từ khóa"
+                      onClick={() => setSearch("")}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  aria-label="Lọc theo trạng thái đọc"
+                  className="knowledge-status-select"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(
+                      e.target.value as
+                        | "all"
+                        | "unread"
+                        | "unacknowledged"
+                        | "pinned",
+                    )
+                  }
+                >
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="unread">Chưa mở xem ({stats.myUnread})</option>
+                  <option value="unacknowledged">
+                    Cần xác nhận nắm bắt ({stats.myNeedAck})
+                  </option>
+                  <option value="pinned">Đã ghim quan trọng</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Posts List */}
+            {loading ? (
+              <LoadingState label="Đang tải thông báo, quy trình & tài liệu…" />
+            ) : !filteredPosts.length ? (
+              <EmptyState
+                icon={BookOpen}
+                title={
+                  posts.length === 0
+                    ? "Chưa có thông báo hoặc quy trình nào được đăng"
+                    : "Không tìm thấy bài viết phù hợp bộ lọc"
+                }
+                description={
+                  posts.length === 0
+                    ? isLeader
+                      ? "Hãy bấm “Đăng thông báo / quy trình” để chia sẻ thông báo đầu tiên, quy trình SOP hoặc tài liệu kiến thức cho toàn đội ngũ."
+                      : "Khi Leader Marketing đăng thông báo, quy trình hoặc tài liệu mới, bạn sẽ nhận được chuông thông báo và xem tại đây."
+                    : "Thử chuyển sang tab danh mục “Tất cả” hoặc xóa từ khóa tìm kiếm."
+                }
+                action={
+                  isLeader && posts.length === 0 ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => openCreateModal("announcement")}
+                    >
+                      <Plus size={16} />
+                      Đăng bài đầu tiên
+                    </button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <div className="knowledge-cards-grid">
+                {filteredPosts.map((post) => {
+                  const catMeta = getKnowledgeCategoryMeta(post.category);
+                  const isCurrentAck =
+                    post.my_acknowledged &&
+                    (post.my_acknowledged_version ?? 1) >= post.version;
+                  const isOutdatedAck =
+                    post.my_acknowledged &&
+                    (post.my_acknowledged_version ?? 1) < post.version;
+
+                  // Leader-only metrics
+                  const totalMem = post.total_members ?? 0;
+                  const viewedCnt = post.viewed_count ?? 0;
+                  const viewPercent =
+                    isLeader && totalMem > 0
+                      ? Math.round((viewedCnt / totalMem) * 100)
+                      : 0;
+                  const unviewedCount = isLeader
+                    ? Math.max(0, totalMem - viewedCnt)
+                    : 0;
+                  const viewedReaders = isLeader
+                    ? (post.readers ?? []).filter((r) => r.viewed)
+                    : [];
+
+                  return (
+                    <article
+                      key={post.id}
+                      className={`knowledge-card ${post.pinned ? "is-pinned" : ""} ${
+                        !post.my_viewed ? "is-unread" : ""
                       }`}
                     >
-                      <div className="knowledge-reader-identity">
-                        <Avatar
-                          name={reader.member_name}
-                          size="small"
-                          tone={reader.viewed ? "brand" : "neutral"}
-                        />
-                        <div>
-                          <strong>{reader.member_name}</strong>
-                          <small>{reader.member_title}</small>
+                      <div className="knowledge-card-top">
+                        <div className="knowledge-card-badges">
+                          {post.pinned && (
+                            <span className="knowledge-badge pinned">
+                              <Pin size={12} />
+                              Đã ghim
+                            </span>
+                          )}
+                          <span
+                            className={`knowledge-badge category-${post.category}`}
+                          >
+                            <CategoryIcon category={post.category} size={13} />
+                            {catMeta.label}
+                          </span>
+                          <span className="knowledge-badge read-time">
+                            <Timer size={12} />~
+                            {formatDurationSeconds(post.expected_read_seconds)}
+                          </span>
+                          {post.version > 1 && (
+                            <span className="knowledge-badge version">
+                              v{post.version}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="knowledge-card-my-status">
+                          {!post.my_viewed ? (
+                            <span className="knowledge-read-pill unread">
+                              ● Mới · Chưa xem
+                            </span>
+                          ) : isCurrentAck ? (
+                            <span className="knowledge-read-pill acknowledged">
+                              <CheckCheck size={13} />
+                              Đã nắm bắt
+                            </span>
+                          ) : isOutdatedAck ? (
+                            <span className="knowledge-read-pill pending">
+                              Cập nhật v{post.version} · Cần xác nhận lại
+                            </span>
+                          ) : post.require_ack ? (
+                            <span className="knowledge-read-pill pending">
+                              Đã xem · Chờ xác nhận
+                            </span>
+                          ) : (
+                            <span className="knowledge-read-pill viewed">
+                              <Eye size={13} />
+                              Đã xem
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      <div className="knowledge-reader-stats">
-                        {reader.viewed ? (
-                          <>
-                            <span className="knowledge-reader-view-info">
-                              <Eye size={13} />
-                              Đã xem <strong>{reader.view_count} lần</strong> · Gần nhất:{" "}
-                              {formatDateTime(reader.last_viewed_at)}
-                            </span>
-                            {reader.is_current_version_ack ? (
-                              <span className="knowledge-read-pill acknowledged">
-                                <CheckCheck size={13} />
-                                Đã nắm bắt ({formatRelativeDate(reader.acknowledged_at)})
-                              </span>
-                            ) : reader.acknowledged ? (
-                              <span className="knowledge-read-pill pending">
-                                Đã xác nhận bản cũ (v{reader.acknowledged_version})
-                              </span>
-                            ) : (
-                              <span className="knowledge-read-pill viewed">
-                                Đã mở xem · Chưa bấm xác nhận
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="knowledge-read-pill unread">
-                            <Clock size={13} />
-                            Chưa mở xem
-                          </span>
-                        )}
+                      <div
+                        className="knowledge-card-main"
+                        onClick={() => openPostDetail(post)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openPostDetail(post);
+                          }
+                        }}
+                      >
+                        <h3 className="knowledge-card-title">{post.title}</h3>
+                        <p className="knowledge-card-summary">
+                          {post.summary || stripMarkdownPreview(post.content)}
+                        </p>
                       </div>
-                    </div>
-                  ))}
+
+                      {post.links.length > 0 && (
+                        <div className="knowledge-card-links">
+                          {post.links.slice(0, 3).map((link, idx) => (
+                            <a
+                              key={idx}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="knowledge-link-chip"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Link2 size={13} />
+                              <span>{link.label}</span>
+                              <ExternalLink size={11} />
+                            </a>
+                          ))}
+                          {post.links.length > 3 && (
+                            <span className="knowledge-link-more">
+                              +{post.links.length - 3} tài liệu
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="knowledge-card-metrics">
+                        {/* Team readership metrics on card ONLY visible to Leader Marketing */}
+                        {isLeader && (
+                          <>
+                            <div className="knowledge-metric-header">
+                              <span className="knowledge-metric-label">
+                                <Eye size={14} />
+                                <strong>
+                                  {viewedCnt}/{totalMem}
+                                </strong>{" "}
+                                đã xem ({viewPercent}%)
+                                {unviewedCount > 0 && (
+                                  <em className="knowledge-unviewed-tag">
+                                    · Chưa xem: {unviewedCount}
+                                  </em>
+                                )}
+                              </span>
+                              <span className="knowledge-metric-ack">
+                                <Activity size={14} />
+                                TB đọc{" "}
+                                <strong>
+                                  {formatDurationSeconds(post.avg_read_seconds ?? 0)}
+                                </strong>{" "}
+                                · Nắm bắt TB{" "}
+                                <strong>{post.avg_comprehension_percent ?? 0}%</strong>
+                              </span>
+                            </div>
+
+                            <div
+                              className="knowledge-progress-track"
+                              aria-label={`Đã xem ${viewPercent}%`}
+                            >
+                              <div
+                                className="knowledge-progress-fill viewed"
+                                style={{ width: `${viewPercent}%` }}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        <div className="knowledge-card-footer">
+                          <div className="knowledge-author-meta">
+                            <Avatar
+                              name={post.author_name}
+                              size="small"
+                              tone="brand"
+                            />
+                            <span>
+                              Đăng bởi <strong>{post.author_name}</strong> ·{" "}
+                              <time dateTime={post.updated_at}>
+                                {formatRelativeDate(post.updated_at)}
+                              </time>
+                            </span>
+                          </div>
+
+                          <div className="knowledge-card-actions">
+                            {isLeader && viewedReaders.length > 0 && (
+                              <div
+                                className="knowledge-reader-avatars"
+                                title={`Đã xem: ${viewedReaders
+                                  .map(
+                                    (r) =>
+                                      `${r.member_name} (${r.comprehension_percent}%)`,
+                                  )
+                                  .join(", ")}`}
+                              >
+                                {viewedReaders.slice(0, 4).map((r) => (
+                                  <Avatar
+                                    key={r.member_id}
+                                    name={r.member_name}
+                                    size="small"
+                                  />
+                                ))}
+                                {viewedReaders.length > 4 && (
+                                  <span className="knowledge-avatar-more">
+                                    +{viewedReaders.length - 4}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {isLeader && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="secondary-button compact"
+                                  onClick={() => void handleTogglePin(post)}
+                                  title={post.pinned ? "Bỏ ghim" : "Ghim lên đầu"}
+                                >
+                                  <Pin size={14} />
+                                  {post.pinned ? "Bỏ ghim" : "Ghim"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button compact"
+                                  onClick={() => openEditModal(post)}
+                                >
+                                  <Edit3 size={14} />
+                                  Sửa
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              className="primary-button compact"
+                              onClick={() => openPostDetail(post)}
+                            >
+                              <FileText size={14} />
+                              Mở đọc tài liệu
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-            </section>
-          </div>
-        </Drawer>
+            )}
+          </Panel>
+        </>
       )}
 
       {/* Create / Edit Post Drawer (Leader Marketing Only) */}
@@ -1551,7 +1937,7 @@ export function KnowledgePage() {
               ? "Chỉnh sửa thông báo / quy trình / kiến thức"
               : "Đăng thông báo, quy trình (SOP) hoặc kiến thức mới"
           }
-          description="Nội dung sau khi đăng sẽ hiển thị cho toàn bộ thành viên và tự động đo lường lượt xem, xác nhận."
+          description="Nội dung sau khi đăng sẽ hiển thị toàn màn hình khi mở đọc và tự động đo lường thời gian xem, % nắm bắt cho Leader."
           onClose={() => setEditorOpen(false)}
         >
           <form className="knowledge-editor-form" onSubmit={handleSavePost}>
@@ -1636,13 +2022,13 @@ export function KnowledgePage() {
                 4. Nội dung chi tiết / Các bước quy trình *
               </label>
               <small className="knowledge-field-hint">
-                Hỗ trợ tiêu đề <code>## Mục lớn</code>, danh sách gạch đầu dòng{" "}
-                <code>- Ý chính</code>, đánh số <code>1. Bước 1</code> và checklist{" "}
+                Hỗ trợ tiêu đề <code>## Mục lớn</code>, in đậm <code>**Chữ đậm**</code>, bảng{" "}
+                <code>| Cột 1 | Cột 2 |</code>, danh sách <code>- Ý chính</code> và checklist{" "}
                 <code>- [ ] Việc cần làm</code>.
               </small>
               <textarea
                 id="knowledge-content-input"
-                rows={12}
+                rows={14}
                 required
                 maxLength={30000}
                 placeholder="Nhập chi tiết thông báo, quy trình SOP hoặc kiến thức..."

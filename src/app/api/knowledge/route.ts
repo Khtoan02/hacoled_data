@@ -8,6 +8,8 @@ import {
   RequestError,
 } from "../../../lib/auth/server";
 import {
+  computeComprehensionPercent,
+  estimateExpectedReadSeconds,
   getKnowledgeCategoryMeta,
   isKnowledgeCategory,
   normalizeKnowledgeLinks,
@@ -21,6 +23,15 @@ import { isUuid } from "../../../lib/social";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
 
+let schemaEnsured = false;
+async function ensureAnalyticsSchema() {
+  if (schemaEnsured) return;
+  const sql = database();
+  await sql`ALTER TABLE app_knowledge_reads ADD COLUMN IF NOT EXISTS total_read_seconds integer NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE app_knowledge_reads ADD COLUMN IF NOT EXISTS max_scroll_percent integer NOT NULL DEFAULT 0`;
+  schemaEnsured = true;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const member = await getMember();
@@ -31,24 +42,29 @@ export async function GET(req: NextRequest) {
       throw new RequestError("Mã bài viết không hợp lệ.");
     }
 
+    await ensureAnalyticsSchema();
+    const isLeader = member.role === "lead_marketing";
     const sql = database();
+
     const [activeMembers, rawPosts, rawReads] = await Promise.all([
-      sql`
-        SELECT id::text, name, role
-        FROM app_members
-        WHERE active = true
-        ORDER BY
-          CASE role
-            WHEN 'lead_marketing' THEN 1
-            WHEN 'executive' THEN 2
-            WHEN 'marketing_manager' THEN 3
-            WHEN 'marketing_staff' THEN 4
-            WHEN 'marketing_intern' THEN 5
-            ELSE 6
-          END,
-          name,
-          id
-      `,
+      isLeader
+        ? sql`
+            SELECT id::text, name, role
+            FROM app_members
+            WHERE active = true
+            ORDER BY
+              CASE role
+                WHEN 'lead_marketing' THEN 1
+                WHEN 'executive' THEN 2
+                WHEN 'marketing_manager' THEN 3
+                WHEN 'marketing_staff' THEN 4
+                WHEN 'marketing_intern' THEN 5
+                ELSE 6
+              END,
+              name,
+              id
+          `
+        : Promise.resolve([]),
       sql`
         SELECT
           p.id::text,
@@ -70,20 +86,38 @@ export async function GET(req: NextRequest) {
         WHERE (${id}::uuid IS NULL OR p.id = ${id}::uuid)
         ORDER BY p.pinned DESC, p.updated_at DESC, p.id DESC
       `,
-      sql`
-        SELECT
-          r.post_id::text,
-          r.member_id::text,
-          r.first_viewed_at,
-          r.last_viewed_at,
-          r.view_count,
-          r.acknowledged_at,
-          r.acknowledged_version
-        FROM app_knowledge_reads r
-        JOIN app_members m ON m.id = r.member_id
-        WHERE m.active = true
-          AND (${id}::uuid IS NULL OR r.post_id = ${id}::uuid)
-      `,
+      isLeader
+        ? sql`
+            SELECT
+              r.post_id::text,
+              r.member_id::text,
+              r.first_viewed_at,
+              r.last_viewed_at,
+              r.view_count,
+              r.total_read_seconds,
+              r.max_scroll_percent,
+              r.acknowledged_at,
+              r.acknowledged_version
+            FROM app_knowledge_reads r
+            JOIN app_members m ON m.id = r.member_id
+            WHERE m.active = true
+              AND (${id}::uuid IS NULL OR r.post_id = ${id}::uuid)
+          `
+        : sql`
+            SELECT
+              r.post_id::text,
+              r.member_id::text,
+              r.first_viewed_at,
+              r.last_viewed_at,
+              r.view_count,
+              r.total_read_seconds,
+              r.max_scroll_percent,
+              r.acknowledged_at,
+              r.acknowledged_version
+            FROM app_knowledge_reads r
+            WHERE r.member_id = ${member.id}::uuid
+              AND (${id}::uuid IS NULL OR r.post_id = ${id}::uuid)
+          `,
     ]);
 
     if (id && !rawPosts.length) {
@@ -98,6 +132,8 @@ export async function GET(req: NextRequest) {
           first_viewed_at: string;
           last_viewed_at: string;
           view_count: number;
+          total_read_seconds: number;
+          max_scroll_percent: number;
           acknowledged_at: string | null;
           acknowledged_version: number | null;
         }
@@ -114,6 +150,8 @@ export async function GET(req: NextRequest) {
         first_viewed_at: String(row.first_viewed_at),
         last_viewed_at: String(row.last_viewed_at),
         view_count: Number(row.view_count ?? 1),
+        total_read_seconds: Number(row.total_read_seconds ?? 0),
+        max_scroll_percent: Number(row.max_scroll_percent ?? 0),
         acknowledged_at: row.acknowledged_at ? String(row.acknowledged_at) : null,
         acknowledged_version:
           row.acknowledged_version != null ? Number(row.acknowledged_version) : null,
@@ -127,35 +165,6 @@ export async function GET(req: NextRequest) {
       const version = Number(row.version ?? 1);
       const postReads = readsByPost.get(postId) ?? new Map();
 
-      const readers: KnowledgeReader[] = activeMembers.map((m) => {
-        const mId = String(m.id);
-        const mRole = String(m.role) as MemberRoleId;
-        const r = postReads.get(mId);
-        const viewed = Boolean(r);
-        const acknowledged = Boolean(r?.acknowledged_at);
-        const ackVersion = r?.acknowledged_version ?? null;
-        return {
-          member_id: mId,
-          member_name: String(m.name),
-          member_role: mRole,
-          member_title: ROLE_POLICIES[mRole]?.label ?? mRole,
-          viewed,
-          first_viewed_at: r?.first_viewed_at ?? null,
-          last_viewed_at: r?.last_viewed_at ?? null,
-          view_count: r?.view_count ?? 0,
-          acknowledged,
-          acknowledged_at: r?.acknowledged_at ?? null,
-          acknowledged_version: ackVersion,
-          is_current_version_ack: Boolean(
-            acknowledged && (ackVersion == null || ackVersion >= version),
-          ),
-        };
-      });
-
-      const viewedCount = readers.filter((r) => r.viewed).length;
-      const acknowledgedCount = readers.filter((r) => r.acknowledged).length;
-      const myRead = postReads.get(member.id);
-
       let parsedLinks = normalizeKnowledgeLinks(row.links);
       if (typeof row.links === "string") {
         try {
@@ -165,12 +174,114 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      const contentStr = String(row.content ?? "");
+      const summaryStr = String(row.summary ?? "");
+      const expectedReadSeconds = estimateExpectedReadSeconds(
+        contentStr,
+        summaryStr,
+        parsedLinks.length,
+      );
+
+      const myRead = postReads.get(member.id);
+      const myViewed = Boolean(myRead);
+      const myAck = Boolean(myRead?.acknowledged_at);
+      const myAckVer = myRead?.acknowledged_version ?? null;
+      const myIsCurrentAck = Boolean(myAck && (myAckVer == null || myAckVer >= version));
+      const myComp = computeComprehensionPercent({
+        viewed: myViewed,
+        viewCount: myRead?.view_count ?? 0,
+        totalReadSeconds: myRead?.total_read_seconds ?? 0,
+        maxScrollPercent: myRead?.max_scroll_percent ?? 0,
+        acknowledged: myAck,
+        isCurrentVersionAck: myIsCurrentAck,
+        expectedReadSeconds,
+      });
+
+      let leaderFields: Partial<KnowledgePost> = {};
+      if (isLeader) {
+        const readers: KnowledgeReader[] = activeMembers.map((m) => {
+          const mId = String(m.id);
+          const mRole = String(m.role) as MemberRoleId;
+          const r = postReads.get(mId);
+          const viewed = Boolean(r);
+          const acknowledged = Boolean(r?.acknowledged_at);
+          const ackVersion = r?.acknowledged_version ?? null;
+          const isCurrentVersionAck = Boolean(
+            acknowledged && (ackVersion == null || ackVersion >= version),
+          );
+          const viewCount = r?.view_count ?? 0;
+          const totalReadSeconds = r?.total_read_seconds ?? 0;
+          const maxScrollPercent = r?.max_scroll_percent ?? 0;
+          const comprehensionPercent = computeComprehensionPercent({
+            viewed,
+            viewCount,
+            totalReadSeconds,
+            maxScrollPercent,
+            acknowledged,
+            isCurrentVersionAck,
+            expectedReadSeconds,
+          });
+          return {
+            member_id: mId,
+            member_name: String(m.name),
+            member_role: mRole,
+            member_title: ROLE_POLICIES[mRole]?.label ?? mRole,
+            viewed,
+            first_viewed_at: r?.first_viewed_at ?? null,
+            last_viewed_at: r?.last_viewed_at ?? null,
+            view_count: viewCount,
+            total_read_seconds: totalReadSeconds,
+            max_scroll_percent: maxScrollPercent,
+            comprehension_percent: comprehensionPercent,
+            acknowledged,
+            acknowledged_at: r?.acknowledged_at ?? null,
+            acknowledged_version: ackVersion,
+            is_current_version_ack: isCurrentVersionAck,
+          };
+        });
+
+        const viewedReaders = readers.filter((r) => r.viewed);
+        const viewedCount = viewedReaders.length;
+        const acknowledgedCount = readers.filter((r) => r.acknowledged).length;
+        const avgReadSeconds =
+          viewedCount > 0
+            ? Math.round(
+                viewedReaders.reduce((acc, r) => acc + r.total_read_seconds, 0) /
+                  viewedCount,
+              )
+            : 0;
+        const avgScrollPercent =
+          viewedCount > 0
+            ? Math.round(
+                viewedReaders.reduce((acc, r) => acc + r.max_scroll_percent, 0) /
+                  viewedCount,
+              )
+            : 0;
+        const avgComprehensionPercent =
+          viewedCount > 0
+            ? Math.round(
+                viewedReaders.reduce((acc, r) => acc + r.comprehension_percent, 0) /
+                  viewedCount,
+              )
+            : 0;
+
+        leaderFields = {
+          total_members: totalMembers,
+          viewed_count: viewedCount,
+          acknowledged_count: acknowledgedCount,
+          avg_read_seconds: avgReadSeconds,
+          avg_scroll_percent: avgScrollPercent,
+          avg_comprehension_percent: avgComprehensionPercent,
+          readers,
+        };
+      }
+
       return {
         id: postId,
         title: String(row.title),
         category: isKnowledgeCategory(row.category) ? row.category : "announcement",
-        summary: String(row.summary ?? ""),
-        content: String(row.content ?? ""),
+        summary: summaryStr,
+        content: contentStr,
         links: parsedLinks,
         pinned: Boolean(row.pinned),
         require_ack: Boolean(row.require_ack),
@@ -180,25 +291,26 @@ export async function GET(req: NextRequest) {
         version,
         created_at: String(row.created_at),
         updated_at: String(row.updated_at),
-        total_members: totalMembers,
-        viewed_count: viewedCount,
-        acknowledged_count: acknowledgedCount,
-        my_viewed: Boolean(myRead),
+        expected_read_seconds: expectedReadSeconds,
+        ...leaderFields,
+        my_viewed: myViewed,
         my_first_viewed_at: myRead?.first_viewed_at ?? null,
         my_last_viewed_at: myRead?.last_viewed_at ?? null,
         my_view_count: myRead?.view_count ?? 0,
-        my_acknowledged: Boolean(myRead?.acknowledged_at),
+        my_total_read_seconds: myRead?.total_read_seconds ?? 0,
+        my_max_scroll_percent: myRead?.max_scroll_percent ?? 0,
+        my_comprehension_percent: myComp,
+        my_acknowledged: myAck,
         my_acknowledged_at: myRead?.acknowledged_at ?? null,
-        my_acknowledged_version: myRead?.acknowledged_version ?? null,
-        readers,
+        my_acknowledged_version: myAckVer,
       };
     });
 
     return NextResponse.json(
       {
         posts,
-        can_manage: member.role === "lead_marketing",
-        total_members: totalMembers,
+        can_manage: isLeader,
+        ...(isLeader ? { total_members: totalMembers } : {}),
       },
       { headers },
     );
@@ -252,6 +364,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await ensureAnalyticsSchema();
     const b = await req.json();
     if (!b || typeof b !== "object" || Array.isArray(b)) {
       throw new RequestError("Dữ liệu gửi lên không hợp lệ.");
@@ -261,6 +374,11 @@ export async function POST(req: NextRequest) {
     const id = randomUUID();
     const sql = database();
     const categoryMeta = getKnowledgeCategoryMeta(payload.category);
+    const expectedSeconds = estimateExpectedReadSeconds(
+      payload.content,
+      payload.summary,
+      payload.links.length,
+    );
     const notifTitle =
       payload.category === "announcement"
         ? "Thông báo nội bộ mới"
@@ -288,13 +406,16 @@ export async function POST(req: NextRequest) {
 
     await sql`
       INSERT INTO app_knowledge_reads (
-        post_id, member_id, first_viewed_at, last_viewed_at, view_count, acknowledged_at, acknowledged_version
+        post_id, member_id, first_viewed_at, last_viewed_at, view_count,
+        total_read_seconds, max_scroll_percent, acknowledged_at, acknowledged_version
       ) VALUES (
         ${id}::uuid,
         ${actor.id}::uuid,
         clock_timestamp(),
         clock_timestamp(),
         1,
+        ${expectedSeconds},
+        100,
         clock_timestamp(),
         1
       )
@@ -330,6 +451,7 @@ export async function PATCH(req: NextRequest) {
     const actor = await getMember();
     if (!actor) throw new RequestError("Vui lòng đăng nhập.", 401);
 
+    await ensureAnalyticsSchema();
     const b = await req.json();
     if (!b || typeof b !== "object" || Array.isArray(b)) {
       throw new RequestError("Dữ liệu gửi lên không hợp lệ.");
@@ -343,7 +465,7 @@ export async function PATCH(req: NextRequest) {
 
     const sql = database();
 
-    if (action === "view" || action === "acknowledge") {
+    if (action === "view" || action === "progress" || action === "acknowledge") {
       const existing = await sql`
         SELECT id::text, version FROM app_knowledge_posts WHERE id = ${postId}::uuid
       `;
@@ -352,38 +474,79 @@ export async function PATCH(req: NextRequest) {
       }
       const currentVersion = Number(existing[0].version ?? 1);
 
+      const rawDelta = Number((b as { read_seconds_delta?: unknown }).read_seconds_delta ?? 0);
+      const readDelta = Number.isFinite(rawDelta)
+        ? Math.max(0, Math.min(120, Math.round(rawDelta)))
+        : 0;
+      const rawScroll = Number((b as { scroll_percent?: unknown }).scroll_percent ?? 0);
+      const scrollPercent = Number.isFinite(rawScroll)
+        ? Math.max(0, Math.min(100, Math.round(rawScroll)))
+        : 0;
+
       if (action === "view") {
+        const initialScroll = Math.max(25, scrollPercent);
         await sql`
           INSERT INTO app_knowledge_reads (
-            post_id, member_id, first_viewed_at, last_viewed_at, view_count
-          ) VALUES (
-            ${postId}::uuid,
-            ${actor.id}::uuid,
-            clock_timestamp(),
-            clock_timestamp(),
-            1
-          )
-          ON CONFLICT (post_id, member_id) DO UPDATE
-          SET
-            last_viewed_at = clock_timestamp(),
-            view_count = app_knowledge_reads.view_count + 1
-        `;
-      } else {
-        await sql`
-          INSERT INTO app_knowledge_reads (
-            post_id, member_id, first_viewed_at, last_viewed_at, view_count, acknowledged_at, acknowledged_version
+            post_id, member_id, first_viewed_at, last_viewed_at, view_count,
+            total_read_seconds, max_scroll_percent
           ) VALUES (
             ${postId}::uuid,
             ${actor.id}::uuid,
             clock_timestamp(),
             clock_timestamp(),
             1,
+            ${readDelta},
+            ${initialScroll}
+          )
+          ON CONFLICT (post_id, member_id) DO UPDATE
+          SET
+            last_viewed_at = clock_timestamp(),
+            view_count = app_knowledge_reads.view_count + 1,
+            total_read_seconds = LEAST(7200, app_knowledge_reads.total_read_seconds + ${readDelta}),
+            max_scroll_percent = GREATEST(app_knowledge_reads.max_scroll_percent, ${initialScroll})
+        `;
+      } else if (action === "progress") {
+        await sql`
+          INSERT INTO app_knowledge_reads (
+            post_id, member_id, first_viewed_at, last_viewed_at, view_count,
+            total_read_seconds, max_scroll_percent
+          ) VALUES (
+            ${postId}::uuid,
+            ${actor.id}::uuid,
+            clock_timestamp(),
+            clock_timestamp(),
+            1,
+            ${readDelta},
+            ${scrollPercent}
+          )
+          ON CONFLICT (post_id, member_id) DO UPDATE
+          SET
+            last_viewed_at = clock_timestamp(),
+            total_read_seconds = LEAST(7200, app_knowledge_reads.total_read_seconds + ${readDelta}),
+            max_scroll_percent = GREATEST(app_knowledge_reads.max_scroll_percent, ${scrollPercent})
+        `;
+      } else {
+        const ackScroll = Math.max(85, scrollPercent);
+        await sql`
+          INSERT INTO app_knowledge_reads (
+            post_id, member_id, first_viewed_at, last_viewed_at, view_count,
+            total_read_seconds, max_scroll_percent, acknowledged_at, acknowledged_version
+          ) VALUES (
+            ${postId}::uuid,
+            ${actor.id}::uuid,
+            clock_timestamp(),
+            clock_timestamp(),
+            1,
+            ${Math.max(5, readDelta)},
+            ${ackScroll},
             clock_timestamp(),
             ${currentVersion}
           )
           ON CONFLICT (post_id, member_id) DO UPDATE
           SET
             last_viewed_at = clock_timestamp(),
+            total_read_seconds = LEAST(7200, app_knowledge_reads.total_read_seconds + ${readDelta}),
+            max_scroll_percent = GREATEST(app_knowledge_reads.max_scroll_percent, ${ackScroll}),
             acknowledged_at = clock_timestamp(),
             acknowledged_version = ${currentVersion}
         `;
@@ -432,19 +595,23 @@ export async function PATCH(req: NextRequest) {
 
     await sql`
       INSERT INTO app_knowledge_reads (
-        post_id, member_id, first_viewed_at, last_viewed_at, view_count, acknowledged_at, acknowledged_version
+        post_id, member_id, first_viewed_at, last_viewed_at, view_count,
+        total_read_seconds, max_scroll_percent, acknowledged_at, acknowledged_version
       ) VALUES (
         ${postId}::uuid,
         ${actor.id}::uuid,
         clock_timestamp(),
         clock_timestamp(),
         1,
+        30,
+        100,
         clock_timestamp(),
         ${newVersion}
       )
       ON CONFLICT (post_id, member_id) DO UPDATE
       SET
         last_viewed_at = clock_timestamp(),
+        max_scroll_percent = 100,
         acknowledged_at = clock_timestamp(),
         acknowledged_version = ${newVersion}
     `;
