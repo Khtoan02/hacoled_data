@@ -162,79 +162,356 @@ function CategoryIcon({
   return <BookOpen size={size} />;
 }
 
-function FormattedContent({ content }: { content: string }) {
-  const lines = content.split(/\r?\n/);
+function stripMarkdownPreview(raw: string): string {
+  return raw
+    .split(/\r?\n/)
+    .filter((l) => !/^\s*\|[\s:|-]+\|\s*$/.test(l))
+    .join(" ")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+    .replace(/[*_~`#>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 190);
+}
+
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const tokenRegex =
+    /(`[^`\n]+`|\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)|\*\*([^*\n]+)\*\*|__([^_\n]+)__|~~([^~\n]+)~~|\*(?!\s)([^*\n]+?)(?<!\s)\*|(?<![\w/])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w/])|https?:\/\/[^\s<)]+)/g;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = tokenRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    const full = match[0];
+
+    if (full.startsWith("`") && full.endsWith("`")) {
+      nodes.push(
+        <code key={`code-${key++}`} className="knowledge-inline-code">
+          {full.slice(1, -1)}
+        </code>,
+      );
+    } else if (match[2] !== undefined && match[3] !== undefined) {
+      nodes.push(
+        <a
+          key={`link-${key++}`}
+          href={match[3]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="knowledge-inline-link"
+        >
+          {renderInlineMarkdown(match[2])}
+        </a>,
+      );
+    } else if (match[4] !== undefined || match[5] !== undefined) {
+      const inner = match[4] ?? match[5] ?? "";
+      nodes.push(
+        <strong key={`bold-${key++}`} className="knowledge-inline-bold">
+          {renderInlineMarkdown(inner)}
+        </strong>,
+      );
+    } else if (match[6] !== undefined) {
+      nodes.push(<del key={`del-${key++}`}>{renderInlineMarkdown(match[6])}</del>);
+    } else if (match[7] !== undefined || match[8] !== undefined) {
+      const inner = match[7] ?? match[8] ?? "";
+      nodes.push(<em key={`em-${key++}`}>{renderInlineMarkdown(inner)}</em>);
+    } else if (/^https?:\/\//i.test(full)) {
+      nodes.push(
+        <a
+          key={`url-${key++}`}
+          href={full}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="knowledge-inline-link"
+        >
+          {full}
+        </a>,
+      );
+    } else {
+      nodes.push(full);
+    }
+
+    lastIndex = tokenRegex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes.length ? nodes : [text];
+}
+
+function isTableRowLine(line: string): boolean {
+  const t = line.trim();
+  if (!t.startsWith("|")) return false;
+  const pipeCount = (t.match(/\|/g) ?? []).length;
+  return pipeCount >= 2;
+}
+
+function isTableSeparatorRow(cells: string[]): boolean {
   return (
-    <div className="knowledge-formatted-content">
-      {lines.map((rawLine, idx) => {
-        const line = rawLine.trimEnd();
-        if (!line.trim()) {
-          return <div key={idx} className="knowledge-content-spacer" />;
-        }
-        if (line.startsWith("### ")) {
-          return (
-            <h4 key={idx} className="knowledge-content-h4">
-              {line.slice(4)}
-            </h4>
-          );
-        }
-        if (line.startsWith("## ")) {
-          return (
-            <h3 key={idx} className="knowledge-content-h3">
-              {line.slice(3)}
-            </h3>
-          );
-        }
-        if (line.startsWith("# ")) {
-          return (
-            <h2 key={idx} className="knowledge-content-h2">
-              {line.slice(2)}
-            </h2>
-          );
-        }
-        if (/^-\s*\[[ xX]\]\s+/.test(line.trim())) {
-          const checked = /^-\s*\[[xX]\]/.test(line.trim());
-          const text = line.trim().replace(/^-\s*\[[ xX]\]\s+/, "");
-          return (
-            <div key={idx} className="knowledge-content-checklist">
-              <span
-                className={`knowledge-check-box ${checked ? "is-checked" : ""}`}
-                aria-hidden="true"
-              >
-                {checked ? "✓" : ""}
-              </span>
-              <span>{text}</span>
-            </div>
-          );
-        }
-        if (/^[-*•]\s+/.test(line.trim())) {
-          const text = line.trim().replace(/^[-*•]\s+/, "");
-          return (
-            <div key={idx} className="knowledge-content-bullet">
-              <span className="knowledge-bullet-dot" aria-hidden="true" />
-              <span>{text}</span>
-            </div>
-          );
-        }
-        if (/^\d+\.\s+/.test(line.trim())) {
-          const match = line.trim().match(/^(\d+\.)\s+(.*)$/);
-          return (
-            <div key={idx} className="knowledge-content-numbered">
-              <strong className="knowledge-number-prefix">
-                {match?.[1] ?? "•"}
-              </strong>
-              <span>{match?.[2] ?? line}</span>
-            </div>
-          );
-        }
-        return (
-          <p key={idx} className="knowledge-content-paragraph">
-            {line}
-          </p>
-        );
-      })}
-    </div>
+    cells.length > 0 &&
+    cells.every((c) => /^:?-{2,}:?$/.test(c.trim()))
   );
+}
+
+function parseTableCells(line: string): string[] {
+  let t = line.trim();
+  if (t.startsWith("|")) t = t.slice(1);
+  if (t.endsWith("|")) t = t.slice(0, -1);
+  return t.split("|").map((cell) => cell.trim());
+}
+
+function FormattedContent({ content }: { content: string }) {
+  const rawLines = content.split(/\r?\n/);
+
+  // Pre-merge broken table lines if a line starts with '|' but didn't close with '|' before the next line
+  const lines: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const curr = rawLines[i];
+    const trimmed = curr.trim();
+    if (
+      trimmed.startsWith("|") &&
+      !trimmed.endsWith("|") &&
+      i + 1 < rawLines.length &&
+      rawLines[i + 1].trim() !== "" &&
+      !rawLines[i + 1].trim().startsWith("|") &&
+      !rawLines[i + 1].trim().startsWith("#")
+    ) {
+      let merged = trimmed;
+      while (
+        i + 1 < rawLines.length &&
+        rawLines[i + 1].trim() !== "" &&
+        !rawLines[i + 1].trim().startsWith("|")
+      ) {
+        i++;
+        merged += " " + rawLines[i].trim();
+        if (merged.endsWith("|")) break;
+      }
+      lines.push(merged);
+    } else {
+      lines.push(curr);
+    }
+  }
+
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const rawLine = lines[i];
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      elements.push(<div key={`sp-${i}`} className="knowledge-content-spacer" />);
+      i++;
+      continue;
+    }
+
+    // 1. Fenced code block ```...```
+    if (trimmed.startsWith("```")) {
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // skip closing ```
+      elements.push(
+        <pre key={`pre-${i}`} className="knowledge-code-block">
+          <code>{codeLines.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    // 2. Markdown Table (supports blank lines between pipe rows!)
+    if (isTableRowLine(trimmed)) {
+      const tableLines: string[] = [trimmed];
+      let cursor = i + 1;
+      while (cursor < lines.length) {
+        const nextTrimmed = lines[cursor].trim();
+        if (!nextTrimmed) {
+          // Look ahead across blank lines to see if the table continues
+          let lookahead = cursor + 1;
+          while (lookahead < lines.length && !lines[lookahead].trim()) {
+            lookahead++;
+          }
+          if (lookahead < lines.length && isTableRowLine(lines[lookahead].trim())) {
+            cursor = lookahead;
+            continue;
+          }
+          break;
+        }
+        if (isTableRowLine(nextTrimmed)) {
+          tableLines.push(nextTrimmed);
+          cursor++;
+        } else {
+          break;
+        }
+      }
+
+      if (tableLines.length >= 2) {
+        const parsedRows = tableLines.map(parseTableCells);
+        const sepIndex = parsedRows.findIndex(isTableSeparatorRow);
+        const headerCells = parsedRows[0];
+        const bodyRows =
+          sepIndex === 1
+            ? parsedRows.slice(2)
+            : sepIndex > 1
+              ? parsedRows.filter((_, idx) => idx !== 0 && idx !== sepIndex)
+              : parsedRows.slice(1);
+        const colCount = Math.max(
+          headerCells.length,
+          ...bodyRows.map((r) => r.length),
+        );
+
+        elements.push(
+          <div key={`tbl-${i}`} className="knowledge-md-table-wrap">
+            <table className="knowledge-md-table">
+              <thead>
+                <tr>
+                  {Array.from({ length: colCount }, (_, colIdx) => (
+                    <th key={colIdx}>
+                      {renderInlineMarkdown(headerCells[colIdx] ?? "")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bodyRows.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {Array.from({ length: colCount }, (_, colIdx) => (
+                      <td key={colIdx}>
+                        {renderInlineMarkdown(row[colIdx] ?? "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+        i = cursor;
+        continue;
+      }
+    }
+
+    // 3. Horizontal Rule (---, ***, ___)
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      elements.push(<hr key={`hr-${i}`} className="knowledge-hr" />);
+      i++;
+      continue;
+    }
+
+    // 4. Headings (#, ##, ###, ####)
+    const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = headingMatch[2].replace(/\s+#+\s*$/, "");
+      if (level === 1) {
+        elements.push(
+          <h2 key={`h1-${i}`} className="knowledge-content-h2">
+            {renderInlineMarkdown(text)}
+          </h2>,
+        );
+      } else if (level === 2) {
+        elements.push(
+          <h3 key={`h2-${i}`} className="knowledge-content-h3">
+            {renderInlineMarkdown(text)}
+          </h3>,
+        );
+      } else {
+        elements.push(
+          <h4 key={`h3-${i}`} className="knowledge-content-h4">
+            {renderInlineMarkdown(text)}
+          </h4>,
+        );
+      }
+      i++;
+      continue;
+    }
+
+    // 5. Blockquote (> ...)
+    if (trimmed.startsWith(">")) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith(">")) {
+        quoteLines.push(lines[i].trim().replace(/^>\s?/, ""));
+        i++;
+      }
+      elements.push(
+        <blockquote key={`bq-${i}`} className="knowledge-blockquote">
+          {quoteLines.map((ql, qIdx) => (
+            <p key={qIdx}>{renderInlineMarkdown(ql)}</p>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    // 6. Checklist (- [ ] or - [x])
+    if (/^[-*•]\s*\[[ xX]\]\s+/.test(trimmed)) {
+      const checked = /^[-*•]\s*\[[xX]\]/.test(trimmed);
+      const text = trimmed.replace(/^[-*•]\s*\[[ xX]\]\s+/, "");
+      elements.push(
+        <div key={`chk-${i}`} className="knowledge-content-checklist">
+          <span
+            className={`knowledge-check-box ${checked ? "is-checked" : ""}`}
+            aria-hidden="true"
+          >
+            {checked ? "✓" : ""}
+          </span>
+          <span>{renderInlineMarkdown(text)}</span>
+        </div>,
+      );
+      i++;
+      continue;
+    }
+
+    // 7. Bullet list (-, *, +, •)
+    if (/^[-*+•]\s+/.test(trimmed)) {
+      const text = trimmed.replace(/^[-*+•]\s+/, "");
+      const indent = rawLine.match(/^\s*/)?.[0].length ?? 0;
+      elements.push(
+        <div
+          key={`bul-${i}`}
+          className={`knowledge-content-bullet ${indent >= 2 ? "is-nested" : ""}`}
+        >
+          <span className="knowledge-bullet-dot" aria-hidden="true" />
+          <span>{renderInlineMarkdown(text)}</span>
+        </div>,
+      );
+      i++;
+      continue;
+    }
+
+    // 8. Numbered list (1. or 1))
+    const numMatch = trimmed.match(/^(\d+[.)])\s+(.+)$/);
+    if (numMatch) {
+      elements.push(
+        <div key={`num-${i}`} className="knowledge-content-numbered">
+          <strong className="knowledge-number-prefix">{numMatch[1]}</strong>
+          <span>{renderInlineMarkdown(numMatch[2])}</span>
+        </div>,
+      );
+      i++;
+      continue;
+    }
+
+    // 9. Regular Paragraph with inline markdown
+    elements.push(
+      <p key={`p-${i}`} className="knowledge-content-paragraph">
+        {renderInlineMarkdown(trimmed)}
+      </p>,
+    );
+    i++;
+  }
+
+  return <div className="knowledge-formatted-content">{elements}</div>;
 }
 
 export function KnowledgePage() {
@@ -852,11 +1129,7 @@ export function KnowledgePage() {
                   >
                     <h3 className="knowledge-card-title">{post.title}</h3>
                     <p className="knowledge-card-summary">
-                      {post.summary ||
-                        post.content
-                          .replace(/[#*`>-]/g, "")
-                          .slice(0, 180)
-                          .trim()}
+                      {post.summary || stripMarkdownPreview(post.content)}
                     </p>
                   </div>
 

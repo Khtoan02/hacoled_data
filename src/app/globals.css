@@ -4305,3 +4305,110 @@ progress::-moz-progress-bar {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Markdown Tables & Rich Inline Formatting in Knowledge Hub */
+.ui-drawer:has(.knowledge-detail-drawer),
+.ui-drawer:has(.knowledge-editor-form) {
+  width: 820px;
+  max-width: 100vw;
+}
+.knowledge-inline-bold {
+  font-weight: 600;
+  color: #101828;
+}
+.knowledge-inline-code {
+  background: #f2f4f7;
+  border: 1px solid #e4e7ec;
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #b42318;
+}
+.knowledge-inline-link {
+  color: var(--red, #bd2027);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+.knowledge-inline-link:hover {
+  opacity: 0.85;
+}
+.knowledge-code-block {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #101828;
+  color: #f8fafc;
+  font-size: 12.5px;
+  line-height: 1.65;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.knowledge-blockquote {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-left: 3.5px solid var(--red, #bd2027);
+  background: #fff9f8;
+  border-radius: 0 8px 8px 0;
+  color: #344054;
+  font-size: 13.5px;
+}
+.knowledge-blockquote p {
+  margin: 4px 0;
+}
+.knowledge-hr {
+  border: 0;
+  border-top: 1px solid #e4e7ec;
+  margin: 16px 0;
+}
+.knowledge-content-bullet.is-nested {
+  padding-left: 20px;
+}
+.knowledge-content-bullet.is-nested .knowledge-bullet-dot {
+  background: transparent;
+  border: 1.5px solid var(--red, #bd2027);
+}
+.knowledge-md-table-wrap {
+  margin: 14px 0;
+  overflow-x: auto;
+  border: 1px solid #dce1ea;
+  border-radius: 10px;
+  background: white;
+}
+.knowledge-md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+}
+.knowledge-md-table th,
+.knowledge-md-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #eaecf0;
+  border-right: 1px solid #eaecf0;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.knowledge-md-table th:last-child,
+.knowledge-md-table td:last-child {
+  border-right: 0;
+}
+.knowledge-md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.knowledge-md-table thead th {
+  background: #f4f6f9;
+  color: #1d2939;
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.knowledge-md-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+.knowledge-md-table tbody tr:hover {
+  background: #fff9f5;
+}
