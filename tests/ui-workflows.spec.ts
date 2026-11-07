@@ -54,10 +54,8 @@ test("polished table, kanban, todo, team and profile share real data and preserv
     .getByLabel(/^Ghi chú công việc/)
     .fill("Kiểm tra thông điệp và bàn giao nội dung.");
   await expect(dialog.getByLabel("Độ ưu tiên công việc")).toHaveCount(0);
+  await expect(dialog.getByLabel("Thêm mục checklist")).toHaveCount(0);
   await dialog.getByLabel("Hạn hoàn thành", { exact: true }).fill("2020-01-15");
-  await dialog.getByLabel("Thêm mục checklist").fill("Kiểm tra nội dung");
-  await dialog.getByRole("button", { name: "Thêm", exact: true }).click();
-  await dialog.getByLabel("Hoàn tất Kiểm tra nội dung").check();
   await page.screenshot({
     path: ".impeccable/review/task-editor-desktop.png",
     fullPage: true,
@@ -72,7 +70,6 @@ test("polished table, kanban, todo, team and profile share real data and preserv
     (t: { title: string }) => t.title === "Hoàn thiện nội dung HacoLED",
   );
   expect(task.priority).toBe("normal");
-  expect(task.checklist[0].done).toBe(true);
   for (const data of [
     { id: task.id, priority: "invalid" },
     { id: task.id, checklist: [{ id: "bad", title: "Bad", done: true }] },
@@ -128,6 +125,17 @@ test("polished table, kanban, todo, team and profile share real data and preserv
       exact: true,
     })
     .click();
+  const reviewPanel = page.getByRole("region", {
+    name: "Đánh giá chất lượng công việc",
+  });
+  await expect(reviewPanel).toBeVisible();
+  await reviewPanel
+    .getByLabel("Soạn đánh giá / Chỉ rõ lỗi công việc đang mắc phải")
+    .fill("Thiếu CTA dẫn về hotline HacoLED và sai kích thước ảnh bìa.");
+  await reviewPanel.getByRole("button", { name: "Chưa đạt", exact: true }).click();
+  await expect(
+    reviewPanel.getByText("Đã đánh giá: CHƯA ĐẠT kèm nhận xét lỗi."),
+  ).toBeVisible();
   await page
     .getByRole("dialog")
     .getByLabel("Tên công việc", { exact: true })
@@ -141,6 +149,9 @@ test("polished table, kanban, todo, team and profile share real data and preserv
       name: "Hoàn thiện nội dung HacoLED đã sửa",
       exact: true,
     }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Thiếu CTA dẫn về hotline HacoLED và sai kích thước ảnh bìa."),
   ).toBeVisible();
   await page.getByLabel("Tìm công việc").fill("");
   await page.screenshot({

@@ -390,35 +390,6 @@ export function TaskResult({
             />
             Đã hoàn thành công việc
           </label>
-          {checklist.length > 0 && (
-            <section className="task-checklist">
-              <h4>
-                Các bước thực hiện{" "}
-                <span>
-                  {checklist.filter((c) => c.done).length}/{checklist.length}
-                </span>
-              </h4>
-              {checklist.map((item) => (
-                <label className="checklist-item" key={item.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={`Báo cáo hoàn tất ${item.title}`}
-                    checked={item.done}
-                    onChange={(e) =>
-                      setChecklist(
-                        checklist.map((c) =>
-                          c.id === item.id
-                            ? { ...c, done: e.target.checked }
-                            : c,
-                        ),
-                      )
-                    }
-                  />
-                  <span>{item.title}</span>
-                </label>
-              ))}
-            </section>
-          )}
         </fieldset>
         {task.channel_url && (
           <a
@@ -642,12 +613,6 @@ export function TaskResult({
                   <p className="history-text">
                     {entry.result_text || "Chưa ghi nội dung kết quả."}
                   </p>
-                  {entry.checklist.length > 0 && (
-                    <p className="result-hint">
-                      Checklist: {entry.checklist.filter((c) => c.done).length}/
-                      {entry.checklist.length}
-                    </p>
-                  )}
                   {entry.completed_at && (
                     <p className="result-hint">
                       Hoàn thành: {timestamp(entry.completed_at)}

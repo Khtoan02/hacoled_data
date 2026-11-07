@@ -4,6 +4,7 @@ import {ArrowDown,ArrowUp,ArrowUpDown,ArrowLeftRight,CalendarDays,CheckCircle2,C
 import {type Task,formatDate,isOverdue} from '../../lib/tasks';
 import {OUTPUT_TYPES} from '../../lib/kpis';
 import {Avatar,StatusBadge} from './ui';
+import {ReviewBadge} from './task-review';
 import {ChannelIdentity} from './channel-picker';
 import type {TaskSort} from "../../lib/task-views";
 export type CollectionProps={
@@ -19,7 +20,7 @@ function RowActions({task,props}:{task:Task;props:CollectionProps}){
 export function TaskListView(props:CollectionProps){
  return <div className="work-list" role="list" aria-label="Danh sách công việc dạng List">{props.tasks.map(t=><article role="listitem" className={`work-list-row ${props.selected.includes(t.id)?'is-selected':''}`} key={t.id}>
  <div className="work-list-marker">{props.selecting&&props.full?<TaskSelection task={t} props={props}/>:t.status==='completed'?<CheckCircle2 size={20} className="work-is-done"/>:<Circle size={20}/>}</div>
- <div className="work-list-content"><button className="work-list-title" onClick={()=>props.onOpen(t)}>{t.title}</button><div className="work-list-meta"><span>{t.channel_name||'Chưa gắn kênh'}</span><span>{OUTPUT_TYPES[t.output_type].label}</span>{t.checklist.length>0&&<span>{t.checklist.filter(c=>c.done).length}/{t.checklist.length} bước</span>}{t.evidence_links.length>0&&<span><Image size={13} aria-hidden="true"/>{t.evidence_links.length} minh chứng</span>}</div></div>
+ <div className="work-list-content"><div className="work-list-title-row"><button className="work-list-title" onClick={()=>props.onOpen(t)}>{t.title}</button><ReviewBadge task={t}/></div><div className="work-list-meta"><span>{t.channel_name||'Chưa gắn kênh'}</span><span>{OUTPUT_TYPES[t.output_type].label}</span>{t.evidence_links.length>0&&<span><Image size={13} aria-hidden="true"/>{t.evidence_links.length} minh chứng</span>}</div>{t.review_comment?.trim()&&<p className={`work-review-note ${t.review_status==='failed'?'failed':t.review_status==='passed'?'passed':''}`}><strong>Nhận xét:</strong> {t.review_comment}</p>}</div>
  <span className={`work-list-deadline ${isOverdue(t)?'overdue':''}`}><CalendarDays size={14}/>{formatDate(t.due_at)}</span>
  <span className="work-list-person" title={t.assignee_name}><Avatar name={t.assignee_name} size="small"/><span>{t.assignee_name}</span></span>
  <StatusBadge status={t.status}/><RowActions task={t} props={props}/>
@@ -31,7 +32,7 @@ export function TaskTableView(props:CollectionProps&{sort:TaskSort;onSort:(field
  {props.full&&props.selecting&&<th className="grid-selection-cell" aria-label="Chọn công việc"/>}{heading('title','Công việc')}<th className="grid-channel-cell">Kênh thực hiện</th>{heading('assignee','Người thực hiện')}{heading('deadline','Hạn hoàn thành')}<th className="grid-production-cell">Sản lượng / KPI</th>{heading('status','Trạng thái')}<th className="grid-actions-cell" aria-label="Thao tác">Thao tác</th>
  </tr></thead><tbody>{props.tasks.map(t=><tr key={t.id} className={props.selected.includes(t.id)?'is-selected':''}>
  {props.full&&props.selecting&&<td className="grid-selection-cell"><TaskSelection task={t} props={props}/></td>}
- <td className="work-table-title"><button onClick={()=>props.onOpen(t)}>{t.title}</button><small>{OUTPUT_TYPES[t.output_type].label}{t.checklist.length>0&&` · ${t.checklist.filter(c=>c.done).length}/${t.checklist.length} bước`}</small></td>
+ <td className="work-table-title"><div className="work-list-title-row"><button onClick={()=>props.onOpen(t)}>{t.title}</button><ReviewBadge task={t}/></div><small>{OUTPUT_TYPES[t.output_type].label}</small>{t.review_comment?.trim()&&<p className={`work-review-note ${t.review_status==='failed'?'failed':t.review_status==='passed'?'passed':''}`}><strong>Nhận xét:</strong> {t.review_comment}</p>}</td>
  <td className="grid-channel-cell">{t.channels?.length?<div className="work-table-channels">{t.channels.slice(0,2).map(c=><ChannelIdentity key={c.id} channel={c} compact/>)}{t.channels.length>2&&<small>+{t.channels.length-2} kênh</small>}</div>:<span className="work-muted">{t.channel_name||'Chưa gắn kênh'}</span>}</td>
  <td className="grid-person-cell"><div className="work-table-person"><Avatar name={t.assignee_name} size="small"/><span>{t.assignee_name}</span></div></td>
  <td className={`grid-deadline-cell ${isOverdue(t)?'overdue':''}`}>{formatDate(t.due_at)}</td>

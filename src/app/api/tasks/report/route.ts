@@ -1,4 +1,5 @@
 import {schedulePush} from "../../../../lib/push-delivery";
+import { ensureTaskReviewSchema } from "../../../../lib/task-review-schema";
 import { ATTACHMENT_PATH } from "../../../../lib/task-attachments";
 import { resolveDeadlineKpi } from "../../../../lib/task-kpi";
 import { outputFields } from "../../../../lib/kpi-fields";
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     checkOrigin(req);
+    await ensureTaskReviewSchema();
     const member = await getMember();
     if (!member) throw new RequestError("Vui lòng đăng nhập.", 401);
     const scope = ROLE_POLICIES[member.role].taskScope;
@@ -95,11 +97,12 @@ export async function PATCH(req: NextRequest) {
       throw new RequestError(
         "Tối đa 10 ảnh đính kèm hoặc link HTTP/HTTPS hợp lệ, mỗi link tối đa 2.048 ký tự.",
       );
+    const completedItems = b.completed_items === undefined ? [] : b.completed_items;
     if (
-      !Array.isArray(b.completed_items) ||
-      b.completed_items.length > 30 ||
-      b.completed_items.some((v: unknown) => !isId(v)) ||
-      new Set(b.completed_items).size !== b.completed_items.length
+      !Array.isArray(completedItems) ||
+      completedItems.length > 30 ||
+      completedItems.some((v: unknown) => !isId(v)) ||
+      new Set(completedItems).size !== completedItems.length
     )
       throw new RequestError("Checklist không hợp lệ.");
     if ("channel_id" in b && b.channel_id !== null && !isId(b.channel_id))
@@ -120,7 +123,7 @@ export async function PATCH(req: NextRequest) {
       production.kpi_id = await resolveDeadlineKpi({assignee_id:current[0].assignee_id,channel_id:"channel_id" in b ? b.channel_id : current[0].channel_id,output_type:production.output_type ?? current[0].output_type,due_at:current[0].due_at,existing_kpi_id:current[0].kpi_id});
     }
     const links = [...new Set<string>(b.evidence_links)],
-      done = JSON.stringify(b.completed_items);
+      done = JSON.stringify(completedItems);
     const channelJson = "channel_ids" in b ? JSON.stringify(b.channel_ids) : null;
     const rows =
       await database()`WITH input AS (SELECT ${channelJson}::jsonb AS channel_ids), updated AS (UPDATE app_tasks t SET kpi_id=CASE WHEN ${"kpi_id" in production} THEN ${production.kpi_id ?? null}::uuid ELSE t.kpi_id END,output_type=COALESCE(${production.output_type ?? null},t.output_type),delivered_quantity=COALESCE(${production.delivered_quantity ?? null}::int,CASE WHEN ${b.status}='completed' AND t.status<>'completed' AND t.delivered_quantity=0 THEN t.planned_quantity ELSE t.delivered_quantity END),
@@ -137,7 +140,7 @@ export async function PATCH(req: NextRequest) {
       linked AS (INSERT INTO app_task_channels(task_id,channel_id) SELECT u.id,x::uuid FROM updated u CROSS JOIN input i CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(i.channel_ids,'[]'::jsonb)) x ON CONFLICT DO NOTHING RETURNING task_id),
       logged AS (INSERT INTO app_task_reports (id,task_id,task_title,assignee_id,actor_id,actor_name,status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,channel_name,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on)
       SELECT ${randomUUID()},id,title,assignee_id,${member.id},${member.name},status,result_text,evidence_links,checklist,due_at,completed_at,channel_id,(SELECT name FROM app_social_channels WHERE id=updated.channel_id)  ,kpi_id,output_type,planned_quantity,delivered_quantity,delivered_on FROM updated RETURNING task_id)
-      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.kpi_id,u.output_type,u.planned_quantity,u.delivered_quantity,to_char(u.delivered_on,'YYYY-MM-DD') AS delivered_on,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform,
+      SELECT u.id,u.status,u.result_text,u.evidence_links,u.checklist,u.completed_at,u.updated_at,u.report_version,u.review_status,u.review_comment,u.reviewed_by,u.reviewer_name,u.reviewed_at,u.kpi_id,u.output_type,u.planned_quantity,u.delivered_quantity,to_char(u.delivered_on,'YYYY-MM-DD') AS delivered_on,u.channel_id,c.name AS channel_name,c.url AS channel_url,c.platform AS channel_platform,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',sc.id,'name',sc.name,'url',sc.url,'platform',sc.platform,'handle',sc.handle,'active',sc.active) ORDER BY CASE WHEN sc.id=u.channel_id THEN 0 ELSE 1 END,sc.name) FROM app_social_channels sc WHERE sc.id IN (SELECT x::uuid FROM jsonb_array_elements_text(COALESCE(${channelJson}::jsonb,(SELECT jsonb_agg(tc.channel_id) FROM app_task_channels tc WHERE tc.task_id=u.id),'[]'::jsonb)) x)),'[]'::jsonb) AS channels,
       COALESCE(${channelJson}::jsonb,(SELECT jsonb_agg(tc.channel_id ORDER BY CASE WHEN tc.channel_id=u.channel_id THEN 0 ELSE 1 END) FROM app_task_channels tc WHERE tc.task_id=u.id),'[]'::jsonb) AS channel_ids
       FROM updated u JOIN logged l ON l.task_id=u.id LEFT JOIN app_social_channels c ON c.id=u.channel_id`;

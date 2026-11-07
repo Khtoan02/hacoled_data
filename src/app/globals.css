@@ -4729,3 +4729,280 @@ progress::-moz-progress-bar {
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* ==========================================================================
+   TASK REVIEW & QUALITY EVALUATION (ĐẠT / CHƯA ĐẠT + NHẬN XÉT LỖI)
+   ========================================================================== */
+.ui-review-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.ui-review-badge.passed {
+  background: #eaf8f1;
+  color: #167b52;
+  border: 1px solid #bde5d1;
+}
+.ui-review-badge.failed {
+  background: #fff2f3;
+  color: #b4232c;
+  border: 1px solid #f7c7cb;
+}
+.ui-review-badge.commented {
+  background: #fff6de;
+  color: #98620d;
+  border: 1px solid #f3dc9f;
+}
+
+.work-list-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.work-review-note {
+  margin-top: 6px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #344054;
+  background: #f8f9fc;
+  border-left: 3px solid #98a2b3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.work-review-note.failed {
+  background: #fff6f6;
+  border-left-color: #d72638;
+  color: #7a1c24;
+}
+.work-review-note.passed {
+  background: #f2fbf6;
+  border-left-color: #167b52;
+  color: #135d3e;
+}
+.work-review-note strong {
+  font-weight: 700;
+}
+
+.quick-review-pill.fail.active {
+  background: #fff2f3 !important;
+  border-color: #d72638 !important;
+  color: #b4232c !important;
+}
+.quick-review-pill.pass.active {
+  background: #eaf8f1 !important;
+  border-color: #167b52 !important;
+  color: #167b52 !important;
+}
+
+.task-review-panel {
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.task-review-panel.is-failed {
+  background: #fff8f8;
+  border-color: #f3c1c6;
+}
+.task-review-panel.is-passed {
+  background: #f4fbf7;
+  border-color: #bfe6d2;
+}
+.task-review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.task-review-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.task-review-title-wrap svg {
+  color: var(--red);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.task-review-panel.is-passed .task-review-title-wrap svg {
+  color: #167b52;
+}
+.task-review-title-wrap h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.task-review-title-wrap p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.task-review-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.task-review-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink-soft);
+  transition: all 0.15s ease;
+}
+.task-review-choice.pass:hover {
+  border-color: #167b52;
+  color: #167b52;
+  background: #f2fbf6;
+}
+.task-review-choice.pass.active {
+  background: #167b52;
+  border-color: #167b52;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(22, 123, 82, 0.22);
+}
+.task-review-choice.fail:hover {
+  border-color: #d72638;
+  color: #b4232c;
+  background: #fff2f3;
+}
+.task-review-choice.fail.active {
+  background: #d72638;
+  border-color: #d72638;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(215, 38, 56, 0.24);
+}
+.task-review-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+.task-review-clear:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.task-review-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.task-review-field textarea {
+  width: 100%;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  resize: vertical;
+}
+.task-review-field textarea:focus {
+  outline: none;
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(215, 38, 56, 0.12);
+}
+
+.task-review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.task-review-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+}
+.task-review-save {
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.task-review-readonly-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.task-review-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.task-review-alert.failed {
+  background: #ffe8ea;
+  color: #9f1c26;
+}
+.task-review-alert.passed {
+  background: #e3f6ec;
+  color: #136843;
+}
+.task-review-comment-box {
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+.task-review-comment-box strong {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.task-review-comment-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.task-review-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+

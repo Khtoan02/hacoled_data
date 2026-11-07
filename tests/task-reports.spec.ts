@@ -176,9 +176,9 @@ test("assignees report outcomes with inline images, immutable history and scoped
     .getByRole("button", { name: "Đóng chi tiết", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page
-    .getByLabel("Báo cáo hoàn tất Đăng nội dung và kiểm tra hiển thị")
-    .check();
+  await expect(
+    page.getByLabel("Báo cáo hoàn tất Đăng nội dung và kiểm tra hiển thị"),
+  ).toHaveCount(0);
   await page.getByLabel("Đã hoàn thành công việc", { exact: true }).check();
   await page
     .getByLabel("Link ảnh minh chứng")
@@ -238,10 +238,31 @@ test("assignees report outcomes with inline images, immutable history and scoped
   ).tasks[0];
   expect(saved.status).toBe("completed");
   expect(saved.completed_at).toBeTruthy();
-  expect(saved.checklist[0].done).toBe(true);
   expect(saved.evidence_links).toEqual([
     "https://evidence.example.test/proof.png",
   ]);
+  expect(
+    (
+      await clients["report-staff"].patch("/api/tasks/review", {
+        data: { id, review_status: "passed", review_comment: "Staff tự chấm" },
+      })
+    ).status(),
+  ).toBe(403);
+  const reviewedRes = await admin.patch("/api/tasks/review", {
+    data: {
+      id,
+      review_status: "failed",
+      review_comment: "Ảnh minh chứng chưa chụp rõ logo HacoLED ở góc phải.",
+    },
+  });
+  expect(reviewedRes.status()).toBe(200);
+  const reviewedTask = (
+    await (await clients["report-staff"].get(`/api/tasks?id=${id}`)).json()
+  ).tasks[0];
+  expect(reviewedTask.review_status).toBe("failed");
+  expect(reviewedTask.review_comment).toBe(
+    "Ảnh minh chứng chưa chụp rõ logo HacoLED ở góc phải.",
+  );
   const history = (
     await (
       await clients["report-manager"].get(`/api/tasks/report?id=${id}`)

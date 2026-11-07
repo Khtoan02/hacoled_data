@@ -13,8 +13,13 @@ export const TASK_PRIORITIES = {
   high: "Cao",
   urgent: "Khẩn cấp",
 } as const;
+export const TASK_REVIEW_STATUSES = {
+  passed: "Đạt",
+  failed: "Chưa đạt",
+} as const;
 export type TaskStatus = keyof typeof TASK_STATUSES;
 export type TaskPriority = keyof typeof TASK_PRIORITIES;
+export type TaskReviewStatus = keyof typeof TASK_REVIEW_STATUSES;
 export interface ChecklistItem {
   id: string;
   title: string;
@@ -67,6 +72,11 @@ export interface Task {
   evidence_links: string[];
   completed_at: string | null;
   report_version: number;
+  review_status?: TaskReviewStatus | null;
+  review_comment?: string;
+  reviewed_by?: string | null;
+  reviewer_name?: string | null;
+  reviewed_at?: string | null;
 }
 export function isOverdue(task: Task) {
   return (

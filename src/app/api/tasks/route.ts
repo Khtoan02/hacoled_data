@@ -1,4 +1,5 @@
 import {schedulePush} from "../../../lib/push-delivery";
+import { ensureTaskReviewSchema } from "../../../lib/task-review-schema";
 import { resolveDeadlineKpi } from "../../../lib/task-kpi";
 import { outputFields, type OutputFields } from "../../../lib/kpi-fields";
 import { NextRequest, NextResponse } from "next/server";
@@ -191,6 +192,7 @@ async function validateBrief(data: Fields) {
 }
 export async function GET(req: NextRequest) {
   try {
+    await ensureTaskReviewSchema();
     const member = await getMember();
     if (!member) throw new RequestError("Vui lòng đăng nhập.", 401);
     const scope = ROLE_POLICIES[member.role].taskScope;
@@ -199,7 +201,7 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id") || null;
     if (id && !isId(id)) throw new RequestError("Mã công việc không hợp lệ.");
     const tasks =
-      await database()`SELECT t.id, t.title, t.description, t.brief, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version, t.kpi_id, t.output_type, t.planned_quantity, t.delivered_quantity, to_char(t.delivered_on,'YYYY-MM-DD') AS delivered_on, t.channel_id, c.name AS channel_name, c.url AS channel_url, c.platform AS channel_platform,
+      await database()`SELECT t.id, t.title, t.description, t.brief, t.status, t.priority, t.checklist, t.assignee_id, t.due_at, t.created_at, t.updated_at, t.result_text, t.evidence_links, t.completed_at, t.report_version, t.review_status, t.review_comment, t.reviewed_by, t.reviewer_name, t.reviewed_at, t.kpi_id, t.output_type, t.planned_quantity, t.delivered_quantity, to_char(t.delivered_on,'YYYY-MM-DD') AS delivered_on, t.channel_id, c.name AS channel_name, c.url AS channel_url, c.platform AS channel_platform,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',sc.id,'name',sc.name,'url',sc.url,'platform',sc.platform,'handle',sc.handle,'active',sc.active) ORDER BY CASE WHEN sc.id=t.channel_id THEN 0 ELSE 1 END,sc.name) FROM app_task_channels tc JOIN app_social_channels sc ON sc.id=tc.channel_id WHERE tc.task_id=t.id),'[]'::jsonb) AS channels,
       COALESCE((SELECT jsonb_agg(tc.channel_id ORDER BY CASE WHEN tc.channel_id=t.channel_id THEN 0 ELSE 1 END) FROM app_task_channels tc WHERE tc.task_id=t.id),'[]'::jsonb) AS channel_ids,
       m.name AS assignee_name, m.role AS assignee_role FROM app_tasks t JOIN app_members m ON m.id = t.assignee_id LEFT JOIN app_social_channels c ON c.id=t.channel_id

@@ -30,7 +30,6 @@ import {
   Download,
   Upload,
   Users,
-  X,
 } from "lucide-react";
 import { deadlineMonth, matchDeadlineKpi, compareTaskDeadline } from "../../lib/task-planning";
 import { TaskListView,TaskTableView } from "./task-collection-views";
@@ -74,6 +73,7 @@ import {
 } from "./channel-picker";
 import { TaskImport } from "./task-import";
 import { TaskBriefFields, TaskBriefSummary } from "./task-brief";
+import { ReviewBadge, TaskReviewPanel } from "./task-review";
 const pageSize = 10;
 type Draft = {
   kpi_id: string;
@@ -109,6 +109,7 @@ export function TasksPage() {
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"),
+    [reviewFilter, setReviewFilter] = useState("all"),
     [assigneeFilter, setAssigneeFilter] = useState(
       params.get("assignee") || "all",
     ),
@@ -138,9 +139,8 @@ export function TasksPage() {
   const [channelFilter, setChannelFilter] = useState("all");
   const [reportDirty, setReportDirty] = useState(false);
   const [detailTab, setDetailTab] = useState<"details" | "result">("details");
-  const [newItem, setNewItem] = useState("");
   const [selecting,setSelecting]=useState(false),[selected,setSelected]=useState<string[]>([]),[deleteOpen,setDeleteOpen]=useState(false);
-  useEffect(()=>{setSelected([]);setDeleteOpen(false);},[search,statusFilter,assigneeFilter,dueFilter,kpiFilter,channelFilter]);
+  useEffect(()=>{setSelected([]);setDeleteOpen(false);},[search,statusFilter,reviewFilter,assigneeFilter,dueFilter,kpiFilter,channelFilter]);
   function toggleSelected(id:string){setSelected(current=>current.includes(id)?current.filter(v=>v!==id):current.length<100?[...current,id]:current);}
   function selectBox(task:Task){return <input type="checkbox" className="task-select" aria-label={`Chọn công việc ${task.title}`} checked={selected.includes(task.id)} disabled={busy||(!selected.includes(task.id)&&selected.length>=100)} onChange={()=>toggleSelected(task.id)}/>;}
   async function bulkDelete(){
@@ -238,7 +238,6 @@ export function TasksPage() {
   }
   function open(task: Task | "new", status: TaskStatus = "pending") {
     setError("");
-    setNewItem("");
     setOpened(task);
     setDetailTab(task === "new" || full ? "details" : "result");
     setDraft(
@@ -367,17 +366,6 @@ export function TasksPage() {
       setBusy(false);
     }
   }
-  function addChecklist() {
-    if (!newItem.trim() || draft.checklist.length >= 30) return;
-    setDraft({
-      ...draft,
-      checklist: [
-        ...draft.checklist,
-        { id: crypto.randomUUID(), title: newItem.trim(), done: false },
-      ],
-    });
-    setNewItem("");
-  }
   const filtered = tasks.filter(
     (t) =>
       (kpiFilter === "all" ||
@@ -386,10 +374,14 @@ export function TasksPage() {
         (channelFilter === "none"
           ? !(t.channel_ids?.length || t.channel_id)
           : (t.channel_ids || [t.channel_id]).includes(channelFilter))) &&
-      `${t.title} ${t.description} ${t.assignee_name}`
+      `${t.title} ${t.description} ${t.assignee_name} ${t.review_comment || ""}`
         .toLocaleLowerCase("vi")
         .includes(search.toLocaleLowerCase("vi")) &&
       (statusFilter === "all" || t.status === statusFilter) &&
+      (reviewFilter === "all" ||
+        (reviewFilter === "unreviewed"
+          ? !t.review_status && !t.review_comment?.trim()
+          : t.review_status === reviewFilter)) &&
       (assigneeFilter === "all" || t.assignee_id === assigneeFilter) &&
       (dueFilter === "all" || (dueFilter === "overdue" ? isOverdue(t) : taskDeadlineGroup(t) === dueFilter)),
   ).sort(compareTaskDeadline);
@@ -440,12 +432,12 @@ export function TasksPage() {
     setKpiFilter("all");
     setChannelFilter("all");
     setStatusFilter("all");
+    setReviewFilter("all");
     setAssigneeFilter("all");
     setDueFilter("all");
     setPage(1);
   }
   function card(task: Task) {
-    const done = task.checklist.filter((item) => item.done).length;
     const taskChannels = task.channels?.length
       ? task.channels
       : channels.filter(
@@ -465,6 +457,7 @@ export function TasksPage() {
       >
         <div className="kanban-card-top">
           {full && selecting ? selectBox(task) : <span className="task-output-label">{OUTPUT_TYPES[task.output_type].label} · {task.planned_quantity} {OUTPUT_TYPES[task.output_type].unit}</span>}
+          <ReviewBadge task={task} />
           {canDelete && !selecting && <button type="button" className="icon-button danger" disabled={busy} aria-label={`Xóa công việc ${task.title}`} title="Xóa công việc" onClick={()=>void remove(task)}><Trash2 size={16}/></button>}
           {full && !selecting && (
             <GripVertical size={16} className="drag-grip" aria-hidden="true" />
@@ -485,18 +478,10 @@ export function TasksPage() {
         {task.description && (
           <p className="task-card-description">{task.description}</p>
         )}
-        {task.checklist.length > 0 && (
-          <div className="checklist-progress">
-            <span>
-              <ListChecks size={14} />
-              {done}/{task.checklist.length} mục
-            </span>
-            <progress
-              max={task.checklist.length}
-              value={done}
-              aria-label={`Checklist ${task.title}`}
-            />
-          </div>
+        {task.review_comment?.trim() && (
+          <p className={`work-review-note ${task.review_status === "failed" ? "failed" : task.review_status === "passed" ? "passed" : ""}`}>
+            <strong>Nhận xét:</strong> {task.review_comment}
+          </p>
         )}
         <div className="kanban-card-bottom">
           <div className="task-due">
@@ -619,8 +604,10 @@ export function TasksPage() {
           </select></label>}
           <button className={assigneeFilter===member.id?"active":""} aria-pressed={assigneeFilter===member.id} onClick={()=>changeFilter(setAssigneeFilter,assigneeFilter===member.id?"all":member.id)}>Việc của tôi</button>
           {[['all','Mọi thời hạn'],['overdue','Quá hạn'],['today','Hôm nay'],['week','7 ngày tới']].map(([id,label])=><button key={id} className={dueFilter===id?"active":""} aria-pressed={dueFilter===id} onClick={()=>changeFilter(setDueFilter,id)}>{label}{id==='overdue'&&` · ${tasks.filter(isOverdue).length}`}</button>)}
+          <button className={`quick-review-pill fail ${reviewFilter==='failed'?"active":""}`} aria-pressed={reviewFilter==='failed'} onClick={()=>changeFilter(setReviewFilter,reviewFilter==='failed'?'all':'failed')}>✕ Chưa đạt ({tasks.filter(t=>t.review_status==='failed').length})</button>
+          <button className={`quick-review-pill pass ${reviewFilter==='passed'?"active":""}`} aria-pressed={reviewFilter==='passed'} onClick={()=>changeFilter(setReviewFilter,reviewFilter==='passed'?'all':'passed')}>✓ Đạt ({tasks.filter(t=>t.review_status==='passed').length})</button>
         </div>
-        {(search||kpiFilter!=="all"||channelFilter!=="all"||statusFilter!=="all"||assigneeFilter!=="all"||dueFilter!=="all")&&<div className="work-filter-summary"><span>Đang lọc {filtered.length} công việc{assigneeFilter!=="all"?` · ${assignees.find(([id])=>id===assigneeFilter)?.[1]??"Nhân sự đã chọn"}`:""}</span><button type="button" onClick={resetFilters}>Bỏ lọc</button></div>}
+        {(search||kpiFilter!=="all"||channelFilter!=="all"||statusFilter!=="all"||reviewFilter!=="all"||assigneeFilter!=="all"||dueFilter!=="all")&&<div className="work-filter-summary"><span>Đang lọc {filtered.length} công việc{assigneeFilter!=="all"?` · ${assignees.find(([id])=>id===assigneeFilter)?.[1]??"Nhân sự đã chọn"}`:""}</span><button type="button" onClick={resetFilters}>Bỏ lọc</button></div>}
         {expandedFilters&&<div className="advanced-toolbar" id="task-advanced-filters">
           <select
             aria-label="Lọc KPI công việc"
@@ -660,6 +647,16 @@ export function TasksPage() {
             ))}
           </select>
 
+          <select
+            aria-label="Lọc đánh giá"
+            value={reviewFilter}
+            onChange={(e) => changeFilter(setReviewFilter, e.target.value)}
+          >
+            <option value="all">Mọi đánh giá</option>
+            <option value="failed">✕ Chưa đạt</option>
+            <option value="passed">✓ Đạt</option>
+            <option value="unreviewed">Chưa đánh giá</option>
+          </select>
 
         </div>}
         {selecting&&canDelete&&<div className="task-selection-bar">
@@ -770,9 +767,10 @@ export function TasksPage() {
                         }
                       />}
                       <button className="todo-title" onClick={() => open(t)}>
-                        {t.title}
-                        <small>{t.assignee_name} · {OUTPUT_TYPES[t.output_type].label} · {t.channel_name||"Chưa gắn kênh"}</small>
+                        <span>{t.title}</span>
+                        <small>{t.assignee_name} · {OUTPUT_TYPES[t.output_type].label} · {t.channel_name||"Chưa gắn kênh"}{t.review_comment?.trim()?` · Nhận xét: ${t.review_comment}`:""}</small>
                       </button>
+                      <ReviewBadge task={t}/>
                       <span
                         className={`todo-date ${isOverdue(t) ? "overdue" : ""}`}
                       >
@@ -832,7 +830,23 @@ export function TasksPage() {
               <Notice>{error}</Notice>
             </div>
           )}
-          {opened!=="new"&&<div className="task-detail-summary"><h3>{opened.title}</h3><div><StatusBadge status={opened.status}/><span className={isOverdue(opened)?"overdue":""}><CalendarDays size={14}/>{formatDate(opened.due_at)}</span><span>{opened.assignee_name}</span></div><p>{OUTPUT_TYPES[opened.output_type].label} · Dự kiến {opened.planned_quantity} {OUTPUT_TYPES[opened.output_type].unit} · {opened.kpi_id?"Đã liên kết KPI":"Ngoài KPI"}</p></div>}
+          {opened!=="new"&&<div className="task-detail-summary"><h3>{opened.title}</h3><div><StatusBadge status={opened.status}/><ReviewBadge task={opened}/><span className={isOverdue(opened)?"overdue":""}><CalendarDays size={14}/>{formatDate(opened.due_at)}</span><span>{opened.assignee_name}</span></div><p>{OUTPUT_TYPES[opened.output_type].label} · Dự kiến {opened.planned_quantity} {OUTPUT_TYPES[opened.output_type].unit} · {opened.kpi_id?"Đã liên kết KPI":"Ngoài KPI"}</p></div>}
+          {opened !== "new" && (
+            <TaskReviewPanel
+              task={opened}
+              canReview={full}
+              onUpdated={(patch) => {
+                setOpened((current) =>
+                  current && current !== "new" ? { ...current, ...patch } : current,
+                );
+                setTasks((current) =>
+                  current.map((t) =>
+                    t.id === opened.id ? { ...t, ...patch } : t,
+                  ),
+                );
+              }}
+            />
+          )}
           {opened !== "new" && (
             <div
               className="task-detail-tabs"
@@ -1084,77 +1098,6 @@ export function TasksPage() {
                   }
                 />
               </label>
-              <section className="task-checklist">
-                <h3>
-                  <ListChecks size={17} />
-                  Checklist
-                  <span>
-                    {draft.checklist.filter((c) => c.done).length}/
-                    {draft.checklist.length}
-                  </span>
-                </h3>
-                {draft.checklist.map((item) => (
-                  <div className="checklist-item" key={item.id}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Hoàn tất ${item.title}`}
-                      checked={item.done}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          checklist: draft.checklist.map((c) =>
-                            c.id === item.id
-                              ? { ...c, done: e.target.checked }
-                              : c,
-                          ),
-                        })
-                      }
-                    />
-                    <span className={item.done ? "checked" : ""}>
-                      {item.title}
-                    </span>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Xóa mục ${item.title}`}
-                      onClick={() =>
-                        setDraft({
-                          ...draft,
-                          checklist: draft.checklist.filter(
-                            (c) => c.id !== item.id,
-                          ),
-                        })
-                      }
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-                <div className="checklist-add">
-                  <input
-                    aria-label="Thêm mục checklist"
-                    maxLength={200}
-                    placeholder="Thêm một bước thực hiện…"
-                    value={newItem}
-                    onChange={(e) => setNewItem(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addChecklist();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={!newItem.trim() || draft.checklist.length >= 30}
-                    onClick={addChecklist}
-                  >
-                    <Plus size={16} />
-                    Thêm
-                  </button>
-                </div>
-              </section>
               <footer className="task-editor-footer">
                 {canDelete && opened !== "new" && (
                   <button
@@ -1233,22 +1176,6 @@ export function TasksPage() {
                 <dt>Ngày tạo</dt>
                 <dd>{formatDate(opened.created_at)}</dd>
               </dl>
-              <h4>Checklist</h4>
-              {opened.checklist.length ? (
-                opened.checklist.map((item) => (
-                  <div className="checklist-item" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={item.done}
-                      disabled
-                      aria-label={item.title}
-                    />
-                    <span>{item.title}</span>
-                  </div>
-                ))
-              ) : (
-                <p>Chưa có checklist.</p>
-              )}
               <p className="readonly-note">
                 <MessageSquareText size={16} />
                 Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu đây
