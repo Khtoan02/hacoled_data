@@ -21,6 +21,7 @@ import {
 import type { SocialChannel } from "../../lib/social";
 import { Notice, StatusBadge } from "./ui";
 import { ChannelMultiSelect } from "./channel-picker";
+import { TaskBriefSummary } from "./task-brief";
 function timestamp(value: string) {
   return new Date(value).toLocaleString("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -313,6 +314,18 @@ export function TaskResult({
             : "Kết quả và minh chứng do người thực hiện cập nhật."}
         </p>
       </div>
+      {(task.description?.trim() ||
+        Object.values(task.brief || {}).some((v) => v?.trim())) && (
+        <div className="task-result-brief-box">
+          <h4>Đề bài & Yêu cầu công việc</h4>
+          {task.description?.trim() && (
+            <p className="detail-description">{task.description}</p>
+          )}
+          {Object.values(task.brief || {}).some((v) => v?.trim()) && (
+            <TaskBriefSummary brief={task.brief || {}} />
+          )}
+        </div>
+      )}
       {error && <Notice>{error}</Notice>}
       {conflict && (
         <button

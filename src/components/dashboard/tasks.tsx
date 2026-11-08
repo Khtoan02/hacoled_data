@@ -910,278 +910,305 @@ export function TasksPage() {
                 }));
               }}
             />
-          ) : full || opened === "new" ? (
-            <form
-              className="account-form task-editor"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save(
-                  {
-                    ...draft,
-                    id: opened === "new" ? undefined : opened.id,
-                    kpi_id: draft.kpi_id || null,
-                    channel_ids: draft.channel_ids,
-                    due_at: draft.due_at
-                      ? new Date(`${draft.due_at}T17:00:00+07:00`).toISOString()
-                      : null,
-                  },
-                  opened === "new" ? "POST" : "PATCH",
-                  true,
-                );
-              }}
-            >
-              <label>
-                Tên công việc
-                <input
-                  required
-                  maxLength={200}
-                  value={draft.title}
-                  onChange={(e) =>
-                    setDraft({ ...draft, title: e.target.value })
-                  }
-                  placeholder="Nhập tên công việc"
-                />
-              </label>
-              <label>
-                Mô tả chung (nếu cần)
-                <textarea
-                  rows={4}
-                  maxLength={10000}
-                  value={draft.description}
-                  onChange={(e) =>
-                    setDraft({ ...draft, description: e.target.value })
-                  }
-                  placeholder="Bối cảnh hoặc mục tiêu chung của công việc…"
-                />
-              </label>
-              <section className="task-kpi-fields">
-                <h3>Liên kết KPI & khối lượng</h3>
-                <p className="result-hint" role="status">
-                  {!draft.due_at ? "Chọn hạn hoàn thành để hệ thống xác định tháng KPI."
-                    : matchedKpi ? `Đã tự gắn KPI ${monthLabel(matchedKpi.month)} · ${matchedKpi.channel_name}.`
-                    : `Chưa có KPI đang hoạt động khớp nhân sự, kênh chính và loại sản phẩm trong ${monthLabel(kpiMonth!)}. Công việc hiện nằm ngoài KPI.`}
-                </p>
-                <label>Chỉ tiêu liên quan
-                  <input aria-label="KPI liên quan" readOnly value={matchedKpi ? `${OUTPUT_TYPES[matchedKpi.output_type].label} · ${matchedKpi.channel_name} · ${monthLabel(matchedKpi.month)}` : "Không gắn KPI · công việc ngoài chỉ tiêu"} />
-                </label>
-                <div className="field-pair">
+          ) : (
+            <>
+              {opened !== "new" && (
+                <div className="task-readonly">
+                  <div className="task-readonly-section">
+                    <h4>Mô tả công việc</h4>
+                    <p className="detail-description">
+                      {opened.description || "Chưa có mô tả."}
+                    </p>
+                  </div>
+                  <div className="task-readonly-section">
+                    <h4>Yêu cầu công việc</h4>
+                    <TaskBriefSummary brief={opened.brief || {}} />
+                  </div>
+                  <dl className="task-meta-list">
+                    <dt>Khối lượng</dt>
+                    <dd>
+                      {opened.delivered_quantity}/{opened.planned_quantity}{" "}
+                      {OUTPUT_TYPES[opened.output_type].unit} ·{" "}
+                      {opened.kpi_id ? "Có gắn KPI" : "Ngoài KPI"}
+                    </dd>
+                    <dt>Kênh thực hiện</dt>
+                    <dd>
+                      {opened.channels?.length ? (
+                        <div className="task-channel-stack">
+                          {opened.channels.map((channel) => (
+                            <a
+                              key={channel.id}
+                              href={channel.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ChannelIdentity channel={channel} compact />
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        "Chưa gắn kênh"
+                      )}
+                    </dd>
+                    <dt>Người thực hiện</dt>
+                    <dd>{opened.assignee_name}</dd>
+                    <dt>Hạn hoàn thành</dt>
+                    <dd>{formatDate(opened.due_at)}</dd>
+                    <dt>Ngày tạo</dt>
+                    <dd>{formatDate(opened.created_at)}</dd>
+                  </dl>
+                  {!full && (
+                    <p className="readonly-note">
+                      <MessageSquareText size={16} />
+                      Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu
+                      đây là công việc được giao cho mình.
+                    </p>
+                  )}
+                </div>
+              )}
+              {(full || opened === "new") && (
+                <form
+                  className="account-form task-editor"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void save(
+                      {
+                        ...draft,
+                        id: opened === "new" ? undefined : opened.id,
+                        kpi_id: draft.kpi_id || null,
+                        channel_ids: draft.channel_ids,
+                        due_at: draft.due_at
+                          ? new Date(
+                              `${draft.due_at}T17:00:00+07:00`,
+                            ).toISOString()
+                          : null,
+                      },
+                      opened === "new" ? "POST" : "PATCH",
+                      true,
+                    );
+                  }}
+                >
+                  {opened !== "new" && (
+                    <div className="task-editor-section-head">
+                      <h4>Chỉnh sửa thông tin giao việc</h4>
+                      <p>Cập nhật đề bài, kênh thực hiện, yêu cầu chi tiết hoặc người phụ trách</p>
+                    </div>
+                  )}
                   <label>
-                    Loại sản phẩm
-                    <select
-                      aria-label="Loại sản phẩm công việc"
-                      value={draft.output_type}
+                    Tên công việc
+                    <input
+                      required
+                      maxLength={200}
+                      value={draft.title}
                       onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          output_type: e.target.value as OutputType,
-                        })
+                        setDraft({ ...draft, title: e.target.value })
                       }
-                    >
-                      {SELECTABLE_OUTPUT_TYPES.map(([id, v]) => (
-                        <option key={id} value={id}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Nhập tên công việc"
+                    />
                   </label>
                   <label>
-                    Khối lượng dự kiến
-                    <input
-                      aria-label="Khối lượng dự kiến"
-                      required
-                      type="number"
-                      min={1}
-                      max={100000}
-                      step={1}
-                      value={draft.planned_quantity}
+                    Mô tả chung (nếu cần)
+                    <textarea
+                      rows={4}
+                      maxLength={10000}
+                      value={draft.description}
                       onChange={(e) =>
+                        setDraft({ ...draft, description: e.target.value })
+                      }
+                      placeholder="Bối cảnh hoặc mục tiêu chung của công việc…"
+                    />
+                  </label>
+                  <section className="task-kpi-fields">
+                    <h3>Liên kết KPI & khối lượng</h3>
+                    <p className="result-hint" role="status">
+                      {!draft.due_at
+                        ? "Chọn hạn hoàn thành để hệ thống xác định tháng KPI."
+                        : matchedKpi
+                          ? `Đã tự gắn KPI ${monthLabel(matchedKpi.month)} · ${matchedKpi.channel_name}.`
+                          : `Chưa có KPI đang hoạt động khớp nhân sự, kênh chính và loại sản phẩm trong ${monthLabel(kpiMonth!)}. Công việc hiện nằm ngoài KPI.`}
+                    </p>
+                    <label>
+                      Chỉ tiêu liên quan
+                      <input
+                        aria-label="KPI liên quan"
+                        readOnly
+                        value={
+                          matchedKpi
+                            ? `${OUTPUT_TYPES[matchedKpi.output_type].label} · ${matchedKpi.channel_name} · ${monthLabel(matchedKpi.month)}`
+                            : "Không gắn KPI · công việc ngoài chỉ tiêu"
+                        }
+                      />
+                    </label>
+                    <div className="field-pair">
+                      <label>
+                        Loại sản phẩm
+                        <select
+                          aria-label="Loại sản phẩm công việc"
+                          value={draft.output_type}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              output_type: e.target.value as OutputType,
+                            })
+                          }
+                        >
+                          {SELECTABLE_OUTPUT_TYPES.map(([id, v]) => (
+                            <option key={id} value={id}>
+                              {v.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Khối lượng dự kiến
+                        <input
+                          aria-label="Khối lượng dự kiến"
+                          required
+                          type="number"
+                          min={1}
+                          max={100000}
+                          step={1}
+                          value={draft.planned_quantity}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              planned_quantity: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <p className="result-hint">
+                      Khối lượng dự kiến chưa được tính vào KPI. Sản lượng thực
+                      tế được nhập khi báo cáo kết quả.
+                    </p>
+                  </section>
+                  <label>
+                    Kênh thực hiện
+                    <ChannelMultiSelect
+                      ariaLabel="Kênh thực hiện"
+                      values={draft.channel_ids}
+                      channels={channels.filter(
+                        (c) => c.active || draft.channel_ids.includes(c.id),
+                      )}
+                      onChange={(values) =>
                         setDraft({
                           ...draft,
-                          planned_quantity: Number(e.target.value),
+                          kpi_id:
+                            draft.kpi_id &&
+                            !values.includes(
+                              kpis.find((k) => k.id === draft.kpi_id)
+                                ?.channel_id || "",
+                            )
+                              ? ""
+                              : draft.kpi_id,
+                          channel_ids: values,
                         })
                       }
                     />
                   </label>
-                </div>
-                <p className="result-hint">
-                  Khối lượng dự kiến chưa được tính vào KPI. Sản lượng thực tế
-                  được nhập khi báo cáo kết quả.
-                </p>
-              </section>
-              <label>
-                Kênh thực hiện
-                <ChannelMultiSelect
-                  ariaLabel="Kênh thực hiện"
-                  values={draft.channel_ids}
-                  channels={channels.filter(
-                    (c) => c.active || draft.channel_ids.includes(c.id),
-                  )}
-                  onChange={(values) =>
-                    setDraft({
-                      ...draft,
-                      kpi_id:
-                        draft.kpi_id &&
-                        !values.includes(
-                          kpis.find((k) => k.id === draft.kpi_id)?.channel_id ||
-                            "",
-                        )
-                          ? ""
-                          : draft.kpi_id,
-                      channel_ids: values,
-                    })
-                  }
-                />
-              </label>
-              <TaskBriefFields
-                brief={draft.brief}
-                outputType={draft.output_type}
-                selectedChannels={channels.filter((channel) =>
-                  draft.channel_ids.includes(channel.id),
-                )}
-                onChange={(brief) => setDraft({ ...draft, brief })}
-              />
-              <label>
-                Người thực hiện
-                <select
-                  required
-                  aria-label="Người thực hiện"
-                  value={draft.assignee_id}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      kpi_id: "",
-                      assignee_id: e.target.value,
-                    })
-                  }
-                >
-                  {opened !== "new" &&
-                    !members.some((m) => m.id === opened.assignee_id) && (
-                      <option value={opened.assignee_id}>
-                        {opened.assignee_name} (đã khóa)
-                      </option>
+                  <TaskBriefFields
+                    brief={draft.brief}
+                    outputType={draft.output_type}
+                    selectedChannels={channels.filter((channel) =>
+                      draft.channel_ids.includes(channel.id),
                     )}
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} · {ROLE_POLICIES[m.role].label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="field-pair">
-                <label>
-                  Trạng thái
-                  <select
-                    aria-label="Trạng thái công việc"
-                    value={draft.status}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        status: e.target.value as TaskStatus,
-                      })
-                    }
-                  >
-                    {Object.entries(TASK_STATUSES).map(([k, v]) => (
-                      <option value={k} key={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label>
-                Hạn hoàn thành
-                <input
-                  type="date"
-                  value={draft.due_at}
-                  onChange={(e) =>
-                    setDraft({ ...draft, due_at: e.target.value })
-                  }
-                />
-              </label>
-              <footer className="task-editor-footer">
-                {canDelete && opened !== "new" && (
-                  <button
-                    className="icon-button danger"
-                    type="button"
-                    aria-label="Xóa công việc"
-                    disabled={busy}
-                    onClick={() => void remove(opened)}
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => setOpened(null)}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="primary-button"
-                  disabled={busy || loading}
-                >
-                  <Check size={16} />
-                  {busy
-                    ? "Đang lưu…"
-                    : opened === "new"
-                      ? "Giao công việc"
-                      : "Lưu thay đổi"}
-                </button>
-              </footer>
-            </form>
-          ) : (
-            <div className="task-readonly">
-              <div className="task-detail-badges">
-                <StatusBadge status={opened.status} />
-              </div>
-              <h3>{opened.title}</h3>
-              <p className="detail-description">
-                {opened.description || "Chưa có mô tả."}
-              </p>
-              <h4>Yêu cầu công việc</h4>
-              <TaskBriefSummary brief={opened.brief || {}} />
-              <dl>
-                <dt>Khối lượng</dt>
-                <dd>
-                  {opened.delivered_quantity}/{opened.planned_quantity}{" "}
-                  {OUTPUT_TYPES[opened.output_type].unit} ·{" "}
-                  {opened.kpi_id ? "Có gắn KPI" : "Ngoài KPI"}
-                </dd>
-                <dt>Kênh thực hiện</dt>
-                <dd>
-                  {opened.channels?.length ? (
-                    <div className="task-channel-stack">
-                      {opened.channels.map((channel) => (
-                        <a
-                          key={channel.id}
-                          href={channel.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <ChannelIdentity channel={channel} compact />
-                        </a>
+                    onChange={(brief) => setDraft({ ...draft, brief })}
+                  />
+                  <label>
+                    Người thực hiện
+                    <select
+                      required
+                      aria-label="Người thực hiện"
+                      value={draft.assignee_id}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          kpi_id: "",
+                          assignee_id: e.target.value,
+                        })
+                      }
+                    >
+                      {opened !== "new" &&
+                        !members.some((m) => m.id === opened.assignee_id) && (
+                          <option value={opened.assignee_id}>
+                            {opened.assignee_name} (đã khóa)
+                          </option>
+                        )}
+                      {members.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} · {ROLE_POLICIES[m.role].label}
+                        </option>
                       ))}
-                    </div>
-                  ) : (
-                    "Chưa gắn kênh"
-                  )}
-                </dd>
-                <dt>Người thực hiện</dt>
-                <dd>{opened.assignee_name}</dd>
-                <dt>Hạn hoàn thành</dt>
-                <dd>{formatDate(opened.due_at)}</dd>
-                <dt>Ngày tạo</dt>
-                <dd>{formatDate(opened.created_at)}</dd>
-              </dl>
-              <p className="readonly-note">
-                <MessageSquareText size={16} />
-                Bạn có thể báo cáo kết quả trong mục Kết quả & tiến độ nếu đây
-                là công việc được giao cho mình.
-              </p>
-            </div>
+                    </select>
+                  </label>
+                  <div className="field-pair">
+                    <label>
+                      Trạng thái
+                      <select
+                        aria-label="Trạng thái công việc"
+                        value={draft.status}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            status: e.target.value as TaskStatus,
+                          })
+                        }
+                      >
+                        {Object.entries(TASK_STATUSES).map(([k, v]) => (
+                          <option value={k} key={k}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Hạn hoàn thành
+                    <input
+                      type="date"
+                      value={draft.due_at}
+                      onChange={(e) =>
+                        setDraft({ ...draft, due_at: e.target.value })
+                      }
+                    />
+                  </label>
+                  <footer className="task-editor-footer">
+                    {canDelete && opened !== "new" && (
+                      <button
+                        className="icon-button danger"
+                        type="button"
+                        aria-label="Xóa công việc"
+                        disabled={busy}
+                        onClick={() => void remove(opened)}
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={busy}
+                      onClick={() => setOpened(null)}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={busy || loading}
+                    >
+                      <Check size={16} />
+                      {busy
+                        ? "Đang lưu…"
+                        : opened === "new"
+                          ? "Giao công việc"
+                          : "Lưu thay đổi"}
+                    </button>
+                  </footer>
+                </form>
+              )}
+            </>
           )}
         </Drawer>
       )}
