@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { NotificationBell } from "./notifications";
+import { CommandPalette } from "./command-palette";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -245,9 +246,20 @@ export function DashboardShell({
   const pathname = usePathname(),
     router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""),
+    [cmdOpen, setCmdOpen] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   useEffect(() => {
     try {
       setCollapsed(
@@ -425,6 +437,15 @@ export function DashboardShell({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <button
+              type="button"
+              className="cmd-trigger-pill"
+              title="Mở hộp lệnh nhanh (⌘K / Ctrl+K)"
+              aria-label="Mở hộp lệnh nhanh"
+              onClick={() => setCmdOpen(true)}
+            >
+              ⌘K
+            </button>
             {search && (
               <div className="search-results">
                 {searchResults.length ? (
@@ -529,6 +550,12 @@ export function DashboardShell({
           </footer>
         </main>
       </div>
+      <CommandPalette
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        navItems={visibleItems}
+        onNavigate={go}
+      />
     </div>
   );
 }

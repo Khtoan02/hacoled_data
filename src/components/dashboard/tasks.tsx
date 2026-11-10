@@ -53,6 +53,7 @@ import {
   type Task,
   type TaskStatus,
   type TaskPriority,
+  type TaskReviewStatus,
   type ChecklistItem,
   type TaskBrief,
 } from "../../lib/tasks";
@@ -344,6 +345,44 @@ export function TasksPage() {
     }catch(e){setTasks(current=>current.map(t=>t.id===task.id?task:t));setError(e instanceof Error?e.message:"Chưa cập nhật được tiến độ. Hãy tải lại danh sách.");}
     finally{setBusy(false);}
   }
+  async function quickReview(task: Task, review_status: TaskReviewStatus | null) {
+    if (!full) return;
+    const prev = task.review_status ?? null;
+    setTasks((current) =>
+      current.map((t) => (t.id === task.id ? { ...t, review_status } : t)),
+    );
+    try {
+      const r = await fetch("/api/tasks/review", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: task.id,
+          review_status,
+          review_comment: task.review_comment ?? "",
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Chưa lưu được đánh giá.");
+      setTasks((current) =>
+        current.map((t) => (t.id === task.id ? { ...t, ...d.task } : t)),
+      );
+      setOpened((cur) =>
+        cur && cur !== "new" && cur.id === task.id ? { ...cur, ...d.task } : cur,
+      );
+      setNotice(
+        review_status === "passed"
+          ? `Đã chấm ĐẠT: “${task.title}”.`
+          : review_status === "failed"
+          ? `Đã chấm CHƯA ĐẠT: “${task.title}”.`
+          : `Đã bỏ đánh giá: “${task.title}”.`,
+      );
+    } catch (e) {
+      setTasks((current) =>
+        current.map((t) => (t.id === task.id ? { ...t, review_status: prev } : t)),
+      );
+      setError(e instanceof Error ? e.message : "Chưa lưu được đánh giá.");
+    }
+  }
   async function remove(task: Task) {
     if (
       !window.confirm(
@@ -498,7 +537,7 @@ export function TasksPage() {
       </article>
     );
   }
-  const collectionProps={tasks:visible,full,canDelete,memberId:member.id,busy,selecting,selected,onSelect:toggleSelected,onOpen:(task:Task)=>open(task),onResult:(task:Task)=>{open(task);setDetailTab("result");},onDelete:(task:Task)=>void remove(task)};
+  const collectionProps={tasks:visible,full,canDelete,memberId:member.id,busy,selecting,selected,onSelect:toggleSelected,onOpen:(task:Task)=>open(task),onResult:(task:Task)=>{open(task);setDetailTab("result");},onDelete:(task:Task)=>void remove(task),onQuickReview:(task:Task,status:TaskReviewStatus|null)=>void quickReview(task,status)};
   return (
     <DashboardShell
       title="Công việc"

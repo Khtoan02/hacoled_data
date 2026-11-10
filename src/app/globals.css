@@ -5086,3 +5086,315 @@ progress::-moz-progress-bar {
   font-style: italic;
 }
 
+/* ==========================================================================
+   TWENTY CRM / MODERN WORKSPACE PATTERNS (COMMAND PALETTE, INLINE ACTIONS,
+   TABLE FOOTER AGGREGATIONS, COMPACT VIEWBAR & PROPERTY GRID DRAWER)
+   ========================================================================== */
+
+/* 1. Topbar Search ⌘K Trigger Pill & Global Command Palette */
+.cmd-trigger-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: #f2f4f7;
+  border: 1px solid #d0d5dd;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.cmd-trigger-pill:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: #fff0f0;
+}
+
+.cmd-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  background: rgba(16, 24, 40, 0.42);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 24px;
+}
+.cmd-palette-modal {
+  width: 620px;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.24);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.cmd-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fcfcfd;
+}
+.cmd-palette-search > svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.cmd-palette-search input {
+  flex: 1;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 14px;
+  color: var(--ink);
+  min-height: 28px;
+  padding: 0;
+}
+.cmd-kbd {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f2f4f7;
+  border: 1px solid #d0d5dd;
+  color: #667085;
+}
+.cmd-palette-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.cmd-palette-group {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #667085;
+  padding: 8px 10px 4px;
+}
+.cmd-palette-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  transition: background 0.1s ease;
+}
+.cmd-palette-item.is-active,
+.cmd-palette-item:hover {
+  background: #fff4f2;
+}
+.cmd-palette-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #f2f4f7;
+  color: #344054;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cmd-palette-item.is-active .cmd-palette-item-icon {
+  background: #ffe4e6;
+  color: var(--red);
+}
+.cmd-palette-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cmd-palette-item-body strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-palette-item-body small {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-palette-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: #f2f4f7;
+  color: #475467;
+  flex-shrink: 0;
+}
+.cmd-palette-badge.passed {
+  background: #eaf8f1;
+  color: #167b52;
+}
+.cmd-palette-badge.failed {
+  background: #fff2f3;
+  color: #b4232c;
+}
+.cmd-palette-arrow {
+  color: #98a2b3;
+  flex-shrink: 0;
+}
+.cmd-palette-item.is-active .cmd-palette-arrow {
+  color: var(--red);
+}
+.cmd-palette-empty {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.cmd-palette-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 16px;
+  background: #f9fafb;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: #667085;
+}
+.cmd-palette-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cmd-palette-footer kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  font-size: 10px;
+}
+
+/* 2. Inline Row Quick Review & Table Footer Aggregation (Twenty Grid Style) */
+.inline-review-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+  padding-right: 4px;
+  border-right: 1px solid var(--line);
+}
+.inline-review-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #e4e7ec;
+  background: #ffffff;
+  color: #667085;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+.inline-review-btn.pass:hover {
+  border-color: #167b52;
+  color: #167b52;
+  background: #eaf8f1;
+}
+.inline-review-btn.pass.active {
+  background: #167b52;
+  border-color: #167b52;
+  color: #ffffff;
+}
+.inline-review-btn.fail:hover {
+  border-color: #d72638;
+  color: #b4232c;
+  background: #fff2f3;
+}
+.inline-review-btn.fail.active {
+  background: #d72638;
+  border-color: #d72638;
+  color: #ffffff;
+}
+.work-table-review-inline {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.work-table-tfoot tr {
+  background: #f8fafc !important;
+}
+.work-table-tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #f8fafc;
+  border-top: 1.5px solid #d0d5dd !important;
+  border-bottom: 0 !important;
+  padding: 10px 16px !important;
+  font-size: 11.5px;
+  color: #475467;
+  font-variant-numeric: tabular-nums;
+}
+.work-table-tfoot td.work-table-title {
+  z-index: 4;
+  background: #f8fafc;
+}
+.work-table-tfoot strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+.tfoot-review-summary {
+  font-weight: 600;
+  font-size: 11px;
+  color: #344054;
+}
+
+/* 3. Twenty-Style Property Grid in Task Drawer */
+@media (min-width: 768px) {
+  .ui-drawer {
+    width: 620px;
+  }
+}
+.task-readonly dl.task-meta-list {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 0;
+  padding: 6px 0;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.task-readonly dl.task-meta-list dt,
+.task-readonly dl.task-meta-list dd {
+  padding: 9px 6px;
+  border-bottom: 1px solid #f2f4f7;
+  display: flex;
+  align-items: center;
+}
+.task-readonly dl.task-meta-list dt:last-of-type,
+.task-readonly dl.task-meta-list dd:last-of-type {
+  border-bottom: 0;
+}
+.task-readonly dl.task-meta-list dd {
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+

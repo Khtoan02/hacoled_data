@@ -299,7 +299,22 @@ Mọi bảng dữ liệu, danh sách hoặc biểu mẫu đều nằm trong `.ui
 
 ---
 
-## 8. Prompt Mẫu để Dựng Giao diện Tool Mới Đồng bộ với HacoLED
+## 8. Tiêu chuẩn Trình quản lý Hiện đại (Lấy cảm hứng từ Twenty CRM / Linear)
+
+1. **Hộp lệnh Tìm kiếm & Thao tác nhanh Toàn cục (`⌘K` / `Ctrl+K` Command Palette):**
+   - Tích hợp nút kích hoạt `⌘K` (`.cmd-trigger-pill`) ngay trong thanh tìm kiếm Topbar và lắng nghe phím tắt `Cmd+K` / `Ctrl+K` trên toàn ứng dụng.
+   - Cho phép nhảy nhanh tới bất kỳ công việc, tài liệu quy trình/thông báo, phân hệ chức năng hoặc chạy thao tác nhanh (*Tạo công việc mới*, *Mở Table View*, *Mở Kanban*) bằng phím mũi tên `↑` `↓` và `Enter`.
+2. **Thao tác Nhanh Trực tiếp trên Dòng & Tổng kết Chân bảng (Inline Row Actions & Table Footer Aggregation):**
+   - Trong chế độ Bảng (`Table`) và Danh sách (`List`), tích hợp cụm nút chấm điểm nhanh **✓ Đạt / ✕ Chưa đạt** (`.inline-review-group`) ngay trên từng dòng để Leader đánh giá chỉ với 1 cú click mà không cần mở Drawer.
+   - Chân bảng dữ liệu (`tfoot.work-table-tfoot`) luôn cố định (`sticky bottom`) hiển thị các chỉ số tổng hợp trực tiếp: *Tổng số công việc*, *Số việc gắn kênh*, *Số nhân sự*, *Số việc quá hạn*, *Tổng sản lượng thực tế / kế hoạch*, *% Hoàn thành*, và *Tổng kết ✓ Đạt / ✕ Chưa đạt*.
+3. **Drawer Chi tiết Đồng bộ & Bảng Thuộc tính 2 Cột (Unified Brief & Property Grid):**
+   - Khung Drawer rộng `620px` trên Desktop.
+   - Phần **Đề bài & Yêu cầu công việc** (`.task-brief-summary`) trình bày dạng thẻ dọc rộng 100% chiều ngang (`flex-direction: column`), căn trái toàn bộ tiêu đề và nội dung, đồng nhất giữa góc nhìn của Leader và Nhân viên.
+   - Phần thông tin phân công (`.task-meta-list`) trình bày theo chuẩn **Property Grid 2 cột** (`grid-template-columns: 150px 1fr`, viền ngang mảnh `#f2f4f7`).
+
+---
+
+## 9. Prompt Mẫu để Dựng Giao diện Tool Mới Đồng bộ với HacoLED
 
 Khi bạn tạo một dự án hoặc yêu cầu AI code một Tool mới cho HacoLED, bạn chỉ cần đính kèm file `DESIGN_SYSTEM.md` này hoặc dán đoạn Prompt sau:
 
